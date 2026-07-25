@@ -7,8 +7,8 @@ App({
     /** 本地调试后端 */
     apiBase: "https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com",
     /**
-     * 云托管：true 走 callContainer；false 强制 wx.request + apiBase
-     * 开发者工具可先 false + 关域名校验；体验版/真机建议 true
+     * 云托管：true 优先 callContainer，失败自动回退 HTTPS(apiBase)
+     * false 则始终 wx.request + apiBase（开发者工具可关域名校验）
      */
     useCloud: true,
     cloudEnv: "prod-d3gbci34xbe09e370",
