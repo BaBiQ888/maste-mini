@@ -22,8 +22,9 @@ const dbOpts = resolveDbOptionsFromEnv(sqliteFallback);
 
 if (dbOpts.driver !== "mysql") {
   console.warn(
-    "[math-mini] WARNING: MYSQL_HOST not set — using SQLite inside container. " +
-      "Cloud MySQL tables will stay empty. Set MYSQL_HOST/MYSQL_DATABASE=math_mini etc.",
+    "[math-mini] WARNING: MySQL env not found — using SQLite. " +
+      "Set MYSQL_ADDRESS+MYSQL_USERNAME+MYSQL_PASSWORD+MYSQL_DATABASE " +
+      "(WeChat Cloud) or MYSQL_HOST+MYSQL_USER (local).",
   );
 }
 

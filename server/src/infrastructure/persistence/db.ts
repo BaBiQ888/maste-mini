@@ -63,14 +63,31 @@ export function resolveDbOptionsFromEnv(
     };
   }
 
-  const host = process.env.MYSQL_HOST;
+  /**
+   * WeChat Cloud Hosting injects:
+   *   MYSQL_ADDRESS=host:port  MYSQL_USERNAME  MYSQL_PASSWORD  MYSQL_DATABASE
+   * Local / docs use:
+   *   MYSQL_HOST  MYSQL_PORT  MYSQL_USER  MYSQL_PASSWORD  MYSQL_DATABASE
+   */
+  const address = process.env.MYSQL_ADDRESS || "";
+  let host = process.env.MYSQL_HOST || "";
+  let port = Number(process.env.MYSQL_PORT || 3306);
+  if (!host && address) {
+    const [h, p] = address.split(":");
+    host = h || "";
+    if (p) port = Number(p) || 3306;
+  }
+
   if (host) {
     return {
       driver: "mysql",
       mysql: {
         host,
-        port: Number(process.env.MYSQL_PORT || 3306),
-        user: process.env.MYSQL_USER || "root",
+        port,
+        user:
+          process.env.MYSQL_USER ||
+          process.env.MYSQL_USERNAME ||
+          "root",
         password: process.env.MYSQL_PASSWORD || "",
         database: process.env.MYSQL_DATABASE || "math_mini",
       },
