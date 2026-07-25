@@ -124,18 +124,31 @@ export function resolveDbOptionsFromEnv(
   };
 }
 
-function sync<T>(promise: Promise<T>): T {
+/** Sync bridge for mysql2 promises. Always has a wall-clock timeout (avoids infinite hang). */
+function sync<T>(promise: Promise<T>, timeoutMs = 20_000): T {
   let done = false;
   let result: T | undefined;
   let error: unknown;
+  const timer = setTimeout(() => {
+    if (!done) {
+      done = true;
+      error = new Error(`MySQL operation timed out after ${timeoutMs}ms`);
+    }
+  }, timeoutMs);
   promise.then(
     (r) => {
-      result = r;
-      done = true;
+      if (!done) {
+        result = r;
+        done = true;
+      }
+      clearTimeout(timer);
     },
     (e) => {
-      error = e;
-      done = true;
+      if (!done) {
+        error = e;
+        done = true;
+      }
+      clearTimeout(timer);
     },
   );
   deasync.loopWhile(() => !done);
@@ -195,6 +208,9 @@ type Stmt = {
 };
 
 function openMysqlAsSqliteCompat(cfg: MysqlConfig): AppDb {
+  console.log(
+    `[math-mini] mysql pool → ${cfg.host}:${cfg.port}/${cfg.database} user=${cfg.user}`,
+  );
   const pool: Pool = mysql.createPool({
     host: cfg.host,
     port: cfg.port,
@@ -202,13 +218,21 @@ function openMysqlAsSqliteCompat(cfg: MysqlConfig): AppDb {
     password: cfg.password,
     database: cfg.database,
     waitForConnections: true,
-    connectTimeout: 15_000,
-    connectionLimit: 10,
+    connectTimeout: 10_000,
+    connectionLimit: 5,
     decimalNumbers: true,
+    enableKeepAlive: true,
   });
 
-  // Fail fast
-  sync(pool.query("SELECT 1"));
+  // Fail fast (bounded)
+  try {
+    sync(pool.query("SELECT 1 AS ok"), 12_000);
+    console.log("[math-mini] mysql SELECT 1 ok");
+  } catch (e) {
+    console.error("[math-mini] mysql SELECT 1 failed", e);
+    void pool.end().catch(() => {});
+    throw e;
+  }
 
   let txConn: import("mysql2/promise").PoolConnection | null = null;
 
