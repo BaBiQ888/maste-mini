@@ -1,0 +1,20 @@
+<view class="page">
+  <view class="intro muted">选好后进入对应工作台。身份选定后不可更改。</view>
+
+  <view class="role-card {{role === 'teacher' ? 'on' : ''}}" bindtap="pickTeacher">
+    <view class="badge">授课老师</view>
+    <view class="title">我是老师</view>
+    <view class="desc">建班、布置练习、看完成情况</view>
+  </view>
+
+  <view class="role-card {{role === 'student' ? 'on' : ''}}" bindtap="pickStudent">
+    <view class="badge faint-badge">学生</view>
+    <view class="title">我是学生</view>
+    <view class="desc">每日计算、知识点打卡、交作业</view>
+  </view>
+
+  <view class="spacer"></view>
+  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="onConfirm">
+    进入算本
+  </button>
+</view>

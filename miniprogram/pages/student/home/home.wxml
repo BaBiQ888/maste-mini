@@ -1,0 +1,54 @@
+<view class="page">
+  <view class="greet-row">
+    <view class="greet">今日任务</view>
+    <view class="badge-lg" wx:if="{{incompleteCount}}">{{incompleteCount}} 项未完成</view>
+  </view>
+  <view class="sub muted">打开就算清楚今天练什么</view>
+
+  <view class="label muted">待完成 / 进行中</view>
+
+  <view wx:if="{{!loading && !classes.length}}" class="empty-box lined">
+    <view class="title">还没有加入班级</view>
+    <view class="desc">请先向老师索取邀请码并加入班级</view>
+    <button class="btn btn-primary mt" bindtap="goJoin">输入邀请码加入</button>
+  </view>
+
+  <block wx:elif="{{!loading && tasks.length}}">
+    <view
+      class="card task"
+      wx:for="{{tasks}}"
+      wx:key="id"
+      bindtap="goTask"
+      data-id="{{item.id}}"
+      data-type="{{item.type}}"
+    >
+      <view class="t-row">
+        <view class="t-title-wrap">
+          <view class="done-box {{item.done ? 'on' : ''}}"></view>
+          <view class="dot" wx:if="{{item.needDot}}"></view>
+          <view class="t-title">{{item.title}}</view>
+        </view>
+        <view class="t-st">{{item.statusLabel}}</view>
+      </view>
+      <view class="t-meta muted">{{item.className}} · {{item.type === 'photo_homework' ? '拍照' : (item.type === 'knowledge_checkin' ? '打卡' : '计算')}}{{item.knowledgeHint || ''}}</view>
+    </view>
+  </block>
+
+  <view wx:elif="{{!loading}}" class="empty-box lined">
+    <view class="title">今日暂无任务</view>
+    <view class="desc">已加入 {{classes.length}} 个班级 · 老师布置后会出现在这里</view>
+  </view>
+
+  <view class="tabbar">
+    <view class="tab on">
+      <view class="ico-wrap">
+        <view class="ico"></view>
+        <view class="badge" wx:if="{{incompleteCount}}">{{incompleteCount > 99 ? '99+' : incompleteCount}}</view>
+      </view>
+      <text>今日</text>
+    </view>
+    <view class="tab" bindtap="goCalendar"><view class="ico"></view><text>日历</text></view>
+    <view class="tab" bindtap="goClasses"><view class="ico"></view><text>班级</text></view>
+    <view class="tab" bindtap="goProfile"><view class="ico"></view><text>我的</text></view>
+  </view>
+</view>

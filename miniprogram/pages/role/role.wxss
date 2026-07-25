@@ -1,0 +1,53 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx 40rpx 48rpx;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.intro {
+  margin-bottom: 28rpx;
+  line-height: 1.5;
+}
+
+.role-card {
+  background: var(--white);
+  border: 1rpx solid var(--line);
+  border-radius: 24rpx;
+  padding: 36rpx 32rpx;
+  margin-bottom: 24rpx;
+}
+
+.role-card.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1rpx var(--accent);
+}
+
+.badge {
+  font-size: 22rpx;
+  color: var(--accent);
+  margin-bottom: 10rpx;
+  letter-spacing: 0.04em;
+}
+
+.faint-badge {
+  color: var(--ink-faint);
+}
+
+.title {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+
+.desc {
+  font-size: 26rpx;
+  color: var(--ink-muted);
+}
+
+.spacer {
+  flex: 1;
+  min-height: 40rpx;
+}

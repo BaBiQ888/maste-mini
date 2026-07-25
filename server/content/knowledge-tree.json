@@ -1,0 +1,163 @@
+{
+  "version": "1.0.0",
+  "locale": "zh-CN",
+  "description": "3–6 年级简化知识树：年级 → 单元 → 知识点。不绑定具体教材版本。",
+  "nodeTypes": ["grade", "unit", "knowledge"],
+  "nodes": [
+    { "id": "g3", "type": "grade", "grade": 3, "name": "三年级", "parentId": null, "sort": 3, "enabled": true },
+    { "id": "g4", "type": "grade", "grade": 4, "name": "四年级", "parentId": null, "sort": 4, "enabled": true },
+    { "id": "g5", "type": "grade", "grade": 5, "name": "五年级", "parentId": null, "sort": 5, "enabled": true },
+    { "id": "g6", "type": "grade", "grade": 6, "name": "六年级", "parentId": null, "sort": 6, "enabled": true },
+
+    { "id": "g3-u-addsub", "type": "unit", "grade": 3, "name": "万以内加减法", "parentId": "g3", "sort": 1, "enabled": true },
+    { "id": "g3-u-mul", "type": "unit", "grade": 3, "name": "乘法", "parentId": "g3", "sort": 2, "enabled": true },
+    { "id": "g3-u-div", "type": "unit", "grade": 3, "name": "除法", "parentId": "g3", "sort": 3, "enabled": true },
+    { "id": "g3-u-frac", "type": "unit", "grade": 3, "name": "分数的初步认识", "parentId": "g3", "sort": 4, "enabled": true },
+    { "id": "g3-u-measure", "type": "unit", "grade": 3, "name": "测量与时间", "parentId": "g3", "sort": 5, "enabled": true },
+    { "id": "g3-u-shape", "type": "unit", "grade": 3, "name": "图形与周长", "parentId": "g3", "sort": 6, "enabled": true },
+    { "id": "g3-u-word", "type": "unit", "grade": 3, "name": "简单应用题", "parentId": "g3", "sort": 7, "enabled": true },
+
+    { "id": "g3-u-addsub-k-add2", "type": "knowledge", "grade": 3, "name": "两位数加法", "parentId": "g3-u-addsub", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_add_2d"] },
+    { "id": "g3-u-addsub-k-sub2", "type": "knowledge", "grade": 3, "name": "两位数减法", "parentId": "g3-u-addsub", "sort": 2, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_sub_2d"] },
+    { "id": "g3-u-addsub-k-add10000", "type": "knowledge", "grade": 3, "name": "万以内加法", "parentId": "g3-u-addsub", "sort": 3, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_add_within_10000"] },
+    { "id": "g3-u-addsub-k-sub10000", "type": "knowledge", "grade": 3, "name": "万以内减法", "parentId": "g3-u-addsub", "sort": 4, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_sub_within_10000"] },
+    { "id": "g3-u-addsub-k-estimate", "type": "knowledge", "grade": 3, "name": "估算加减", "parentId": "g3-u-addsub", "sort": 5, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+
+    { "id": "g3-u-mul-k-table", "type": "knowledge", "grade": 3, "name": "表内乘法口诀", "parentId": "g3-u-mul", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_mul_table"] },
+    { "id": "g3-u-mul-k-1d2d", "type": "knowledge", "grade": 3, "name": "一位数乘两位数", "parentId": "g3-u-mul", "sort": 2, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_mul_1d_2d"] },
+    { "id": "g3-u-mul-k-1d3d", "type": "knowledge", "grade": 3, "name": "一位数乘三位数", "parentId": "g3-u-mul", "sort": 3, "enabled": true, "tags": ["calc"], "suggestedDrillOps": ["int_mul_1d_2d"] },
+
+    { "id": "g3-u-div-k-table", "type": "knowledge", "grade": 3, "name": "表内除法", "parentId": "g3-u-div", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_div_table"] },
+    { "id": "g3-u-div-k-1d", "type": "knowledge", "grade": 3, "name": "一位数除法（整除）", "parentId": "g3-u-div", "sort": 2, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_div_1d_exact"] },
+    { "id": "g3-u-div-k-remainder", "type": "knowledge", "grade": 3, "name": "有余数的除法", "parentId": "g3-u-div", "sort": 3, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_div_1d_remainder"] },
+
+    { "id": "g3-u-frac-k-meaning", "type": "knowledge", "grade": 3, "name": "分数的意义（几分之一/几）", "parentId": "g3-u-frac", "sort": 1, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g3-u-frac-k-compare", "type": "knowledge", "grade": 3, "name": "简单分数大小比较", "parentId": "g3-u-frac", "sort": 2, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g3-u-frac-k-add", "type": "knowledge", "grade": 3, "name": "同分母分数加法（初步）", "parentId": "g3-u-frac", "sort": 3, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["frac_same_den_add"] },
+    { "id": "g3-u-frac-k-sub", "type": "knowledge", "grade": 3, "name": "同分母分数减法（初步）", "parentId": "g3-u-frac", "sort": 4, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["frac_same_den_sub"] },
+
+    { "id": "g3-u-measure-k-length", "type": "knowledge", "grade": 3, "name": "长度单位（mm/cm/m）", "parentId": "g3-u-measure", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["unit_length_mm_cm_m"] },
+    { "id": "g3-u-measure-k-time", "type": "knowledge", "grade": 3, "name": "时分秒与时间计算", "parentId": "g3-u-measure", "sort": 2, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["unit_time_h_min_s"] },
+    { "id": "g3-u-measure-k-mass", "type": "knowledge", "grade": 3, "name": "质量单位（g/kg）", "parentId": "g3-u-measure", "sort": 3, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+
+    { "id": "g3-u-shape-k-perimeter", "type": "knowledge", "grade": 3, "name": "长方形与正方形周长", "parentId": "g3-u-shape", "sort": 1, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+    { "id": "g3-u-shape-k-quad", "type": "knowledge", "grade": 3, "name": "四边形的认识", "parentId": "g3-u-shape", "sort": 2, "enabled": true, "tags": ["geometry", "concept"], "suggestedDrillOps": [] },
+
+    { "id": "g3-u-word-k-two-step", "type": "knowledge", "grade": 3, "name": "两步计算应用题", "parentId": "g3-u-word", "sort": 1, "enabled": true, "tags": ["word"], "suggestedDrillOps": [] },
+    { "id": "g3-u-word-k-muldiv", "type": "knowledge", "grade": 3, "name": "乘除法实际问题", "parentId": "g3-u-word", "sort": 2, "enabled": true, "tags": ["word"], "suggestedDrillOps": [] },
+
+    { "id": "g4-u-int", "type": "unit", "grade": 4, "name": "大数与整数加减", "parentId": "g4", "sort": 1, "enabled": true },
+    { "id": "g4-u-muldiv", "type": "unit", "grade": 4, "name": "三位数乘除与两位数除法", "parentId": "g4", "sort": 2, "enabled": true },
+    { "id": "g4-u-dec", "type": "unit", "grade": 4, "name": "小数的意义与加减", "parentId": "g4", "sort": 3, "enabled": true },
+    { "id": "g4-u-mixed", "type": "unit", "grade": 4, "name": "运算律与混合运算", "parentId": "g4", "sort": 4, "enabled": true },
+    { "id": "g4-u-area", "type": "unit", "grade": 4, "name": "面积", "parentId": "g4", "sort": 5, "enabled": true },
+    { "id": "g4-u-angle", "type": "unit", "grade": 4, "name": "角与三角形", "parentId": "g4", "sort": 6, "enabled": true },
+    { "id": "g4-u-measure", "type": "unit", "grade": 4, "name": "单位与估算", "parentId": "g4", "sort": 7, "enabled": true },
+    { "id": "g4-u-word", "type": "unit", "grade": 4, "name": "应用题", "parentId": "g4", "sort": 8, "enabled": true },
+
+    { "id": "g4-u-int-k-readwrite", "type": "knowledge", "grade": 4, "name": "大数的读写与改写", "parentId": "g4-u-int", "sort": 1, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g4-u-int-k-add", "type": "knowledge", "grade": 4, "name": "大数加法", "parentId": "g4-u-int", "sort": 2, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_add_within_10000"] },
+    { "id": "g4-u-int-k-sub", "type": "knowledge", "grade": 4, "name": "大数减法", "parentId": "g4-u-int", "sort": 3, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_sub_within_10000"] },
+    { "id": "g4-u-int-k-approx", "type": "knowledge", "grade": 4, "name": "近似数与四舍五入", "parentId": "g4-u-int", "sort": 4, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+
+    { "id": "g4-u-muldiv-k-mul", "type": "knowledge", "grade": 4, "name": "三位数乘一位数/两位数", "parentId": "g4-u-muldiv", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_mul_1d_2d", "int_mul_2d_2d"] },
+    { "id": "g4-u-muldiv-k-mul2d", "type": "knowledge", "grade": 4, "name": "两位数乘两位数", "parentId": "g4-u-muldiv", "sort": 2, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_mul_2d_2d"] },
+    { "id": "g4-u-muldiv-k-div1", "type": "knowledge", "grade": 4, "name": "除数是一位数的除法", "parentId": "g4-u-muldiv", "sort": 3, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_div_1d_exact", "int_div_1d_remainder"] },
+    { "id": "g4-u-muldiv-k-div2", "type": "knowledge", "grade": 4, "name": "除数是两位数的除法", "parentId": "g4-u-muldiv", "sort": 4, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_div_2d_exact"] },
+
+    { "id": "g4-u-dec-k-meaning", "type": "knowledge", "grade": 4, "name": "小数的意义与读写", "parentId": "g4-u-dec", "sort": 1, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g4-u-dec-k-compare", "type": "knowledge", "grade": 4, "name": "小数大小比较", "parentId": "g4-u-dec", "sort": 2, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g4-u-dec-k-add", "type": "knowledge", "grade": 4, "name": "小数加法", "parentId": "g4-u-dec", "sort": 3, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["dec_add"] },
+    { "id": "g4-u-dec-k-sub", "type": "knowledge", "grade": 4, "name": "小数减法", "parentId": "g4-u-dec", "sort": 4, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["dec_sub"] },
+
+    { "id": "g4-u-mixed-k-order", "type": "knowledge", "grade": 4, "name": "四则混合运算顺序", "parentId": "g4-u-mixed", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["mixed_add_sub_mul_div"] },
+    { "id": "g4-u-mixed-k-laws", "type": "knowledge", "grade": 4, "name": "加法交换律结合律", "parentId": "g4-u-mixed", "sort": 2, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g4-u-mixed-k-dist", "type": "knowledge", "grade": 4, "name": "乘法分配律", "parentId": "g4-u-mixed", "sort": 3, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+
+    { "id": "g4-u-area-k-rect", "type": "knowledge", "grade": 4, "name": "长方形与正方形面积", "parentId": "g4-u-area", "sort": 1, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+    { "id": "g4-u-area-k-unit", "type": "knowledge", "grade": 4, "name": "面积单位及换算", "parentId": "g4-u-area", "sort": 2, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["unit_area_cm2_m2"] },
+
+    { "id": "g4-u-angle-k-measure", "type": "knowledge", "grade": 4, "name": "角的度量与分类", "parentId": "g4-u-angle", "sort": 1, "enabled": true, "tags": ["geometry", "concept"], "suggestedDrillOps": [] },
+    { "id": "g4-u-angle-k-triangle", "type": "knowledge", "grade": 4, "name": "三角形的分类与内角和", "parentId": "g4-u-angle", "sort": 2, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+
+    { "id": "g4-u-measure-k-length", "type": "knowledge", "grade": 4, "name": "长度单位综合", "parentId": "g4-u-measure", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["unit_length_mm_cm_m"] },
+
+    { "id": "g4-u-word-k-muldiv", "type": "knowledge", "grade": 4, "name": "乘除法应用题", "parentId": "g4-u-word", "sort": 1, "enabled": true, "tags": ["word"], "suggestedDrillOps": [] },
+    { "id": "g4-u-word-k-mixed", "type": "knowledge", "grade": 4, "name": "混合运算应用题", "parentId": "g4-u-word", "sort": 2, "enabled": true, "tags": ["word"], "suggestedDrillOps": [] },
+
+    { "id": "g5-u-dec", "type": "unit", "grade": 5, "name": "小数四则运算", "parentId": "g5", "sort": 1, "enabled": true },
+    { "id": "g5-u-frac", "type": "unit", "grade": 5, "name": "分数的意义与加减", "parentId": "g5", "sort": 2, "enabled": true },
+    { "id": "g5-u-int", "type": "unit", "grade": 5, "name": "整数与因数倍数", "parentId": "g5", "sort": 3, "enabled": true },
+    { "id": "g5-u-mixed", "type": "unit", "grade": 5, "name": "混合运算与方程初步", "parentId": "g5", "sort": 4, "enabled": true },
+    { "id": "g5-u-area", "type": "unit", "grade": 5, "name": "多边形面积", "parentId": "g5", "sort": 5, "enabled": true },
+    { "id": "g5-u-volume", "type": "unit", "grade": 5, "name": "长方体正方体与体积", "parentId": "g5", "sort": 6, "enabled": true },
+    { "id": "g5-u-word", "type": "unit", "grade": 5, "name": "应用题与统计初步", "parentId": "g5", "sort": 7, "enabled": true },
+
+    { "id": "g5-u-dec-k-add", "type": "knowledge", "grade": 5, "name": "小数加法（巩固）", "parentId": "g5-u-dec", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["dec_add"] },
+    { "id": "g5-u-dec-k-sub", "type": "knowledge", "grade": 5, "name": "小数减法（巩固）", "parentId": "g5-u-dec", "sort": 2, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["dec_sub"] },
+    { "id": "g5-u-dec-k-mul", "type": "knowledge", "grade": 5, "name": "小数乘整数", "parentId": "g5-u-dec", "sort": 3, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["dec_mul_int"] },
+    { "id": "g5-u-dec-k-div", "type": "knowledge", "grade": 5, "name": "小数除以整数", "parentId": "g5-u-dec", "sort": 4, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["dec_div_int"] },
+    { "id": "g5-u-dec-k-approx", "type": "knowledge", "grade": 5, "name": "小数的近似数", "parentId": "g5-u-dec", "sort": 5, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+
+    { "id": "g5-u-frac-k-meaning", "type": "knowledge", "grade": 5, "name": "分数的意义与性质", "parentId": "g5-u-frac", "sort": 1, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g5-u-frac-k-simplify", "type": "knowledge", "grade": 5, "name": "约分与通分", "parentId": "g5-u-frac", "sort": 2, "enabled": true, "tags": ["concept", "calc"], "suggestedDrillOps": [] },
+    { "id": "g5-u-frac-k-add", "type": "knowledge", "grade": 5, "name": "同分母分数加减", "parentId": "g5-u-frac", "sort": 3, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["frac_same_den_add", "frac_same_den_sub"] },
+    { "id": "g5-u-frac-k-sub", "type": "knowledge", "grade": 5, "name": "同分母分数减法（巩固）", "parentId": "g5-u-frac", "sort": 4, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["frac_same_den_sub"] },
+    { "id": "g5-u-frac-k-add-diff", "type": "knowledge", "grade": 5, "name": "异分母分数加法", "parentId": "g5-u-frac", "sort": 5, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["frac_diff_den_add"] },
+    { "id": "g5-u-frac-k-sub-diff", "type": "knowledge", "grade": 5, "name": "异分母分数减法", "parentId": "g5-u-frac", "sort": 6, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["frac_diff_den_sub"] },
+
+    { "id": "g5-u-int-k-factor", "type": "knowledge", "grade": 5, "name": "因数与倍数", "parentId": "g5-u-int", "sort": 1, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g5-u-int-k-prime", "type": "knowledge", "grade": 5, "name": "质数与合数", "parentId": "g5-u-int", "sort": 2, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g5-u-int-k-gcd-lcm", "type": "knowledge", "grade": 5, "name": "最大公因数与最小公倍数", "parentId": "g5-u-int", "sort": 3, "enabled": true, "tags": ["calc"], "suggestedDrillOps": [] },
+    { "id": "g5-u-int-k-div", "type": "knowledge", "grade": 5, "name": "整数除法巩固", "parentId": "g5-u-int", "sort": 4, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["int_div_2d_exact"] },
+
+    { "id": "g5-u-mixed-k-order", "type": "knowledge", "grade": 5, "name": "混合运算巩固", "parentId": "g5-u-mixed", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["mixed_add_sub_mul_div"] },
+    { "id": "g5-u-mixed-k-equation", "type": "knowledge", "grade": 5, "name": "方程初步（简易方程）", "parentId": "g5-u-mixed", "sort": 2, "enabled": true, "tags": ["concept", "algebra"], "suggestedDrillOps": [] },
+
+    { "id": "g5-u-area-k-parallelogram", "type": "knowledge", "grade": 5, "name": "平行四边形面积", "parentId": "g5-u-area", "sort": 1, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+    { "id": "g5-u-area-k-triangle", "type": "knowledge", "grade": 5, "name": "三角形面积", "parentId": "g5-u-area", "sort": 2, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+    { "id": "g5-u-area-k-trapezoid", "type": "knowledge", "grade": 5, "name": "梯形面积", "parentId": "g5-u-area", "sort": 3, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+    { "id": "g5-u-area-k-unit", "type": "knowledge", "grade": 5, "name": "面积单位换算", "parentId": "g5-u-area", "sort": 4, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["unit_area_cm2_m2"] },
+
+    { "id": "g5-u-volume-k-surface", "type": "knowledge", "grade": 5, "name": "长方体正方体表面积", "parentId": "g5-u-volume", "sort": 1, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+    { "id": "g5-u-volume-k-volume", "type": "knowledge", "grade": 5, "name": "长方体正方体体积", "parentId": "g5-u-volume", "sort": 2, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+    { "id": "g5-u-volume-k-unit", "type": "knowledge", "grade": 5, "name": "体积单位", "parentId": "g5-u-volume", "sort": 3, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+
+    { "id": "g5-u-word-k-fraction", "type": "knowledge", "grade": 5, "name": "分数加减应用题", "parentId": "g5-u-word", "sort": 1, "enabled": true, "tags": ["word"], "suggestedDrillOps": [] },
+    { "id": "g5-u-word-k-chart", "type": "knowledge", "grade": 5, "name": "统计表与条形图初步", "parentId": "g5-u-word", "sort": 2, "enabled": true, "tags": ["stats"], "suggestedDrillOps": [] },
+
+    { "id": "g6-u-frac", "type": "unit", "grade": 6, "name": "分数四则与百分数", "parentId": "g6", "sort": 1, "enabled": true },
+    { "id": "g6-u-ratio", "type": "unit", "grade": 6, "name": "比与比例", "parentId": "g6", "sort": 2, "enabled": true },
+    { "id": "g6-u-circle", "type": "unit", "grade": 6, "name": "圆", "parentId": "g6", "sort": 3, "enabled": true },
+    { "id": "g6-u-volume", "type": "unit", "grade": 6, "name": "圆柱圆锥与体积", "parentId": "g6", "sort": 4, "enabled": true },
+    { "id": "g6-u-mixed", "type": "unit", "grade": 6, "name": "综合运算与方程", "parentId": "g6", "sort": 5, "enabled": true },
+    { "id": "g6-u-negative", "type": "unit", "grade": 6, "name": "正负数初步", "parentId": "g6", "sort": 6, "enabled": true },
+    { "id": "g6-u-word", "type": "unit", "grade": 6, "name": "综合应用与策略", "parentId": "g6", "sort": 7, "enabled": true },
+
+    { "id": "g6-u-frac-k-ops", "type": "knowledge", "grade": 6, "name": "分数加减综合", "parentId": "g6-u-frac", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["frac_diff_den_add", "frac_diff_den_sub"] },
+    { "id": "g6-u-frac-k-mul", "type": "knowledge", "grade": 6, "name": "分数乘法（概念）", "parentId": "g6-u-frac", "sort": 2, "enabled": true, "tags": ["concept", "calc"], "suggestedDrillOps": [] },
+    { "id": "g6-u-frac-k-div", "type": "knowledge", "grade": 6, "name": "分数除法（概念）", "parentId": "g6-u-frac", "sort": 3, "enabled": true, "tags": ["concept", "calc"], "suggestedDrillOps": [] },
+    { "id": "g6-u-frac-k-percent", "type": "knowledge", "grade": 6, "name": "百分数的意义与互化", "parentId": "g6-u-frac", "sort": 4, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g6-u-frac-k-percent-word", "type": "knowledge", "grade": 6, "name": "百分数应用题", "parentId": "g6-u-frac", "sort": 5, "enabled": true, "tags": ["word"], "suggestedDrillOps": [] },
+
+    { "id": "g6-u-ratio-k-ratio", "type": "knowledge", "grade": 6, "name": "比的意义与基本性质", "parentId": "g6-u-ratio", "sort": 1, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g6-u-ratio-k-proportion", "type": "knowledge", "grade": 6, "name": "比例与解比例", "parentId": "g6-u-ratio", "sort": 2, "enabled": true, "tags": ["calc"], "suggestedDrillOps": [] },
+    { "id": "g6-u-ratio-k-scale", "type": "knowledge", "grade": 6, "name": "比例尺", "parentId": "g6-u-ratio", "sort": 3, "enabled": true, "tags": ["word"], "suggestedDrillOps": [] },
+
+    { "id": "g6-u-circle-k-parts", "type": "knowledge", "grade": 6, "name": "圆的认识（半径直径）", "parentId": "g6-u-circle", "sort": 1, "enabled": true, "tags": ["geometry", "concept"], "suggestedDrillOps": [] },
+    { "id": "g6-u-circle-k-circum", "type": "knowledge", "grade": 6, "name": "圆的周长", "parentId": "g6-u-circle", "sort": 2, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+    { "id": "g6-u-circle-k-area", "type": "knowledge", "grade": 6, "name": "圆的面积", "parentId": "g6-u-circle", "sort": 3, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+
+    { "id": "g6-u-volume-k-cylinder", "type": "knowledge", "grade": 6, "name": "圆柱的表面积与体积", "parentId": "g6-u-volume", "sort": 1, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+    { "id": "g6-u-volume-k-cone", "type": "knowledge", "grade": 6, "name": "圆锥的体积", "parentId": "g6-u-volume", "sort": 2, "enabled": true, "tags": ["geometry"], "suggestedDrillOps": [] },
+
+    { "id": "g6-u-mixed-k-order", "type": "knowledge", "grade": 6, "name": "综合混合运算", "parentId": "g6-u-mixed", "sort": 1, "enabled": true, "tags": ["calc", "drill"], "suggestedDrillOps": ["mixed_add_sub_mul_div"] },
+    { "id": "g6-u-mixed-k-equation", "type": "knowledge", "grade": 6, "name": "方程巩固", "parentId": "g6-u-mixed", "sort": 2, "enabled": true, "tags": ["algebra"], "suggestedDrillOps": [] },
+
+    { "id": "g6-u-negative-k-meaning", "type": "knowledge", "grade": 6, "name": "正数负数的意义", "parentId": "g6-u-negative", "sort": 1, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+    { "id": "g6-u-negative-k-axis", "type": "knowledge", "grade": 6, "name": "数轴与比较大小", "parentId": "g6-u-negative", "sort": 2, "enabled": true, "tags": ["concept"], "suggestedDrillOps": [] },
+
+    { "id": "g6-u-word-k-comprehensive", "type": "knowledge", "grade": 6, "name": "综合实践题", "parentId": "g6-u-word", "sort": 1, "enabled": true, "tags": ["word"], "suggestedDrillOps": [] },
+    { "id": "g6-u-word-k-strategy", "type": "knowledge", "grade": 6, "name": "解题策略（假设/画图等）", "parentId": "g6-u-word", "sort": 2, "enabled": true, "tags": ["word"], "suggestedDrillOps": [] }
+  ]
+}

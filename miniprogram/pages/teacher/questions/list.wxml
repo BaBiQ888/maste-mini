@@ -1,0 +1,37 @@
+<view class="page">
+  <view class="toolbar">
+    <view class="title">题库</view>
+    <view class="link" bindtap="goCreate">录入</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="muted tip">加载中…</view>
+
+  <block wx:elif="{{questions.length}}">
+    <view
+      class="card item"
+      wx:for="{{questions}}"
+      wx:key="id"
+      bindtap="goEdit"
+      data-id="{{item.id}}"
+    >
+      <view class="row">
+        <view class="tag">{{typeLabels[item.type]}}</view>
+        <view class="stem">{{item.stem}}</view>
+      </view>
+      <view class="meta muted" wx:if="{{item.knowledgeNodeId}}">知识点 {{item.knowledgeNodeId}}</view>
+    </view>
+  </block>
+
+  <view wx:else class="empty-box">
+    <view class="title">还没有题目</view>
+    <view class="desc">录入填空 / 选择 / 判断，用于在线练习布置</view>
+    <button class="btn btn-primary mt" bindtap="goCreate">录入题目</button>
+  </view>
+
+  <view class="tabbar">
+    <view class="tab" bindtap="goHome"><view class="ico"></view><text>工作台</text></view>
+    <view class="tab" bindtap="goClasses"><view class="ico"></view><text>班级</text></view>
+    <view class="tab" bindtap="goAssignments"><view class="ico"></view><text>作业</text></view>
+    <view class="tab on"><view class="ico"></view><text>题库</text></view>
+  </view>
+</view>

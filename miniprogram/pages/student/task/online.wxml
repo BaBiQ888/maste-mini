@@ -1,0 +1,87 @@
+<view class="page" wx:if="{{assignment}}">
+  <view class="card hero">
+    <view class="title">{{assignment.title}}</view>
+    <view class="timer" wx:if="{{timerText}}">{{timerText}}</view>
+    <view class="meta muted">
+      {{assignment.className}} · {{statusLabels[submission.status]}}
+      <text wx:if="{{scoreText}}"> · {{scoreText}}</text>
+    </view>
+    <view class="kp-line muted" wx:if="{{assignment.knowledgePoints && assignment.knowledgePoints.length}}">
+      打卡点：
+      <text wx:for="{{assignment.knowledgePoints}}" wx:key="id">{{item.name}}{{index < assignment.knowledgePoints.length - 1 ? '、' : ''}}</text>
+    </view>
+  </view>
+
+  <view class="card q" wx:for="{{items}}" wx:key="assignmentQuestionId">
+    <view class="kp-tag muted" wx:if="{{item.knowledgeLabel}}">{{item.knowledgeLabel}}</view>
+    <view class="q-head">
+      <view class="q-stem">{{index + 1}}. {{item.stem}}</view>
+      <view class="mark {{item.isCorrect === true ? 'ok' : (item.isCorrect === false ? 'bad' : '')}}" wx:if="{{item.mark}}">{{item.mark}}</view>
+    </view>
+
+    <!-- fill -->
+    <block wx:if="{{item.isFill}}">
+      <input
+        class="input"
+        placeholder="填写答案"
+        value="{{item.responseText}}"
+        disabled="{{mode === 'result' || (mode === 'correct' && item.isCorrect !== false)}}"
+        data-index="{{index}}"
+        bindinput="onFill"
+      />
+    </block>
+
+    <!-- choice -->
+    <block wx:if="{{item.isChoice}}">
+      <view
+        class="opt {{item.responseText === o.id ? 'on' : ''}} {{mode === 'result' || (mode === 'correct' && item.isCorrect !== false) ? 'disabled' : ''}}"
+        wx:for="{{item.options}}"
+        wx:for-item="o"
+        wx:key="id"
+        data-index="{{index}}"
+        data-oid="{{o.id}}"
+        bindtap="pickChoice"
+      >{{o.id}}. {{o.text}}</view>
+    </block>
+
+    <!-- true false -->
+    <block wx:if="{{item.isTf}}">
+      <view class="chips">
+        <view
+          class="chip {{item.responseText === 'true' ? 'on' : ''}}"
+          data-index="{{index}}"
+          data-v="1"
+          bindtap="pickTf"
+        >正确</view>
+        <view
+          class="chip {{item.responseText === 'false' ? 'on' : ''}}"
+          data-index="{{index}}"
+          data-v="0"
+          bindtap="pickTf"
+        >错误</view>
+      </view>
+    </block>
+
+    <view class="key muted" wx:if="{{item.showKey && item.isCorrect === false}}">
+      正确答案：{{item.correctAnswer}}
+      <text wx:if="{{item.explanation}}"> · {{item.explanation}}</text>
+    </view>
+    <view class="key ok-text" wx:if="{{item.showKey && item.isCorrect === true && item.explanation}}">
+      {{item.explanation}}
+    </view>
+  </view>
+
+  <block wx:if="{{mode === 'answer'}}">
+    <button class="btn btn-ghost" loading="{{busy}}" disabled="{{busy}}" bindtap="saveDraft">保存进度</button>
+    <button class="btn btn-primary" loading="{{busy}}" disabled="{{busy}}" bindtap="submitAll">提交批改</button>
+  </block>
+
+  <block wx:if="{{mode === 'correct'}}">
+    <view class="hint muted">请订正标「错」的题目，全部正确后才算完成</view>
+    <button class="btn btn-primary" loading="{{busy}}" disabled="{{busy}}" bindtap="submitCorrect">提交订正</button>
+  </block>
+
+  <view class="done muted" wx:if="{{mode === 'result'}}">已完成 · 正确率 {{submission.score}}%</view>
+</view>
+
+<view class="page" wx:elif="{{loading}}"><view class="muted tip">加载中…</view></view>

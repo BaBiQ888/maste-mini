@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+server/data/
+.env
+.env.local
+miniprogram/project.private.config.json
+*.sqlite
+*.sqlite-journal
+.idea/
+.vscode/

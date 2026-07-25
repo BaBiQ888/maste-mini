@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>算本 · Phase 1 纸本壳 · 方向 B</title>
+  <style>
+    :root {
+      --paper: #F7F3EB;
+      --paper-deep: #EDE6D9;
+      --ink: #2C2825;
+      --ink-muted: #6B645C;
+      --ink-faint: #9C948A;
+      --line: #E0D8CC;
+      --accent: #C45C26;
+      --accent-soft: #F3E0D4;
+      --success: #3D6B4F;
+      --white: #FFFcf7;
+      --phone-w: 320px;
+      --phone-h: 680px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", system-ui, sans-serif;
+      background: #d4cdc2;
+      color: var(--ink);
+      padding: 40px 32px 80px;
+    }
+    .hero {
+      max-width: 1200px;
+      margin: 0 auto 36px;
+    }
+    .hero h1 {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .hero p {
+      margin-top: 8px;
+      color: var(--ink-muted);
+      font-size: 14px;
+      line-height: 1.6;
+      max-width: 52ch;
+    }
+    .meta {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      color: var(--ink-muted);
+    }
+    .chip strong { color: var(--accent); font-weight: 600; }
+    .board {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 36px 28px;
+      max-width: 1400px;
+      margin: 0 auto;
+      align-items: flex-start;
+    }
+    .col { display: flex; flex-direction: column; gap: 10px; }
+    .col-label {
+      font-size: 12px;
+      color: #5a534c;
+      font-style: italic;
+      letter-spacing: 0.02em;
+      padding-left: 8px;
+    }
+    /* Phone */
+    .phone {
+      width: var(--phone-w);
+      height: var(--phone-h);
+      background: #1a1816;
+      border-radius: 36px;
+      padding: 10px;
+      box-shadow: 0 24px 48px rgba(44, 40, 37, 0.28), 0 0 0 1px rgba(0,0,0,0.2);
+    }
+    .screen {
+      width: 100%;
+      height: 100%;
+      background: var(--paper);
+      border-radius: 28px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .status {
+      height: 28px;
+      padding: 8px 18px 0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink);
+      flex-shrink: 0;
+    }
+    .nav {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 600;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .nav .back {
+      position: absolute;
+      left: 12px;
+      font-size: 14px;
+      color: var(--ink-muted);
+      font-weight: 400;
+    }
+    .body {
+      flex: 1;
+      overflow: hidden;
+      padding: 8px 16px 16px;
+      display: flex;
+      flex-direction: column;
+    }
+    .tabbar {
+      height: 52px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      background: var(--white);
+      flex-shrink: 0;
+    }
+    .tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      font-size: 10px;
+      color: var(--ink-faint);
+    }
+    .tab.on { color: var(--accent); font-weight: 600; }
+    .tab .ico {
+      width: 20px; height: 20px;
+      border: 1.5px solid currentColor;
+      border-radius: 4px;
+    }
+    .tab.on .ico { background: var(--accent-soft); }
+
+    /* Components */
+    .logo-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin: 36px 0 28px;
+    }
+    .logo-mark {
+      width: 72px;
+      height: 72px;
+    }
+    .brand-name {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      margin-left: 0.2em;
+    }
+    .tagline {
+      font-size: 12px;
+      color: var(--ink-muted);
+      letter-spacing: 0.08em;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 48px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      cursor: default;
+      width: 100%;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      margin-top: 10px;
+    }
+    .hint {
+      margin-top: auto;
+      text-align: center;
+      font-size: 11px;
+      color: var(--ink-faint);
+      line-height: 1.5;
+      padding-bottom: 8px;
+    }
+    .role-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px 16px;
+      margin-bottom: 12px;
+    }
+    .role-card h3 {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .role-card p {
+      font-size: 13px;
+      color: var(--ink-muted);
+      line-height: 1.45;
+    }
+    .role-card.pick {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      box-shadow: inset 0 0 0 1px var(--accent);
+    }
+    .role-card .badge {
+      display: inline-block;
+      font-size: 11px;
+      color: var(--accent);
+      margin-bottom: 6px;
+      letter-spacing: 0.04em;
+    }
+    .lines {
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent,
+        transparent 27px,
+        var(--line) 27px,
+        var(--line) 28px
+      );
+      border-radius: 12px;
+      background-color: var(--white);
+      border: 1px solid var(--line);
+      min-height: 120px;
+      padding: 12px 14px;
+    }
+    .section-title {
+      font-size: 13px;
+      color: var(--ink-muted);
+      margin: 4px 0 10px;
+      font-weight: 500;
+    }
+    .empty {
+      text-align: center;
+      padding: 28px 12px;
+      color: var(--ink-muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .empty strong {
+      display: block;
+      color: var(--ink);
+      font-size: 15px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .stat-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .stat {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .stat .n {
+      font-size: 28px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+    .stat .l {
+      font-size: 12px;
+      color: var(--ink-muted);
+      margin-top: 2px;
+    }
+    .profile-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 0 20px;
+    }
+    .avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--paper-deep);
+      border: 1.5px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+    .field {
+      margin-bottom: 14px;
+    }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--ink-muted);
+      margin-bottom: 6px;
+    }
+    .field .input {
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--white);
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      font-size: 15px;
+    }
+    .greet {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .sub {
+      font-size: 13px;
+      color: var(--ink-muted);
+      margin-bottom: 18px;
+    }
+    .check {
+      width: 18px;
+      height: 18px;
+      border: 1.5px solid var(--line);
+      border-radius: 4px;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    .check.on {
+      background: var(--accent);
+      border-color: var(--accent);
+      position: relative;
+    }
+    .check.on::after {
+      content: "";
+      position: absolute;
+      left: 5px; top: 1px;
+      width: 5px; height: 9px;
+      border: solid #fff;
+      border-width: 0 1.5px 1.5px 0;
+      transform: rotate(45deg);
+    }
+  </style>
+</head>
+<body>
+  <!--
+    Assumptions (Junior):
+    - 产品名「算本」；方向 B 纸本；logo 自研（练习册+铅笔+完成勾）
+    - Phase 1 空壳：无真实班级/作业数据，空状态写人话
+    - 微信登录按钮文案贴近真实；开发态后端可用 mock code
+  -->
+  <header class="hero">
+    <h1>算本 · Phase 1 界面壳</h1>
+    <p>方向 B「纸本练习本」· 暖米底 + 铁锈橙单 accent。下列为登录 → 选身份 → 双端空壳 → 我的，供对齐后再落小程序。</p>
+    <div class="meta">
+      <span class="chip">产品 <strong>算本</strong></span>
+      <span class="chip">accent <strong>#C45C26</strong></span>
+      <span class="chip">paper <strong>#F7F3EB</strong></span>
+      <span class="chip">规格 · brand-spec.md</span>
+    </div>
+  </header>
+
+  <div class="board">
+    <!-- 1 Login -->
+    <div class="col">
+      <div class="col-label">01 · 登录</div>
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span>···· ▄</span></div>
+        <div class="body" style="padding-top: 24px;">
+          <div class="logo-block">
+            <svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true">
+              <rect x="10" y="8" width="36" height="48" rx="3" fill="#FFFcf7" stroke="#2C2825" stroke-width="2"/>
+              <path d="M18 8v48" stroke="#E0D8CC" stroke-width="1.5"/>
+              <path d="M24 22h16M24 30h16M24 38h12" stroke="#E0D8CC" stroke-width="1.25" stroke-linecap="round"/>
+              <path d="M38 8l8 8V14a2 2 0 0 0-2-2h-6V8z" fill="#EDE6D9" stroke="#2C2825" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M50 14l4 4-22 22-5 1 1-5 22-22z" fill="#C45C26"/>
+              <path d="M50 14l4 4-3 3-4-4 3-3z" fill="#2C2825"/>
+              <path d="M26 46l3.5 3.5L36 42" stroke="#3D6B4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div class="brand-name">算本</div>
+            <div class="tagline">每日计算 · 知识打卡 · 作业汇总</div>
+          </div>
+          <div style="flex:1"></div>
+          <button class="btn btn-primary">微信一键登录</button>
+          <p class="hint">登录即表示同意使用协议<br/>同一微信对应同一账号</p>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 2 Role -->
+    <div class="col">
+      <div class="col-label">02 · 选择身份（仅首次）</div>
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span>···· ▄</span></div>
+        <div class="nav">选择身份</div>
+        <div class="body">
+          <p class="sub" style="margin-bottom: 16px;">选好后可在「我的」查看资料。身份用于进入对应工作台。</p>
+          <div class="role-card pick">
+            <div class="badge">推荐 · 授课老师</div>
+            <h3>我是老师</h3>
+            <p>建班、布置练习、看完成情况</p>
+          </div>
+          <div class="role-card">
+            <div class="badge" style="color: var(--ink-faint);">学生</div>
+            <h3>我是学生</h3>
+            <p>每日计算、知识点打卡、交作业</p>
+          </div>
+          <div style="flex:1"></div>
+          <button class="btn btn-primary">进入算本</button>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 3 Teacher -->
+    <div class="col">
+      <div class="col-label">03 · 老师 · 工作台（空壳）</div>
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span>···· ▄</span></div>
+        <div class="body" style="padding-top: 12px;">
+          <div class="greet">下午好，王老师</div>
+          <div class="sub">工作台 · 班级与作业稍后在此汇总</div>
+          <div class="stat-row">
+            <div class="stat"><div class="n">—</div><div class="l">今日完成率</div></div>
+            <div class="stat"><div class="n">—</div><div class="l">待批改</div></div>
+          </div>
+          <div class="section-title">快捷</div>
+          <div class="lines">
+            <div class="empty">
+              <strong>还没有班级</strong>
+              创建班级并分享邀请码后<br/>学生即可加入（下一阶段）
+            </div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab on"><div class="ico"></div>工作台</div>
+          <div class="tab"><div class="ico"></div>班级</div>
+          <div class="tab"><div class="ico"></div>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 4 Student -->
+    <div class="col">
+      <div class="col-label">04 · 学生 · 今日（空壳）</div>
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span>···· ▄</span></div>
+        <div class="body" style="padding-top: 12px;">
+          <div class="greet">今日任务</div>
+          <div class="sub">打开就算清楚今天练什么</div>
+          <div class="section-title">待完成</div>
+          <div class="lines">
+            <div class="empty">
+              <strong>还没有任务</strong>
+              请先加入老师的班级<br/>（输入邀请码 · 下一阶段）
+            </div>
+          </div>
+          <div style="margin-top: 16px; font-size: 13px; color: var(--ink-muted);">
+            <span class="check"></span>完成勾选会出现在这里
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab on"><div class="ico"></div>今日</div>
+          <div class="tab"><div class="ico"></div>日历</div>
+          <div class="tab"><div class="ico"></div>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 5 Profile -->
+    <div class="col">
+      <div class="col-label">05 · 我的 · 资料</div>
+      <div class="phone"><div class="screen">
+        <div class="status"><span>9:41</span><span>···· ▄</span></div>
+        <div class="nav">我的</div>
+        <div class="body">
+          <div class="profile-head">
+            <div class="avatar">王</div>
+            <div>
+              <div style="font-weight:600;font-size:17px;">王老师</div>
+              <div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">身份 · 老师</div>
+            </div>
+          </div>
+          <div class="field">
+            <label>昵称</label>
+            <div class="input">王老师</div>
+          </div>
+          <div class="field">
+            <label>头像</label>
+            <div class="input" style="color:var(--ink-faint);">使用微信头像 · 可稍后更换</div>
+          </div>
+          <button class="btn btn-primary" style="margin-top: 8px;">保存</button>
+          <button class="btn btn-ghost">退出登录</button>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</body>
+</html>

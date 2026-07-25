@@ -1,0 +1,53 @@
+<view class="page">
+  <view class="field">
+    <view class="label">班级</view>
+    <view class="input picker" bindtap="pickClass">{{className}}</view>
+  </view>
+  <view class="field">
+    <view class="label">标题</view>
+    <input class="input" value="{{title}}" bindinput="onTitle" maxlength="80" />
+  </view>
+
+  <view class="label">知识点（已选 {{selectedKpCount}}）</view>
+  <view class="search-row">
+    <input class="input search" placeholder="搜索知识点" value="{{search}}" bindinput="onSearch" bindconfirm="doSearch" />
+    <view class="search-btn" bindtap="doSearch">搜</view>
+  </view>
+
+  <block wx:for="{{tree}}" wx:key="unit.id" wx:for-item="block">
+    <view class="unit">{{block.unit.name}}</view>
+    <view
+      class="kp {{item.selected ? 'on' : ''}}"
+      wx:for="{{block.knowledge}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="toggleKp"
+    >{{item.name}}</view>
+  </block>
+
+  <view class="label-row">
+    <view class="label">题目（已选 {{selectedQCount}}）</view>
+    <view class="link" bindtap="goQuestionBank">题库</view>
+  </view>
+  <view class="hint muted">选知识点后会自动勾选题库中已关联该点的题，也可手动增删。</view>
+
+  <view
+    class="card q {{selectedQ[item.id] ? 'on' : ''}}"
+    wx:for="{{questions}}"
+    wx:key="id"
+    data-id="{{item.id}}"
+    bindtap="toggleQ"
+  >
+    <view class="stem">{{item.stem}}</view>
+    <view class="meta muted" wx:if="{{item.knowledgeNodeId}}">{{item.knowledgeNodeId}}</view>
+  </view>
+
+  <view wx:if="{{!questions.length}}" class="empty-box">
+    <view class="title">题库为空</view>
+    <view class="desc">录入题目时填写知识点 id，打卡选题更顺</view>
+    <button class="btn btn-primary mt" bindtap="goQuestionBank">去录入</button>
+  </view>
+
+  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="publishNow">发布打卡</button>
+  <button class="btn btn-ghost" disabled="{{loading}}" bindtap="saveDraft">存为草稿</button>
+</view>

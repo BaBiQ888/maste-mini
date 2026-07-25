@@ -1,0 +1,47 @@
+.page {
+  min-height: 100vh;
+  padding: 48rpx 40rpx 64rpx;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.brand {
+  margin-top: 120rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mark {
+  width: 144rpx;
+  height: 144rpx;
+}
+
+.name {
+  margin-top: 28rpx;
+  font-size: 56rpx;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  padding-left: 0.28em;
+  color: var(--ink);
+}
+
+.tag {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: var(--ink-muted);
+  letter-spacing: 0.08em;
+}
+
+.footer {
+  margin-top: auto;
+}
+
+.legal {
+  margin-top: 24rpx;
+  text-align: center;
+  font-size: 22rpx;
+  color: var(--ink-faint);
+  line-height: 1.5;
+}

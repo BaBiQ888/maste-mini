@@ -1,0 +1,54 @@
+<view class="page">
+  <view class="field">
+    <view class="label">班级</view>
+    <view class="input picker" bindtap="pickClass">{{className}}</view>
+  </view>
+
+  <view class="label">类型</view>
+  <view class="chips">
+    <view
+      class="chip {{asgType === item.id ? 'on' : ''}}"
+      wx:for="{{asgTypes}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="pickAsgType"
+    >{{item.label}}</view>
+  </view>
+
+  <view class="field">
+    <view class="label">标题</view>
+    <input class="input" placeholder="如：今日口算" maxlength="80" value="{{title}}" bindinput="onTitle" />
+  </view>
+
+  <view class="label-row">
+    <view class="label">选题（已选 {{selectedCount}}）</view>
+    <view class="link" bindtap="goQuestionBank">去题库</view>
+  </view>
+
+  <view wx:if="{{!questions.length}}" class="empty-box">
+    <view class="title">题库为空</view>
+    <view class="desc">先录入手工题，再布置在线练习</view>
+    <button class="btn btn-primary mt" bindtap="goQuestionBank">去录入</button>
+  </view>
+
+  <view
+    class="card q {{selected[item.id] ? 'on' : ''}}"
+    wx:for="{{questions}}"
+    wx:key="id"
+    data-id="{{item.id}}"
+    bindtap="toggle"
+  >
+    <view class="q-row">
+      <view class="box"></view>
+      <view class="q-body">
+        <view class="tag">{{typeLabels[item.type]}}</view>
+        <view class="stem">{{item.stem}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="hint muted">发布后题面写入快照，之后改题库不影响本作业。</view>
+
+  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="publishNow">发布</button>
+  <button class="btn btn-ghost" disabled="{{loading}}" bindtap="saveDraft">存为草稿</button>
+</view>

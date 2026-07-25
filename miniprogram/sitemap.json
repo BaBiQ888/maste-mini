@@ -1,0 +1,4 @@
+{
+  "desc": "算本",
+  "rules": [{ "action": "allow", "page": "*" }]
+}

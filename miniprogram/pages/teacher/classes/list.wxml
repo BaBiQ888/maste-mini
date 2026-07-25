@@ -1,0 +1,63 @@
+<view class="page">
+  <view class="toolbar">
+    <view class="title">我的班级</view>
+    <view class="right">
+      <text class="link muted-link" bindtap="toggleArchived">{{showArchived ? '仅活跃' : '含归档'}}</text>
+      <text class="link" bindtap="goCreate">新建</text>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="muted tip">加载中…</view>
+
+  <block wx:elif="{{classes.length}}">
+    <view
+      class="card item {{currentId === item.id && !item.archived ? 'current' : ''}} {{item.archived ? 'archived' : ''}}"
+      wx:for="{{classes}}"
+      wx:key="id"
+    >
+      <view class="row" bindtap="goDetail" data-id="{{item.id}}">
+        <view>
+          <view class="name-row">
+            <view class="name">{{item.name}}</view>
+            <view class="tag" wx:if="{{item.archived}}">归档</view>
+          </view>
+          <view class="meta muted">{{item.grade}} 年级 · 学生 {{item.studentCount}} 人 · 码 {{item.inviteCode}}</view>
+        </view>
+        <view class="chevron faint">›</view>
+      </view>
+      <view class="actions" wx:if="{{!item.archived}}">
+        <text
+          class="action {{currentId === item.id ? 'on' : ''}}"
+          catchtap="setCurrent"
+          data-id="{{item.id}}"
+          data-archived="{{item.archived}}"
+        >{{currentId === item.id ? '当前班' : '设为当前'}}</text>
+      </view>
+    </view>
+  </block>
+
+  <view wx:else class="empty-box">
+    <view class="title">{{showArchived ? '没有班级' : '还没有班级'}}</view>
+    <view class="desc">{{showArchived ? '切换「仅活跃」查看进行中的班' : '创建班级后会生成邀请码，发给学生即可入班'}}</view>
+    <button wx:if="{{!showArchived}}" class="btn btn-primary mt" bindtap="goCreate">创建班级</button>
+  </view>
+
+  <view class="tabbar">
+    <view class="tab" bindtap="goHome">
+      <view class="ico"></view>
+      <text>工作台</text>
+    </view>
+    <view class="tab on">
+      <view class="ico"></view>
+      <text>班级</text>
+    </view>
+    <view class="tab" bindtap="goAssignments">
+      <view class="ico"></view>
+      <text>作业</text>
+    </view>
+    <view class="tab" bindtap="goProfile">
+      <view class="ico"></view>
+      <text>我的</text>
+    </view>
+  </view>
+</view>

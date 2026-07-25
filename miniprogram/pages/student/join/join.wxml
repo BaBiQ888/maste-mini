@@ -1,0 +1,23 @@
+<view class="page">
+  <view class="lead">
+    <view class="h">加入班级</view>
+    <view class="muted">向老师索取 6 位邀请码，或扫描老师出示的入班二维码</view>
+  </view>
+
+  <view class="field">
+    <view class="label">邀请码</view>
+    <input
+      class="input code-input"
+      placeholder="例如 AB3K7M"
+      maxlength="16"
+      value="{{inviteCode}}"
+      bindinput="onCode"
+    />
+  </view>
+
+  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="onSubmit">
+    确认加入
+  </button>
+  <button class="btn btn-ghost" disabled="{{loading}}" bindtap="onScan">扫码加入</button>
+  <view class="hint muted">二维码内容为邀请码或 SUANBEN:邀请码</view>
+</view>

@@ -1,0 +1,30 @@
+<view class="page" wx:if="{{stats}}">
+  <view class="card hero">
+    <view class="name">{{stats.nickname || '学生'}}</view>
+    <view class="meta muted">{{stats.className}} · 近 {{stats.days}} 天</view>
+  </view>
+
+  <view class="stats">
+    <view class="stat">
+      <view class="n">{{stats.completionRate != null ? stats.completionRate + '%' : '—'}}</view>
+      <view class="l">作业完成率</view>
+      <view class="sub muted">{{stats.completedCount}}/{{stats.assignmentTotal}}</view>
+    </view>
+    <view class="stat">
+      <view class="n">{{stats.correctRate != null ? stats.correctRate + '%' : '—'}}</view>
+      <view class="l">作答正确率</view>
+      <view class="sub muted">{{stats.answerCorrect}}/{{stats.answerTotal}} 题</view>
+    </view>
+  </view>
+
+  <view class="section muted">近期作业</view>
+  <view class="card item" wx:for="{{recent}}" wx:key="assignmentId" bindtap="goAssignment" data-id="{{item.assignmentId}}">
+    <view class="row">
+      <view class="title">{{item.title}}</view>
+      <view class="st">{{item.statusLabel}}</view>
+    </view>
+    <view class="meta muted">{{item.rateText}}</view>
+  </view>
+  <view wx:if="{{!recent.length}}" class="empty muted">暂无记录</view>
+</view>
+<view class="page" wx:elif="{{loading}}"><view class="muted tip">加载中…</view></view>

@@ -1,0 +1,14 @@
+<view class="page">
+  <view class="brand">
+    <image class="mark" src="/assets/logo-mark.png" mode="aspectFit" />
+    <view class="name">算本</view>
+    <view class="tag">每日计算 · 知识打卡 · 作业汇总</view>
+  </view>
+
+  <view class="footer">
+    <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="onLogin">
+      微信一键登录
+    </button>
+    <view class="legal">登录即表示同意使用协议 · 同一微信对应同一账号</view>
+  </view>
+</view>

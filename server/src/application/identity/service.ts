@@ -1,0 +1,183 @@
+import type Database from "better-sqlite3";
+import {
+  createId,
+  nowIso,
+  type SessionRow,
+  type UserRole,
+  type UserRow,
+} from "../../infrastructure/persistence/db.js";
+import { AuthError, codeToSession, type WechatConfig } from "../../infrastructure/wechat/code2session.js";
+
+const SESSION_DAYS = 30;
+
+export interface PublicUser {
+  id: string;
+  role: UserRole | null;
+  nickname: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+}
+
+export interface LoginResult {
+  token: string;
+  user: PublicUser;
+  isNewUser: boolean;
+}
+
+export class IdentityService {
+  constructor(
+    private db: Database.Database,
+    private wechat: WechatConfig,
+  ) {}
+
+  async loginWithWeChat(input: {
+    code: string;
+    nickname?: string;
+    avatarUrl?: string;
+  }): Promise<LoginResult> {
+    const session = await codeToSession(input.code, this.wechat);
+    const existing = this.db
+      .prepare("SELECT * FROM users WHERE openid = ?")
+      .get(session.openid) as UserRow | undefined;
+
+    const ts = nowIso();
+    let user: UserRow;
+    let isNewUser = false;
+
+    if (existing) {
+      const nickname = input.nickname ?? existing.nickname;
+      const avatarUrl = input.avatarUrl ?? existing.avatar_url;
+      this.db
+        .prepare(
+          `UPDATE users SET nickname = ?, avatar_url = ?, updated_at = ? WHERE id = ?`,
+        )
+        .run(nickname, avatarUrl, ts, existing.id);
+      user = {
+        ...existing,
+        nickname,
+        avatar_url: avatarUrl,
+        updated_at: ts,
+      };
+    } else {
+      isNewUser = true;
+      const id = createId("usr");
+      this.db
+        .prepare(
+          `INSERT INTO users (id, openid, role, nickname, avatar_url, created_at, updated_at)
+           VALUES (?, ?, NULL, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          session.openid,
+          input.nickname ?? null,
+          input.avatarUrl ?? null,
+          ts,
+          ts,
+        );
+      user = this.db
+        .prepare("SELECT * FROM users WHERE id = ?")
+        .get(id) as UserRow;
+    }
+
+    const token = createId("tok");
+    const expires = new Date();
+    expires.setDate(expires.getDate() + SESSION_DAYS);
+    this.db
+      .prepare(
+        `INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`,
+      )
+      .run(token, user.id, ts, expires.toISOString());
+
+    return { token, user: toPublic(user), isNewUser };
+  }
+
+  getUserByToken(token: string | undefined | null): PublicUser | null {
+    if (!token) return null;
+    const row = this.db
+      .prepare(
+        `SELECT u.* FROM sessions s
+         JOIN users u ON u.id = s.user_id
+         WHERE s.token = ? AND s.expires_at > ?`,
+      )
+      .get(token, nowIso()) as UserRow | undefined;
+    return row ? toPublic(row) : null;
+  }
+
+  getUserById(id: string): PublicUser | null {
+    const row = this.db
+      .prepare("SELECT * FROM users WHERE id = ?")
+      .get(id) as UserRow | undefined;
+    return row ? toPublic(row) : null;
+  }
+
+  updateProfile(
+    userId: string,
+    patch: {
+      nickname?: string;
+      avatarUrl?: string;
+      role?: UserRole;
+    },
+  ): PublicUser {
+    const current = this.db
+      .prepare("SELECT * FROM users WHERE id = ?")
+      .get(userId) as UserRow | undefined;
+    if (!current) {
+      throw new AuthError("NOT_FOUND", "用户不存在");
+    }
+
+    let role = current.role;
+    if (patch.role !== undefined) {
+      if (current.role && current.role !== patch.role) {
+        throw new AuthError("ROLE_LOCKED", "身份已选定，不可更改");
+      }
+      if (patch.role !== "teacher" && patch.role !== "student") {
+        throw new AuthError("INVALID_ROLE", "身份只能是 teacher 或 student");
+      }
+      role = patch.role;
+    }
+
+    const nickname =
+      patch.nickname !== undefined ? patch.nickname : current.nickname;
+    const avatarUrl =
+      patch.avatarUrl !== undefined ? patch.avatarUrl : current.avatar_url;
+    const ts = nowIso();
+
+    this.db
+      .prepare(
+        `UPDATE users SET role = ?, nickname = ?, avatar_url = ?, updated_at = ? WHERE id = ?`,
+      )
+      .run(role, nickname, avatarUrl, ts, userId);
+
+    return this.getUserById(userId)!;
+  }
+
+  logout(token: string): void {
+    this.db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
+  }
+
+  /** Test helper */
+  countUsersByOpenid(openid: string): number {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS c FROM users WHERE openid = ?")
+      .get(openid) as { c: number };
+    return row.c;
+  }
+
+  getSession(token: string): SessionRow | undefined {
+    return this.db
+      .prepare("SELECT * FROM sessions WHERE token = ?")
+      .get(token) as SessionRow | undefined;
+  }
+}
+
+function toPublic(row: UserRow): PublicUser {
+  return {
+    id: row.id,
+    role: row.role,
+    nickname: row.nickname,
+    avatarUrl: row.avatar_url,
+    createdAt: row.created_at,
+  };
+}
+
+export { AuthError };

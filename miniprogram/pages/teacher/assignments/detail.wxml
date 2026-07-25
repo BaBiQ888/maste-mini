@@ -1,0 +1,100 @@
+<view class="page" wx:if="{{assignment}}">
+  <view class="card hero">
+    <view class="title">{{assignment.title}}</view>
+    <view class="meta muted">{{assignment.className}} · {{statusLabels[assignment.status]}}</view>
+    <view class="kp-line muted" wx:if="{{assignment.knowledgePoints && assignment.knowledgePoints.length}}">
+      知识点：
+      <text wx:for="{{assignment.knowledgePoints}}" wx:key="id">{{item.name}}{{index < assignment.knowledgePoints.length - 1 ? '、' : ''}}</text>
+    </view>
+    <view class="desc" wx:if="{{assignment.description}}">{{assignment.description}}</view>
+    <view class="ops">
+      <text class="op accent" wx:if="{{assignment.status === 'draft'}}" bindtap="publish">发布</text>
+      <text class="op danger" wx:if="{{assignment.status === 'published'}}" bindtap="revoke">下架</text>
+      <text class="op accent" wx:if="{{assignment.status === 'published'}}" bindtap="copyReminder">复制催交</text>
+      <text class="op" bindtap="duplicate">复制为草稿</text>
+    </view>
+  </view>
+
+  <view class="card summary" wx:if="{{summary}}">
+    <view class="sum-top">
+      <view>
+        <view class="rate">{{rateText}}</view>
+        <view class="muted sm">完成率 · {{summary.completedCount}}/{{summary.totalStudents}}</view>
+      </view>
+      <view class="copy-btn" bindtap="copyReminder">催交文案</view>
+    </view>
+    <view class="buckets">
+      <view class="b"><view class="bn">{{summary.completedCount}}</view><view class="bl muted">已完成</view></view>
+      <view class="b"><view class="bn">{{summary.inProgressCount}}</view><view class="bl muted">进行中</view></view>
+      <view class="b"><view class="bn">{{summary.notStartedCount}}</view><view class="bl muted">未开始</view></view>
+      <view class="b"><view class="bn">{{summary.overdueCount}}</view><view class="bl muted">逾期</view></view>
+    </view>
+    <view class="incomplete" wx:if="{{summary.incomplete.length}}">
+      <view class="il muted">未完成</view>
+      <view class="names">
+        <text wx:for="{{summary.incomplete}}" wx:key="userId">{{item.nickname || '未命名'}}{{index < summary.incomplete.length - 1 ? '、' : ''}}</text>
+      </view>
+    </view>
+    <view class="incomplete muted" wx:else>全员已完成</view>
+  </view>
+
+  <block wx:if="{{!isPhoto && questionStats.length}}">
+    <view class="section muted">逐题正确率</view>
+    <view class="card list">
+      <view class="sub" wx:for="{{questionStats}}" wx:key="assignmentQuestionId">
+        <view class="sn">{{index + 1}}. {{item.stem}}</view>
+        <view class="ss muted">正确率 {{item.rateText}} · {{item.correctCount}}/{{item.answeredCount}} 人作答</view>
+      </view>
+    </view>
+  </block>
+  <block wx:elif="{{!isPhoto && questions.length}}">
+    <view class="section muted">题目快照（{{questions.length}}）</view>
+    <view class="card list">
+      <view class="sub" wx:for="{{questions}}" wx:key="id">
+        <view class="sn">{{index + 1}}. {{item.snapshot.stem}}</view>
+        <view class="ss muted">答案：{{item.snapshot.answer}} · {{item.snapshot.type}}</view>
+      </view>
+    </view>
+  </block>
+
+  <view class="section muted">{{isPhoto ? '提交明细' : '提交明细（在线作答 Phase 7）'}}</view>
+  <view class="card list" wx:if="{{submissions.length}}">
+    <view class="sub" wx:for="{{submissions}}" wx:key="id">
+      <view class="sub-head">
+        <view>
+          <view class="sn">{{item.studentNickname || '学生'}}</view>
+          <view class="ss muted">{{statusLabels[item.status]}}{{item.overdue ? ' · 逾期' : ''}}</view>
+        </view>
+        <view
+          class="grade-btn"
+          wx:if="{{item.status === 'submitted' || item.status === 'completed' || item.status === 'resubmit_required'}}"
+          data-id="{{item.id}}"
+          bindtap="goGrade"
+        >{{item.status === 'submitted' ? '批改' : '查看'}}</view>
+      </view>
+      <view class="thumbs" wx:if="{{item.photoDisplay.length}}">
+        <image
+          wx:for="{{item.photoDisplay}}"
+          wx:for-item="src"
+          wx:key="*this"
+          class="thumb"
+          src="{{src}}"
+          mode="aspectFill"
+          data-urls="{{item.photoDisplay}}"
+          data-current="{{src}}"
+          bindtap="preview"
+        />
+      </view>
+      <view class="gline muted" wx:if="{{item.grade}}">
+        {{resultLabels[item.grade.result]}}
+        <text wx:if="{{item.grade.score != null}}"> · {{item.grade.score}} 分</text>
+        <text wx:if="{{item.grade.comment}}"> · {{item.grade.comment}}</text>
+      </view>
+    </view>
+  </view>
+  <view class="empty-box" wx:else>
+    <view class="title">还没有学生提交</view>
+    <view class="desc">发布后等待学生上传；完成率仍统计未交名单</view>
+  </view>
+</view>
+<view class="page" wx:elif="{{loading}}"><view class="muted tip">加载中…</view></view>

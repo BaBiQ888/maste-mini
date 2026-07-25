@@ -1,0 +1,90 @@
+/** 算本 Design tokens · 方向 B 纸本练习本 */
+page {
+  --paper: #f7f3eb;
+  --paper-deep: #ede6d9;
+  --ink: #2c2825;
+  --ink-muted: #6b645c;
+  --ink-faint: #9c948a;
+  --line: #e0d8cc;
+  --accent: #c45c26;
+  --accent-soft: #f3e0d4;
+  --success: #3d6b4f;
+  --white: #fffcf7;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 30rpx;
+  line-height: 1.5;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 96rpx;
+  border-radius: 20rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+  border: none;
+  padding: 0 32rpx;
+}
+
+.btn::after {
+  border: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.btn-primary[disabled] {
+  opacity: 0.55;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1rpx solid var(--line);
+  margin-top: 20rpx;
+}
+
+.card {
+  background: var(--white);
+  border: 1rpx solid var(--line);
+  border-radius: 24rpx;
+  padding: 32rpx;
+}
+
+.muted {
+  color: var(--ink-muted);
+  font-size: 26rpx;
+}
+
+.faint {
+  color: var(--ink-faint);
+  font-size: 24rpx;
+}
+
+.empty-box {
+  background: var(--white);
+  border: 1rpx solid var(--line);
+  border-radius: 24rpx;
+  padding: 48rpx 28rpx;
+  text-align: center;
+}
+
+.empty-box .title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 12rpx;
+}
+
+.empty-box .desc {
+  font-size: 26rpx;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}

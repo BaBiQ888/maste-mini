@@ -1,0 +1,55 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx 40rpx 48rpx;
+  box-sizing: border-box;
+}
+.field { margin-bottom: 16rpx; }
+.label {
+  font-size: 24rpx;
+  color: var(--ink-muted);
+  margin: 16rpx 0 12rpx;
+}
+.input {
+  height: 88rpx;
+  border-radius: 20rpx;
+  border: 1rpx solid var(--line);
+  background: var(--white);
+  padding: 0 24rpx;
+  font-size: 30rpx;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+}
+.chip {
+  padding: 12rpx 22rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid var(--line);
+  background: var(--white);
+  font-size: 24rpx;
+  color: var(--ink-muted);
+}
+.chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.gen { margin: 24rpx 0 8rpx; }
+.prev, .man { margin-bottom: 12rpx; padding: 20rpx 24rpx; }
+.man.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.stem { font-size: 28rpx; line-height: 1.4; }
+.ans { margin-top: 8rpx; font-size: 24rpx; }
+.hint {
+  font-size: 22rpx;
+  margin: 20rpx 0 28rpx;
+  line-height: 1.45;
+}

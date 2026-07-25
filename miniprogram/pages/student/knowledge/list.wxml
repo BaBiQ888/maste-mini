@@ -1,0 +1,23 @@
+<view class="page">
+  <view class="intro muted">完成作业后点亮的知识点（来自打卡/在线题标签）</view>
+
+  <view wx:if="{{loading}}" class="muted tip">加载中…</view>
+
+  <block wx:elif="{{items.length}}">
+    <view class="card item" wx:for="{{items}}" wx:key="knowledgeNodeId">
+      <view class="row">
+        <view class="check on"></view>
+        <view class="body">
+          <view class="name">{{item.name}}</view>
+          <view class="meta muted">{{item.pathLabel || item.unitName || item.knowledgeNodeId}}</view>
+          <view class="meta muted">完成 {{item.completedCount}} 次</view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <view wx:else class="empty-box">
+    <view class="title">还没有记录</view>
+    <view class="desc">完成知识点打卡或带标签的在线练习后会出现在这里</view>
+  </view>
+</view>

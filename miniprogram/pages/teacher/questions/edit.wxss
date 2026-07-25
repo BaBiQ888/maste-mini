@@ -1,0 +1,51 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx 40rpx 48rpx;
+  box-sizing: border-box;
+}
+.label {
+  font-size: 24rpx;
+  color: var(--ink-muted);
+  margin: 20rpx 0 12rpx;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.chip {
+  padding: 12rpx 22rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid var(--line);
+  background: var(--white);
+  font-size: 26rpx;
+  color: var(--ink-muted);
+}
+.chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.input {
+  height: 88rpx;
+  border-radius: 20rpx;
+  border: 1rpx solid var(--line);
+  background: var(--white);
+  padding: 0 24rpx;
+  font-size: 30rpx;
+  box-sizing: border-box;
+}
+.mb { margin-bottom: 12rpx; }
+.area {
+  width: 100%;
+  min-height: 160rpx;
+  border-radius: 20rpx;
+  border: 1rpx solid var(--line);
+  background: var(--white);
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+.area.sm { min-height: 120rpx; }
+.hint {
+  font-size: 22rpx;
+  margin: 12rpx 0 32rpx;
+  line-height: 1.4;
+}

@@ -1,0 +1,119 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx 32rpx 140rpx;
+  box-sizing: border-box;
+}
+.greet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+.greet { font-size: 40rpx; font-weight: 600; }
+.badge-lg {
+  font-size: 22rpx;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1rpx solid var(--line);
+  border-radius: 999rpx;
+  padding: 6rpx 16rpx;
+  font-weight: 600;
+}
+.sub { margin: 8rpx 0 28rpx; }
+.label { margin-bottom: 16rpx; font-size: 26rpx; }
+.lined {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 54rpx,
+    var(--line) 54rpx,
+    var(--line) 56rpx
+  );
+}
+.task { margin-bottom: 16rpx; }
+.t-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12rpx;
+}
+.t-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  flex: 1;
+  min-width: 0;
+}
+.done-box {
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 6rpx;
+  border: 2rpx solid var(--line);
+  flex-shrink: 0;
+}
+.done-box.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  position: relative;
+}
+.done-box.on::after {
+  content: "";
+  position: absolute;
+  left: 9rpx;
+  top: 3rpx;
+  width: 8rpx;
+  height: 14rpx;
+  border: solid #fff;
+  border-width: 0 3rpx 3rpx 0;
+  transform: rotate(45deg);
+}
+.dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.t-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.t-st { font-size: 22rpx; color: var(--accent); flex-shrink: 0; }
+.t-meta { margin-top: 8rpx; font-size: 24rpx; }
+.mt { margin-top: 32rpx; }
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  height: 108rpx; padding-bottom: env(safe-area-inset-bottom);
+  background: var(--white); border-top: 1rpx solid var(--line);
+  display: flex;
+}
+.tab {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6rpx;
+  font-size: 20rpx; color: var(--ink-faint);
+}
+.tab.on { color: var(--accent); font-weight: 600; }
+.tab .ico {
+  width: 36rpx; height: 36rpx;
+  border: 2rpx solid currentColor; border-radius: 8rpx;
+}
+.tab.on .ico { background: var(--accent-soft); }
+.ico-wrap { position: relative; }
+.badge {
+  position: absolute;
+  top: -10rpx;
+  right: -18rpx;
+  min-width: 28rpx;
+  height: 28rpx;
+  padding: 0 6rpx;
+  border-radius: 999rpx;
+  background: #a63d3d;
+  color: #fff;
+  font-size: 18rpx;
+  line-height: 28rpx;
+  text-align: center;
+  font-weight: 600;
+}

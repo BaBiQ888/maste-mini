@@ -1,0 +1,35 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx 32rpx 48rpx;
+  box-sizing: border-box;
+}
+.intro { font-size: 24rpx; margin-bottom: 20rpx; line-height: 1.45; }
+.item { margin-bottom: 14rpx; }
+.row { display: flex; gap: 16rpx; align-items: flex-start; }
+.check {
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 8rpx;
+  border: 2rpx solid var(--line);
+  margin-top: 4rpx;
+  flex-shrink: 0;
+}
+.check.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  position: relative;
+}
+.check.on::after {
+  content: "";
+  position: absolute;
+  left: 10rpx;
+  top: 4rpx;
+  width: 10rpx;
+  height: 18rpx;
+  border: solid #fff;
+  border-width: 0 3rpx 3rpx 0;
+  transform: rotate(45deg);
+}
+.name { font-size: 30rpx; font-weight: 600; }
+.meta { margin-top: 6rpx; font-size: 22rpx; }
+.tip { padding: 24rpx 0; }

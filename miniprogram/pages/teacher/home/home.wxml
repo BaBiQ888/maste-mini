@@ -1,0 +1,78 @@
+<view class="page">
+  <view class="greet">你好，{{nickname}}</view>
+  <view class="sub muted">工作台 · 完成情况与待批改</view>
+
+  <view class="stats">
+    <view class="stat" bindtap="goAssignments">
+      <view class="n">{{pendingGrade || 0}}</view>
+      <view class="l">待批改</view>
+    </view>
+    <view class="stat" bindtap="goCreateAssignment">
+      <view class="n plus">+</view>
+      <view class="l">布置拍照</view>
+    </view>
+  </view>
+  <view class="quick muted">
+    <text bindtap="goCreateDrill">每日计算</text>
+    <text class="sep">·</text>
+    <text bindtap="goCreateCheckin">知识点打卡</text>
+    <text class="sep">·</text>
+    <text bindtap="goQuestions">题库</text>
+  </view>
+
+  <view class="label muted">当前班级</view>
+
+  <block wx:if="{{current}}">
+    <view class="card current" bindtap="goClassDetail">
+      <view class="cname">{{current.name}}</view>
+      <view class="cmeta muted">{{current.grade}} 年级 · 学生 {{current.studentCount}} 人
+        <text wx:if="{{dashboard}}"> · 班待批 {{dashboard.pendingGrade}}</text>
+      </view>
+      <view class="code-row">
+        <text class="muted">邀请码</text>
+        <text class="code">{{current.inviteCode}}</text>
+      </view>
+    </view>
+
+    <view class="label muted">近期作业完成率</view>
+    <block wx:if="{{recent.length}}">
+      <view
+        class="card asg"
+        wx:for="{{recent}}"
+        wx:key="id"
+        bindtap="goAssignment"
+        data-id="{{item.id}}"
+      >
+        <view class="a-row">
+          <view class="a-title">{{item.title}}</view>
+          <view class="a-rate">{{item.rateText}}</view>
+        </view>
+        <view class="a-meta muted">{{item.completedCount}}/{{item.totalStudents}} 完成
+          <text wx:if="{{item.pendingGrade}}"> · 待批 {{item.pendingGrade}}</text>
+        </view>
+      </view>
+    </block>
+    <view wx:else class="empty-box sm">
+      <view class="desc">本班还没有作业，点上方布置</view>
+    </view>
+  </block>
+
+  <view wx:elif="{{!loading}}" class="empty-box">
+    <view class="title">还没有班级</view>
+    <view class="desc">先建班，再布置拍照作业</view>
+    <button class="btn btn-primary mt" bindtap="goCreateClass">创建班级</button>
+  </view>
+
+  <view class="tabbar">
+    <view class="tab on"><view class="ico"></view><text>工作台</text></view>
+    <view class="tab" bindtap="goClasses"><view class="ico"></view><text>班级</text></view>
+    <view class="tab" bindtap="goAssignments">
+      <view class="ico-wrap">
+        <view class="ico"></view>
+        <view class="badge" wx:if="{{pendingGrade}}">{{pendingGrade > 99 ? '99+' : pendingGrade}}</view>
+      </view>
+      <text>作业</text>
+    </view>
+    <view class="tab" bindtap="goQuestions"><view class="ico"></view><text>题库</text></view>
+  </view>
+</view>

@@ -1,0 +1,38 @@
+<view class="page" wx:if="{{submission}}">
+  <view class="who">{{submission.studentNickname || '学生'}}</view>
+  <view class="thumbs">
+    <image
+      wx:for="{{photoDisplay}}"
+      wx:key="*this"
+      class="thumb"
+      src="{{item}}"
+      mode="aspectFill"
+      data-src="{{item}}"
+      bindtap="preview"
+    />
+  </view>
+
+  <view class="label">结果</view>
+  <view class="chips">
+    <view
+      class="chip {{result === item.id ? 'on' : ''}}"
+      wx:for="{{results}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="pickResult"
+    >{{item.label}}</view>
+  </view>
+
+  <view class="label">分数（可选）</view>
+  <input class="input" type="digit" placeholder="0–100" value="{{score}}" bindinput="onScore" />
+
+  <view class="label">评语</view>
+  <textarea class="area" placeholder="简要反馈" maxlength="500" value="{{comment}}" bindinput="onComment" />
+
+  <view class="resub {{requireResubmit ? 'on' : ''}}" bindtap="toggleResubmit">
+    <view class="box"></view>
+    <text>要求学生重交</text>
+  </view>
+
+  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="submit">保存批改</button>
+</view>

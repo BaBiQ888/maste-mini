@@ -1,0 +1,46 @@
+<view class="page">
+  <view class="toolbar">
+    <view>
+      <view class="title">作业</view>
+      <view class="filter muted" bindtap="pickClass">{{className}} ▾</view>
+    </view>
+    <view class="links">
+      <view class="link" bindtap="goCreateDrill">计算</view>
+      <view class="link" bindtap="goCreateCheckin">打卡</view>
+      <view class="link" bindtap="goCreate">拍照</view>
+    </view>
+  </view>
+
+  <view class="pending muted" wx:if="{{pendingGrade}}">待批改 {{pendingGrade}} 份</view>
+
+  <view wx:if="{{loading}}" class="muted tip">加载中…</view>
+
+  <block wx:elif="{{assignments.length}}">
+    <view
+      class="card item"
+      wx:for="{{assignments}}"
+      wx:key="id"
+      bindtap="goDetail"
+      data-id="{{item.id}}"
+    >
+      <view class="row">
+        <view class="name">{{item.title}}</view>
+        <view class="st">{{statusLabels[item.status]}}</view>
+      </view>
+      <view class="meta muted">{{item.className}} · {{item.type === 'photo_homework' ? '拍照' : (item.type === 'knowledge_checkin' ? '打卡' : '计算')}}{{item.questionCount ? ' · ' + item.questionCount + ' 题' : ''}}</view>
+    </view>
+  </block>
+
+  <view wx:else class="empty-box">
+    <view class="title">还没有作业</view>
+    <view class="desc">可布置拍照作业或从题库选题的在线练习</view>
+    <button class="btn btn-primary mt" bindtap="goCreate">布置拍照作业</button>
+  </view>
+
+  <view class="tabbar">
+    <view class="tab" bindtap="goHome"><view class="ico"></view><text>工作台</text></view>
+    <view class="tab" bindtap="goClasses"><view class="ico"></view><text>班级</text></view>
+    <view class="tab on"><view class="ico"></view><text>作业</text></view>
+    <view class="tab" bindtap="goQuestions"><view class="ico"></view><text>题库</text></view>
+  </view>
+</view>

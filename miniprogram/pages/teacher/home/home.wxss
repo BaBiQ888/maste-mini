@@ -1,0 +1,106 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx 32rpx 140rpx;
+  box-sizing: border-box;
+}
+.greet { font-size: 40rpx; font-weight: 600; }
+.sub { margin: 8rpx 0 28rpx; }
+.stats { display: flex; gap: 20rpx; margin-bottom: 28rpx; }
+.stat {
+  flex: 1;
+  background: var(--white);
+  border: 1rpx solid var(--line);
+  border-radius: 24rpx;
+  padding: 28rpx;
+}
+.stat .n {
+  font-size: 48rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.stat .plus { color: var(--accent); }
+.stat .l {
+  margin-top: 4rpx;
+  font-size: 24rpx;
+  color: var(--ink-muted);
+}
+.quick {
+  margin: -12rpx 0 24rpx;
+  font-size: 26rpx;
+  color: var(--accent);
+  font-weight: 600;
+}
+.quick .sep {
+  margin: 0 12rpx;
+  color: var(--line);
+  font-weight: 400;
+}
+.label { margin: 8rpx 0 16rpx; font-size: 26rpx; }
+.current { margin-bottom: 8rpx; }
+.cname { font-size: 34rpx; font-weight: 600; }
+.cmeta { margin-top: 8rpx; font-size: 26rpx; }
+.code-row {
+  margin-top: 24rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 26rpx;
+}
+.code {
+  font-size: 36rpx;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+.asg { margin-bottom: 16rpx; }
+.a-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16rpx;
+}
+.a-title { font-size: 30rpx; font-weight: 600; flex: 1; }
+.a-rate {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.a-meta { margin-top: 8rpx; font-size: 24rpx; }
+.empty-box.sm { padding: 28rpx; }
+.mt { margin-top: 32rpx; }
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  height: 108rpx; padding-bottom: env(safe-area-inset-bottom);
+  background: var(--white); border-top: 1rpx solid var(--line);
+  display: flex;
+}
+.tab {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6rpx;
+  font-size: 20rpx; color: var(--ink-faint);
+}
+.tab.on { color: var(--accent); font-weight: 600; }
+.tab .ico {
+  width: 36rpx; height: 36rpx;
+  border: 2rpx solid currentColor; border-radius: 8rpx;
+}
+.tab.on .ico { background: var(--accent-soft); }
+.ico-wrap { position: relative; }
+.badge {
+  position: absolute;
+  top: -10rpx;
+  right: -18rpx;
+  min-width: 28rpx;
+  height: 28rpx;
+  padding: 0 6rpx;
+  border-radius: 999rpx;
+  background: #a63d3d;
+  color: #fff;
+  font-size: 18rpx;
+  line-height: 28rpx;
+  text-align: center;
+  font-weight: 600;
+}

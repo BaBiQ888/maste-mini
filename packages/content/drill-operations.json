@@ -1,0 +1,691 @@
+{
+  "version": "1.0.0",
+  "locale": "zh-CN",
+  "description": "MVP 每日计算运算清单：规则出题参数 + 批改约定",
+  "defaults": {
+    "questionType": "fill_blank",
+    "answerNormalize": ["trim", "fullwidth_to_half", "lower_case_false"],
+    "defaultCountOptions": [10, 15, 20, 30],
+    "defaultTimeLimitSecOptions": [null, 180, 300, 600],
+    "difficultyLevels": ["basic", "normal", "challenge"]
+  },
+  "categories": [
+    { "id": "integer", "name": "整数运算" },
+    { "id": "decimal", "name": "小数运算" },
+    { "id": "fraction", "name": "分数运算" },
+    { "id": "mixed", "name": "混合运算" },
+    { "id": "unit", "name": "单位换算" }
+  ],
+  "operations": [
+    {
+      "id": "int_add_2d",
+      "name": "两位数加法",
+      "category": "integer",
+      "grades": [3],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} + {b} =",
+      "generator": {
+        "kind": "binary_op",
+        "op": "add",
+        "operands": [
+          { "name": "a", "min": 10, "max": 99 },
+          { "name": "b", "min": 10, "max": 99 }
+        ],
+        "constraints": [{ "type": "sum_max", "value": 198 }],
+        "byDifficulty": {
+          "basic": { "a": { "min": 10, "max": 49 }, "b": { "min": 10, "max": 49 }, "noCarry": true },
+          "normal": { "allowCarry": true },
+          "challenge": { "allowCarry": true, "preferCarry": true }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g3-u-addsub-k-add2"]
+    },
+    {
+      "id": "int_sub_2d",
+      "name": "两位数减法",
+      "category": "integer",
+      "grades": [3],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} − {b} =",
+      "generator": {
+        "kind": "binary_op",
+        "op": "sub",
+        "operands": [
+          { "name": "a", "min": 10, "max": 99 },
+          { "name": "b", "min": 10, "max": 99 }
+        ],
+        "constraints": [{ "type": "a_gte_b" }],
+        "byDifficulty": {
+          "basic": { "noBorrow": true },
+          "normal": { "allowBorrow": true },
+          "challenge": { "preferBorrow": true }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g3-u-addsub-k-sub2"]
+    },
+    {
+      "id": "int_add_within_10000",
+      "name": "万以内加法",
+      "category": "integer",
+      "grades": [3, 4],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} + {b} =",
+      "generator": {
+        "kind": "binary_op",
+        "op": "add",
+        "operands": [
+          { "name": "a", "min": 100, "max": 9999 },
+          { "name": "b", "min": 10, "max": 9999 }
+        ],
+        "constraints": [{ "type": "sum_max", "value": 9999 }],
+        "byDifficulty": {
+          "basic": { "a": { "min": 100, "max": 999 }, "b": { "min": 10, "max": 999 } },
+          "normal": {},
+          "challenge": { "preferCarry": true, "a": { "min": 1000, "max": 9999 } }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g3-u-addsub-k-add10000", "g4-u-int-k-add"]
+    },
+    {
+      "id": "int_sub_within_10000",
+      "name": "万以内减法",
+      "category": "integer",
+      "grades": [3, 4],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} − {b} =",
+      "generator": {
+        "kind": "binary_op",
+        "op": "sub",
+        "operands": [
+          { "name": "a", "min": 100, "max": 9999 },
+          { "name": "b", "min": 10, "max": 9999 }
+        ],
+        "constraints": [{ "type": "a_gte_b" }],
+        "byDifficulty": {
+          "basic": { "a": { "min": 100, "max": 999 } },
+          "normal": {},
+          "challenge": { "preferBorrow": true }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g3-u-addsub-k-sub10000", "g4-u-int-k-sub"]
+    },
+    {
+      "id": "int_mul_table",
+      "name": "表内乘法",
+      "category": "integer",
+      "grades": [3],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} × {b} =",
+      "generator": {
+        "kind": "binary_op",
+        "op": "mul",
+        "operands": [
+          { "name": "a", "min": 1, "max": 9 },
+          { "name": "b", "min": 1, "max": 9 }
+        ],
+        "byDifficulty": {
+          "basic": { "a": { "min": 1, "max": 5 }, "b": { "min": 1, "max": 5 } },
+          "normal": {},
+          "challenge": { "a": { "min": 6, "max": 9 }, "b": { "min": 6, "max": 9 } }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g3-u-mul-k-table"]
+    },
+    {
+      "id": "int_div_table",
+      "name": "表内除法（整除）",
+      "category": "integer",
+      "grades": [3],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} ÷ {b} =",
+      "generator": {
+        "kind": "div_exact",
+        "op": "div",
+        "quotient": { "min": 1, "max": 9 },
+        "divisor": { "min": 1, "max": 9 },
+        "note": "先抽商与除数，再算被除数，保证整除",
+        "byDifficulty": {
+          "basic": { "divisor": { "min": 1, "max": 5 } },
+          "normal": {},
+          "challenge": { "divisor": { "min": 6, "max": 9 } }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g3-u-div-k-table"]
+    },
+    {
+      "id": "int_mul_1d_2d",
+      "name": "一位数乘两位数",
+      "category": "integer",
+      "grades": [3, 4],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} × {b} =",
+      "generator": {
+        "kind": "binary_op",
+        "op": "mul",
+        "operands": [
+          { "name": "a", "min": 10, "max": 99 },
+          { "name": "b", "min": 2, "max": 9 }
+        ],
+        "byDifficulty": {
+          "basic": { "a": { "min": 10, "max": 49 }, "b": { "min": 2, "max": 5 } },
+          "normal": {},
+          "challenge": { "a": { "min": 50, "max": 99 }, "b": { "min": 6, "max": 9 } }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g3-u-mul-k-1d2d", "g4-u-muldiv-k-mul"]
+    },
+    {
+      "id": "int_mul_2d_2d",
+      "name": "两位数乘两位数",
+      "category": "integer",
+      "grades": [4],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} × {b} =",
+      "generator": {
+        "kind": "binary_op",
+        "op": "mul",
+        "operands": [
+          { "name": "a", "min": 10, "max": 99 },
+          { "name": "b", "min": 10, "max": 99 }
+        ],
+        "byDifficulty": {
+          "basic": { "a": { "min": 10, "max": 29 }, "b": { "min": 10, "max": 29 } },
+          "normal": {},
+          "challenge": { "a": { "min": 50, "max": 99 }, "b": { "min": 50, "max": 99 } }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g4-u-muldiv-k-mul2d"]
+    },
+    {
+      "id": "int_div_1d_exact",
+      "name": "除数是一位数的除法（整除）",
+      "category": "integer",
+      "grades": [3, 4],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} ÷ {b} =",
+      "generator": {
+        "kind": "div_exact",
+        "op": "div",
+        "divisor": { "min": 2, "max": 9 },
+        "quotient": { "min": 10, "max": 99 },
+        "byDifficulty": {
+          "basic": { "quotient": { "min": 10, "max": 29 } },
+          "normal": { "quotient": { "min": 10, "max": 99 } },
+          "challenge": { "quotient": { "min": 100, "max": 999 }, "gradesHint": [4] }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g3-u-div-k-1d", "g4-u-muldiv-k-div1"]
+    },
+    {
+      "id": "int_div_1d_remainder",
+      "name": "除数是一位数的除法（带余数）",
+      "category": "integer",
+      "grades": [3, 4],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} ÷ {b} =",
+      "answerHint": "商…余… 或 商 R 余数，标准答案格式见 answer.format",
+      "generator": {
+        "kind": "div_remainder",
+        "op": "div",
+        "divisor": { "min": 2, "max": 9 },
+        "quotient": { "min": 2, "max": 99 },
+        "remainder": { "min": 1, "maxExclusiveOfDivisor": true },
+        "byDifficulty": {
+          "basic": { "quotient": { "min": 2, "max": 20 } },
+          "normal": {},
+          "challenge": { "quotient": { "min": 50, "max": 200 } }
+        }
+      },
+      "answer": {
+        "type": "quotient_remainder",
+        "format": "q...r",
+        "displayExample": "12...3",
+        "acceptedPatterns": ["{q}...{r}", "{q}余{r}", "商{q}余{r}"]
+      },
+      "relatedKnowledgeIds": ["g3-u-div-k-remainder", "g4-u-muldiv-k-div1"]
+    },
+    {
+      "id": "int_div_2d_exact",
+      "name": "除数是两位数的除法（整除）",
+      "category": "integer",
+      "grades": [4, 5],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} ÷ {b} =",
+      "generator": {
+        "kind": "div_exact",
+        "op": "div",
+        "divisor": { "min": 11, "max": 99 },
+        "quotient": { "min": 2, "max": 99 },
+        "byDifficulty": {
+          "basic": { "divisor": { "min": 11, "max": 25 }, "quotient": { "min": 2, "max": 20 } },
+          "normal": {},
+          "challenge": { "divisor": { "min": 50, "max": 99 }, "quotient": { "min": 20, "max": 99 } }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g4-u-muldiv-k-div2", "g5-u-int-k-div"]
+    },
+    {
+      "id": "dec_add",
+      "name": "小数加法（一位或两位小数）",
+      "category": "decimal",
+      "grades": [4, 5],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} + {b} =",
+      "generator": {
+        "kind": "decimal_binary",
+        "op": "add",
+        "decimalPlaces": { "min": 1, "max": 2 },
+        "intPart": { "min": 0, "max": 99 },
+        "byDifficulty": {
+          "basic": { "decimalPlaces": { "min": 1, "max": 1 }, "intPart": { "min": 0, "max": 20 } },
+          "normal": { "decimalPlaces": { "min": 1, "max": 2 } },
+          "challenge": { "decimalPlaces": { "min": 2, "max": 2 }, "intPart": { "min": 10, "max": 99 } }
+        }
+      },
+      "answer": {
+        "type": "decimal",
+        "stripTrailingZeros": true,
+        "maxDecimalPlaces": 2
+      },
+      "relatedKnowledgeIds": ["g4-u-dec-k-add", "g5-u-dec-k-add"]
+    },
+    {
+      "id": "dec_sub",
+      "name": "小数减法（一位或两位小数）",
+      "category": "decimal",
+      "grades": [4, 5],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} − {b} =",
+      "generator": {
+        "kind": "decimal_binary",
+        "op": "sub",
+        "decimalPlaces": { "min": 1, "max": 2 },
+        "constraints": [{ "type": "a_gte_b" }],
+        "intPart": { "min": 0, "max": 99 },
+        "byDifficulty": {
+          "basic": { "decimalPlaces": { "min": 1, "max": 1 } },
+          "normal": {},
+          "challenge": { "decimalPlaces": { "min": 2, "max": 2 }, "preferBorrow": true }
+        }
+      },
+      "answer": {
+        "type": "decimal",
+        "stripTrailingZeros": true,
+        "maxDecimalPlaces": 2
+      },
+      "relatedKnowledgeIds": ["g4-u-dec-k-sub", "g5-u-dec-k-sub"]
+    },
+    {
+      "id": "dec_mul_int",
+      "name": "小数乘整数",
+      "category": "decimal",
+      "grades": [5],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} × {b} =",
+      "generator": {
+        "kind": "decimal_mul",
+        "decimalOperand": { "places": { "min": 1, "max": 2 }, "intPart": { "min": 0, "max": 99 } },
+        "intOperand": { "min": 2, "max": 9 },
+        "byDifficulty": {
+          "basic": { "places": 1, "intOperand": { "min": 2, "max": 5 } },
+          "normal": {},
+          "challenge": { "places": 2, "intOperand": { "min": 6, "max": 9 } }
+        }
+      },
+      "answer": {
+        "type": "decimal",
+        "stripTrailingZeros": true,
+        "maxDecimalPlaces": 3
+      },
+      "relatedKnowledgeIds": ["g5-u-dec-k-mul"]
+    },
+    {
+      "id": "dec_div_int",
+      "name": "小数除以整数（除尽）",
+      "category": "decimal",
+      "grades": [5],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a} ÷ {b} =",
+      "generator": {
+        "kind": "decimal_div_exact",
+        "divisor": { "min": 2, "max": 9 },
+        "quotientPlaces": { "min": 1, "max": 2 },
+        "note": "先定商与除数再反推被除数，保证除尽且小数位可控",
+        "byDifficulty": {
+          "basic": { "quotientPlaces": 1 },
+          "normal": { "quotientPlaces": { "min": 1, "max": 2 } },
+          "challenge": { "quotientPlaces": 2, "divisor": { "min": 6, "max": 9 } }
+        }
+      },
+      "answer": {
+        "type": "decimal",
+        "stripTrailingZeros": true,
+        "maxDecimalPlaces": 3
+      },
+      "relatedKnowledgeIds": ["g5-u-dec-k-div"]
+    },
+    {
+      "id": "frac_same_den_add",
+      "name": "同分母分数加法",
+      "category": "fraction",
+      "grades": [3, 5],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a}/{d} + {b}/{d} =",
+      "generator": {
+        "kind": "fraction_same_den",
+        "op": "add",
+        "denominator": { "min": 2, "max": 12 },
+        "numerators": { "min": 1, "max": 11 },
+        "constraints": [
+          { "type": "proper_or_improper_allowed", "mvp": "allow_improper" },
+          { "type": "result_simplify", "value": true }
+        ],
+        "byDifficulty": {
+          "basic": { "denominator": { "min": 2, "max": 6 }, "resultProper": true },
+          "normal": { "simplifyResult": true },
+          "challenge": { "denominator": { "min": 7, "max": 12 }, "simplifyResult": true }
+        }
+      },
+      "answer": {
+        "type": "fraction",
+        "form": "simplified",
+        "acceptUnsimplified": false,
+        "display": "p/q",
+        "note": "MVP：只接受最简分数字符串，如 3/4；带分数暂不要求"
+      },
+      "relatedKnowledgeIds": ["g3-u-frac-k-add", "g5-u-frac-k-add"]
+    },
+    {
+      "id": "frac_same_den_sub",
+      "name": "同分母分数减法",
+      "category": "fraction",
+      "grades": [3, 5],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a}/{d} − {b}/{d} =",
+      "generator": {
+        "kind": "fraction_same_den",
+        "op": "sub",
+        "denominator": { "min": 2, "max": 12 },
+        "constraints": [{ "type": "a_gte_b" }, { "type": "result_simplify", "value": true }],
+        "byDifficulty": {
+          "basic": { "denominator": { "min": 2, "max": 6 } },
+          "normal": {},
+          "challenge": { "denominator": { "min": 7, "max": 12 } }
+        }
+      },
+      "answer": {
+        "type": "fraction",
+        "form": "simplified",
+        "acceptUnsimplified": false,
+        "display": "p/q"
+      },
+      "relatedKnowledgeIds": ["g3-u-frac-k-sub", "g5-u-frac-k-sub"]
+    },
+    {
+      "id": "frac_diff_den_add",
+      "name": "异分母分数加法（分母≤12）",
+      "category": "fraction",
+      "grades": [5, 6],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a}/{d1} + {b}/{d2} =",
+      "generator": {
+        "kind": "fraction_diff_den",
+        "op": "add",
+        "denominators": { "min": 2, "max": 12 },
+        "constraints": [{ "type": "result_simplify", "value": true }],
+        "byDifficulty": {
+          "basic": { "denominators": { "min": 2, "max": 6 }, "preferRelatedDenoms": true },
+          "normal": {},
+          "challenge": { "denominators": { "min": 5, "max": 12 } }
+        }
+      },
+      "answer": {
+        "type": "fraction",
+        "form": "simplified",
+        "acceptUnsimplified": false,
+        "display": "p/q"
+      },
+      "relatedKnowledgeIds": ["g5-u-frac-k-add-diff", "g6-u-frac-k-ops"]
+    },
+    {
+      "id": "frac_diff_den_sub",
+      "name": "异分母分数减法（分母≤12）",
+      "category": "fraction",
+      "grades": [5, 6],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{a}/{d1} − {b}/{d2} =",
+      "generator": {
+        "kind": "fraction_diff_den",
+        "op": "sub",
+        "denominators": { "min": 2, "max": 12 },
+        "constraints": [{ "type": "a_gte_b_as_rational" }, { "type": "result_simplify", "value": true }],
+        "byDifficulty": {
+          "basic": { "preferRelatedDenoms": true },
+          "normal": {},
+          "challenge": {}
+        }
+      },
+      "answer": {
+        "type": "fraction",
+        "form": "simplified",
+        "acceptUnsimplified": false,
+        "display": "p/q"
+      },
+      "relatedKnowledgeIds": ["g5-u-frac-k-sub-diff", "g6-u-frac-k-ops"]
+    },
+    {
+      "id": "mixed_add_sub_mul_div",
+      "name": "整数四则混合运算（两步）",
+      "category": "mixed",
+      "grades": [4, 5, 6],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "动态生成，如 {a} + {b} × {c}",
+      "generator": {
+        "kind": "mixed_two_step",
+        "opsPool": ["add", "sub", "mul", "div_exact"],
+        "patterns": [
+          "a + b × c",
+          "a × b + c",
+          "a − b × c",
+          "a × b − c",
+          "(a + b) × c",
+          "a × (b + c)",
+          "a + b − c",
+          "a × b ÷ c"
+        ],
+        "operandRange": { "min": 1, "max": 20 },
+        "constraints": [
+          { "type": "div_exact_only" },
+          { "type": "non_negative_result" },
+          { "type": "result_integer" }
+        ],
+        "byDifficulty": {
+          "basic": { "patterns": ["a + b × c", "a × b + c", "a + b − c"], "operandRange": { "min": 1, "max": 10 } },
+          "normal": {},
+          "challenge": { "patterns": ["(a + b) × c", "a × (b + c)", "a × b ÷ c"], "operandRange": { "min": 2, "max": 30 } }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g4-u-mixed-k-order", "g5-u-mixed-k-order", "g6-u-mixed-k-order"]
+    },
+    {
+      "id": "unit_length_mm_cm_m",
+      "name": "长度单位换算（mm/cm/m）",
+      "category": "unit",
+      "grades": [3, 4],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{n} {from} = ____ {to}",
+      "generator": {
+        "kind": "unit_convert",
+        "dimension": "length",
+        "units": ["mm", "cm", "m"],
+        "factorsToMm": { "mm": 1, "cm": 10, "m": 1000 },
+        "valueRange": { "min": 1, "max": 50 },
+        "byDifficulty": {
+          "basic": { "pairs": [["cm", "mm"], ["m", "cm"]] },
+          "normal": { "pairs": [["mm", "cm"], ["cm", "m"], ["m", "mm"]] },
+          "challenge": { "pairs": [["m", "mm"], ["mm", "m"]], "valueRange": { "min": 1, "max": 100 } }
+        }
+      },
+      "answer": {
+        "type": "decimal_or_integer",
+        "stripTrailingZeros": true
+      },
+      "relatedKnowledgeIds": ["g3-u-measure-k-length", "g4-u-measure-k-length"]
+    },
+    {
+      "id": "unit_time_h_min_s",
+      "name": "时间单位换算（时/分/秒）",
+      "category": "unit",
+      "grades": [3, 4],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{n} {from} = ____ {to}",
+      "generator": {
+        "kind": "unit_convert",
+        "dimension": "time",
+        "units": ["h", "min", "s"],
+        "factorsToSec": { "s": 1, "min": 60, "h": 3600 },
+        "valueRange": { "min": 1, "max": 24 },
+        "byDifficulty": {
+          "basic": { "pairs": [["h", "min"], ["min", "s"]] },
+          "normal": { "pairs": [["min", "h"], ["s", "min"]] },
+          "challenge": { "pairs": [["h", "s"]] }
+        }
+      },
+      "answer": { "type": "integer" },
+      "relatedKnowledgeIds": ["g3-u-measure-k-time"]
+    },
+    {
+      "id": "unit_area_cm2_m2",
+      "name": "面积单位换算（cm²/m²）",
+      "category": "unit",
+      "grades": [4, 5],
+      "enabled": true,
+      "mvp": true,
+      "stemTemplate": "{n} {from} = ____ {to}",
+      "generator": {
+        "kind": "unit_convert",
+        "dimension": "area",
+        "units": ["cm2", "m2"],
+        "factorsToCm2": { "cm2": 1, "m2": 10000 },
+        "valueRange": { "min": 1, "max": 20 },
+        "byDifficulty": {
+          "basic": { "pairs": [["m2", "cm2"]], "valueRange": { "min": 1, "max": 5 } },
+          "normal": { "pairs": [["m2", "cm2"], ["cm2", "m2"]] },
+          "challenge": { "valueRange": { "min": 1, "max": 50 } }
+        }
+      },
+      "answer": {
+        "type": "decimal_or_integer",
+        "stripTrailingZeros": true
+      },
+      "relatedKnowledgeIds": ["g4-u-area-k-unit", "g5-u-area-k-unit"]
+    }
+  ],
+  "deferredNotInMvp": [
+    {
+      "id": "frac_mul_div",
+      "name": "分数乘除",
+      "reason": "答案形式与约分规则更复杂，可放 V1.1"
+    },
+    {
+      "id": "dec_mul_dec",
+      "name": "小数乘小数",
+      "reason": "小数位与四舍五入策略需教研定稿"
+    },
+    {
+      "id": "percent_basic",
+      "name": "百分数与小数互化",
+      "reason": "可先靠手工题覆盖"
+    },
+    {
+      "id": "vertical_only_display",
+      "name": "纯竖式步骤题",
+      "reason": "MVP 用横式填空；竖式可拍照作业"
+    }
+  ],
+  "gradeDefaultOperations": {
+    "3": [
+      "int_add_2d",
+      "int_sub_2d",
+      "int_add_within_10000",
+      "int_sub_within_10000",
+      "int_mul_table",
+      "int_div_table",
+      "int_mul_1d_2d",
+      "int_div_1d_exact",
+      "int_div_1d_remainder",
+      "frac_same_den_add",
+      "frac_same_den_sub",
+      "unit_length_mm_cm_m",
+      "unit_time_h_min_s"
+    ],
+    "4": [
+      "int_add_within_10000",
+      "int_sub_within_10000",
+      "int_mul_1d_2d",
+      "int_mul_2d_2d",
+      "int_div_1d_exact",
+      "int_div_1d_remainder",
+      "int_div_2d_exact",
+      "dec_add",
+      "dec_sub",
+      "mixed_add_sub_mul_div",
+      "unit_length_mm_cm_m",
+      "unit_time_h_min_s",
+      "unit_area_cm2_m2"
+    ],
+    "5": [
+      "int_div_2d_exact",
+      "dec_add",
+      "dec_sub",
+      "dec_mul_int",
+      "dec_div_int",
+      "frac_same_den_add",
+      "frac_same_den_sub",
+      "frac_diff_den_add",
+      "frac_diff_den_sub",
+      "mixed_add_sub_mul_div",
+      "unit_area_cm2_m2"
+    ],
+    "6": [
+      "frac_diff_den_add",
+      "frac_diff_den_sub",
+      "mixed_add_sub_mul_div",
+      "dec_mul_int",
+      "dec_div_int"
+    ]
+  }
+}

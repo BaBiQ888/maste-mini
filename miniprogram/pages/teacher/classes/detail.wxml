@@ -1,0 +1,70 @@
+<view class="page" wx:if="{{cls}}">
+  <view class="hero card">
+    <view class="name-row">
+      <view class="name">{{cls.name}}</view>
+      <view class="badge" wx:if="{{cls.archived}}">已归档</view>
+    </view>
+    <view class="meta muted">{{cls.grade}} 年级 · 学生 {{cls.studentCount}} 人</view>
+
+    <view class="code-block" wx:if="{{!cls.archived}}">
+      <view class="code-label muted">邀请码</view>
+      <view class="code">{{cls.inviteCode}}</view>
+    </view>
+    <view class="code-block muted-box" wx:else>
+      <view class="code-label muted">归档班不可邀请新成员</view>
+    </view>
+
+    <view class="btn-row" wx:if="{{!cls.archived}}">
+      <button class="btn btn-primary half" bindtap="copyCode">复制邀请码</button>
+      <button class="btn btn-ghost half ghost-inline" bindtap="copyShareText">复制文案</button>
+    </view>
+
+    <view class="ops" wx:if="{{!cls.archived}}">
+      <text class="op accent" bindtap="showQr">入班二维码</text>
+      <text class="dot">·</text>
+      <text class="op" bindtap="refreshCode">刷新邀请码</text>
+      <text class="dot">·</text>
+      <text class="op" bindtap="setAsCurrent">设为当前班</text>
+      <text class="dot">·</text>
+      <text class="op danger" bindtap="archiveClass">归档</text>
+    </view>
+
+    <view class="qr-panel" wx:if="{{showQr && qrDataUrl}}">
+      <image class="qr-img" src="{{qrDataUrl}}" mode="aspectFit" bindtap="previewQr" />
+      <view class="muted qr-tip">学生扫码加入 · 点图可放大</view>
+      <view class="op" bindtap="hideQr">收起</view>
+    </view>
+    <view class="ops" wx:else>
+      <text class="op accent" bindtap="unarchiveClass">恢复班级</text>
+    </view>
+  </view>
+
+  <view class="section-label muted">成员</view>
+  <view class="card list">
+    <view class="member" wx:for="{{members}}" wx:key="userId">
+      <view class="avatar">{{item.nickname ? item.nickname[0] : '·'}}</view>
+      <view class="info">
+        <view class="mn">{{item.nickname || '未命名'}}</view>
+        <view class="mr muted">{{item.role === 'teacher' ? '老师' : '学生'}}</view>
+      </view>
+      <view
+        wx:if="{{item.role === 'student'}}"
+        class="stats-link"
+        data-id="{{item.userId}}"
+        bindtap="goStudentStats"
+      >学情</view>
+      <view
+        wx:if="{{item.role === 'student' && !cls.archived}}"
+        class="rm"
+        data-id="{{item.userId}}"
+        data-name="{{item.nickname}}"
+        bindtap="removeStudent"
+      >移出</view>
+    </view>
+    <view wx:if="{{!members.length}}" class="muted empty">暂无成员</view>
+  </view>
+</view>
+
+<view class="page" wx:elif="{{loading}}">
+  <view class="muted tip">加载中…</view>
+</view>

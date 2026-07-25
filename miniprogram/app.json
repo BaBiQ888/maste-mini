@@ -1,0 +1,37 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/role/role",
+    "pages/teacher/home/home",
+    "pages/teacher/classes/list",
+    "pages/teacher/classes/create",
+    "pages/teacher/classes/detail",
+    "pages/teacher/assignments/list",
+    "pages/teacher/assignments/create",
+    "pages/teacher/assignments/create-online",
+    "pages/teacher/assignments/create-drill",
+    "pages/teacher/assignments/create-checkin",
+    "pages/teacher/assignments/detail",
+    "pages/teacher/assignments/grade",
+    "pages/teacher/questions/list",
+    "pages/teacher/questions/edit",
+    "pages/student/home/home",
+    "pages/student/join/join",
+    "pages/student/classes/list",
+    "pages/student/task/detail",
+    "pages/student/task/online",
+    "pages/student/calendar/calendar",
+    "pages/student/knowledge/list",
+    "pages/teacher/students/stats",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#F7F3EB",
+    "navigationBarTitleText": "算本",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F7F3EB",
+    "backgroundTextStyle": "dark"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

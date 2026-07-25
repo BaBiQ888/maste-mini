@@ -1,0 +1,38 @@
+<view class="page" wx:if="{{assignment}}">
+  <view class="card hero">
+    <view class="title">{{assignment.title}}</view>
+    <view class="meta muted">{{assignment.className}} · {{statusLabels[submission.status]}}</view>
+    <view class="desc" wx:if="{{assignment.description}}">{{assignment.description}}</view>
+  </view>
+
+  <view class="section muted">照片</view>
+  <view class="thumbs">
+    <view class="thumb-wrap" wx:for="{{displayUrls}}" wx:key="*this">
+      <image class="thumb" src="{{item}}" mode="aspectFill" data-src="{{item}}" bindtap="preview" />
+      <view class="rm" wx:if="{{canEdit}}" data-index="{{index}}" catchtap="removePhoto">×</view>
+    </view>
+    <view class="add" wx:if="{{canEdit && localUrls.length < 6}}" bindtap="addPhotos">+</view>
+  </view>
+  <view class="hint muted">最多 6 张 · 单张不超过 2MB · JPG/PNG</view>
+
+  <view class="card grade" wx:if="{{submission.grade && submission.status !== 'submitted'}}">
+    <view class="gl">批改结果</view>
+    <view class="gv">
+      {{resultLabels[submission.grade.result]}}
+      <text wx:if="{{submission.grade.score != null}}"> · {{submission.grade.score}} 分</text>
+    </view>
+    <view class="gc" wx:if="{{submission.grade.comment}}">{{submission.grade.comment}}</view>
+    <view class="warn" wx:if="{{submission.status === 'resubmit_required'}}">老师要求重交，请更新照片后再次提交</view>
+  </view>
+
+  <button
+    wx:if="{{canEdit}}"
+    class="btn btn-primary"
+    loading="{{busy}}"
+    disabled="{{busy}}"
+    bindtap="submit"
+  >{{submission.status === 'resubmit_required' ? '重新提交' : '提交作业'}}</button>
+
+  <view class="done muted" wx:if="{{submission.status === 'completed'}}">已完成 · 无需再交</view>
+</view>
+<view class="page" wx:elif="{{loading}}"><view class="muted tip">加载中…</view></view>
