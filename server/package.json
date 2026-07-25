@@ -13,7 +13,6 @@
   "dependencies": {
     "@hono/node-server": "^1.14.1",
     "better-sqlite3": "^11.9.1",
-    "deasync": "^0.1.31",
     "hono": "^4.7.7",
     "mysql2": "^3.23.1",
     "qrcode": "^1.5.4",

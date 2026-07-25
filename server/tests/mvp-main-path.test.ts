@@ -12,9 +12,9 @@ import { openDatabase } from "../src/infrastructure/persistence/db.js";
 const TINY_JPEG_B64 =
   "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAGcP//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAQUCf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQMBAT8Bf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Bf//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEABj8Cf//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAT8hf//Z";
 
-function testApp() {
+async function testApp() {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "math-mini-mvp-"));
-  const db = openDatabase(":memory:");
+  const db = await openDatabase(":memory:");
   return createApp(db, {
     wechat: { appId: "", appSecret: "", mock: true },
     dataDir,
@@ -55,8 +55,8 @@ function auth(token: string) {
 describe("MVP main path (Phase 12)", () => {
   let app: ReturnType<typeof testApp>;
 
-  beforeEach(() => {
-    app = testApp();
+  beforeEach(async () => {
+    app = await testApp();
   });
 
   it("建班→入班→三类作业→汇总催交→批改/订正", async () => {

@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createApp } from "../src/presentation/http/app.js";
 import { openDatabase } from "../src/infrastructure/persistence/db.js";
 
-function testApp() {
-  const db = openDatabase(":memory:");
+async function testApp() {
+  const db = await openDatabase(":memory:");
   const app = createApp(db, { appId: "", appSecret: "", mock: true });
   return app;
 }
@@ -20,8 +20,8 @@ async function login(app: ReturnType<typeof testApp>, code: string) {
 describe("Identity", () => {
   let app: ReturnType<typeof testApp>;
 
-  beforeEach(() => {
-    app = testApp();
+  beforeEach(async () => {
+    app = await testApp();
   });
 
   it("creates a stable account for the same wechat code (openid)", async () => {

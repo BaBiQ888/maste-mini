@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { AppDatabase } from "../../infrastructure/persistence/db.js";
 import { AppError } from "../../domain/shared/errors.js";
 import { KnowledgeTreeService } from "../knowledge/service.js";
 
@@ -112,22 +112,18 @@ export interface KnowledgeDoneItem {
 export class ProgressService {
   private knowledge = new KnowledgeTreeService();
 
-  constructor(private db: Database.Database) {}
+  constructor(private db: AppDatabase) {}
 
-  getAssignmentSummary(
+  async getAssignmentSummary(
     assignmentId: string,
     teacherId: string,
-  ): AssignmentSummary {
-    const asg = this.db
-      .prepare(
-        `
+  ): Promise<AssignmentSummary> {
+    const asg = await this.db.get(`
         SELECT a.*, c.name AS class_name, c.teacher_id
         FROM assignments a
         JOIN classes c ON c.id = a.class_id
         WHERE a.id = ?
-        `,
-      )
-      .get(assignmentId) as
+        `, assignmentId) as
       | {
           id: string;
           title: string;
@@ -145,27 +141,19 @@ export class ProgressService {
       throw new AppError("FORBIDDEN", "无权查看该作业汇总", 403);
     }
 
-    const students = this.db
-      .prepare(
-        `
+    const students = await this.db.all(`
         SELECT u.id, u.nickname
         FROM class_memberships m
         JOIN users u ON u.id = m.user_id
         WHERE m.class_id = ? AND m.role = 'student'
         ORDER BY m.joined_at ASC
-        `,
-      )
-      .all(asg.class_id) as Array<{ id: string; nickname: string | null }>;
+        `, asg.class_id) as Array<{ id: string; nickname: string | null }>;
 
-    const submissions = this.db
-      .prepare(
-        `
+    const submissions = await this.db.all(`
         SELECT student_id, status, overdue
         FROM submissions
         WHERE assignment_id = ?
-        `,
-      )
-      .all(assignmentId) as Array<{
+        `, assignmentId) as Array<{
       student_id: string;
       status: string;
       overdue: number;
@@ -241,8 +229,8 @@ export class ProgressService {
     };
   }
 
-  buildReminderText(assignmentId: string, teacherId: string): string {
-    const summary = this.getAssignmentSummary(assignmentId, teacherId);
+  async buildReminderText(assignmentId: string, teacherId: string): Promise<string> {
+    const summary = await this.getAssignmentSummary(assignmentId, teacherId);
     const names = summary.incomplete.map(
       (s) => s.nickname?.trim() || "未命名同学",
     );
@@ -262,10 +250,8 @@ export class ProgressService {
     ].join("\n");
   }
 
-  getClassDashboard(classId: string, teacherId: string): ClassDashboard {
-    const cls = this.db
-      .prepare(`SELECT id, name, teacher_id FROM classes WHERE id = ?`)
-      .get(classId) as
+  async getClassDashboard(classId: string, teacherId: string): Promise<ClassDashboard> {
+    const cls = await this.db.get(`SELECT id, name, teacher_id FROM classes WHERE id = ?`, classId) as
       | { id: string; name: string; teacher_id: string }
       | undefined;
     if (!cls) throw new AppError("NOT_FOUND", "班级不存在", 404);
@@ -274,55 +260,43 @@ export class ProgressService {
     }
 
     const studentCount = (
-      this.db
-        .prepare(
-          `SELECT COUNT(*) AS c FROM class_memberships
-           WHERE class_id = ? AND role = 'student'`,
-        )
-        .get(classId) as { c: number }
+      await this.db.get(`SELECT COUNT(*) AS c FROM class_memberships
+           WHERE class_id = ? AND role = 'student'`, classId) as { c: number }
     ).c;
 
     const pendingGrade = (
-      this.db
-        .prepare(
-          `
+      await this.db.get(`
           SELECT COUNT(*) AS c
           FROM submissions s
           JOIN assignments a ON a.id = s.assignment_id
           WHERE a.class_id = ? AND a.status = 'published' AND s.status = 'submitted'
-          `,
-        )
-        .get(classId) as { c: number }
+          `, classId) as { c: number }
     ).c;
 
-    const recent = this.db
-      .prepare(
-        `
+    const recent = await this.db.all(`
         SELECT id, title, type, status
         FROM assignments
         WHERE class_id = ?
         ORDER BY created_at DESC
         LIMIT 10
-        `,
-      )
-      .all(classId) as Array<{
+        `, classId) as Array<{
       id: string;
       title: string;
       type: string;
       status: string;
     }>;
 
-    const recentAssignments = recent.map((a) => {
-      const sum = this.getAssignmentSummary(a.id, teacherId);
+    const recentAssignments = [];
+    for (const a of recent) {
+      const sum = await this.getAssignmentSummary(a.id, teacherId);
       const pending = (
-        this.db
-          .prepare(
-            `SELECT COUNT(*) AS c FROM submissions
+        (await this.db.get(
+          `SELECT COUNT(*) AS c FROM submissions
              WHERE assignment_id = ? AND status = 'submitted'`,
-          )
-          .get(a.id) as { c: number }
+          a.id,
+        )) as { c: number }
       ).c;
-      return {
+      recentAssignments.push({
         id: a.id,
         title: a.title,
         type: a.type,
@@ -331,8 +305,8 @@ export class ProgressService {
         completedCount: sum.completedCount,
         totalStudents: sum.totalStudents,
         pendingGrade: pending,
-      };
-    });
+      });
+    }
 
     return {
       classId: cls.id,
@@ -344,26 +318,18 @@ export class ProgressService {
   }
 
   /** Student: count tasks not yet completed */
-  countStudentIncomplete(studentId: string): number {
-    const assignments = this.db
-      .prepare(
-        `
+  async countStudentIncomplete(studentId: string): Promise<number> {
+    const assignments = await this.db.all(`
         SELECT a.id
         FROM assignments a
         JOIN class_memberships m ON m.class_id = a.class_id AND m.user_id = ?
         JOIN classes c ON c.id = a.class_id
         WHERE a.status = 'published' AND c.archived = 0
-        `,
-      )
-      .all(studentId) as Array<{ id: string }>;
+        `, studentId) as Array<{ id: string }>;
 
     let n = 0;
     for (const a of assignments) {
-      const sub = this.db
-        .prepare(
-          `SELECT status FROM submissions WHERE assignment_id = ? AND student_id = ?`,
-        )
-        .get(a.id, studentId) as { status: string } | undefined;
+      const sub = await this.db.get(`SELECT status FROM submissions WHERE assignment_id = ? AND student_id = ?`, a.id, studentId) as { status: string } | undefined;
       if (!sub || sub.status !== "completed") n += 1;
     }
     return n;
@@ -373,20 +339,16 @@ export class ProgressService {
    * Per-question class correct rate for online assignments.
    * Uses latest graded answer_items (is_correct not null).
    */
-  getQuestionStats(
+  async getQuestionStats(
     assignmentId: string,
     teacherId: string,
   ): { assignmentId: string; type: string; questions: QuestionStat[] } {
-    const asg = this.db
-      .prepare(
-        `
+    const asg = await this.db.get(`
         SELECT a.id, a.type, c.teacher_id
         FROM assignments a
         JOIN classes c ON c.id = a.class_id
         WHERE a.id = ?
-        `,
-      )
-      .get(assignmentId) as
+        `, assignmentId) as
       | { id: string; type: string; teacher_id: string }
       | undefined;
     if (!asg) throw new AppError("NOT_FOUND", "作业不存在", 404);
@@ -394,30 +356,26 @@ export class ProgressService {
       throw new AppError("FORBIDDEN", "无权查看", 403);
     }
 
-    const rows = this.db
-      .prepare(
-        `
+    const rows = await this.db.all(`
         SELECT id, sort_order, question_snapshot
         FROM assignment_questions
         WHERE assignment_id = ?
         ORDER BY sort_order ASC
-        `,
-      )
-      .all(assignmentId) as Array<{
+        `, assignmentId) as Array<{
       id: string;
       sort_order: number;
       question_snapshot: string;
     }>;
 
-    const questions: QuestionStat[] = rows.map((r) => {
+    const questions: QuestionStat[] = [];
+    for (const r of rows) {
       const snap = JSON.parse(r.question_snapshot) as {
         stem?: string;
         type?: string;
         knowledgeNodeId?: string | null;
       };
-      const agg = this.db
-        .prepare(
-          `
+      const agg = (await this.db.get(
+        `
           SELECT
             COUNT(*) AS answered,
             SUM(CASE WHEN ai.is_correct = 1 THEN 1 ELSE 0 END) AS correct
@@ -427,17 +385,18 @@ export class ProgressService {
             AND s.assignment_id = ?
             AND ai.is_correct IS NOT NULL
           `,
-        )
-        .get(r.id, assignmentId) as { answered: number; correct: number };
+        r.id,
+        assignmentId,
+      )) as { answered: number; correct: number };
 
       const answeredCount = agg.answered || 0;
-      const correctCount = agg.correct || 0;
+      const correctCount = Number(agg.correct) || 0;
       const correctRate =
         answeredCount === 0
           ? null
           : Math.round((correctCount / answeredCount) * 1000) / 10;
 
-      return {
+      questions.push({
         assignmentQuestionId: r.id,
         sortOrder: r.sort_order,
         stem: snap.stem || "",
@@ -446,21 +405,19 @@ export class ProgressService {
         answeredCount,
         correctCount,
         correctRate,
-      };
-    });
+      });
+    }
 
     return { assignmentId, type: asg.type, questions };
   }
 
-  getStudentStats(
+  async getStudentStats(
     classId: string,
     studentId: string,
     teacherId: string,
     days = 14,
-  ): StudentClassStats {
-    const cls = this.db
-      .prepare(`SELECT id, name, teacher_id FROM classes WHERE id = ?`)
-      .get(classId) as
+  ): Promise<StudentClassStats> {
+    const cls = await this.db.get(`SELECT id, name, teacher_id FROM classes WHERE id = ?`, classId) as
       | { id: string; name: string; teacher_id: string }
       | undefined;
     if (!cls) throw new AppError("NOT_FOUND", "班级不存在", 404);
@@ -468,37 +425,27 @@ export class ProgressService {
       throw new AppError("FORBIDDEN", "无权查看", 403);
     }
 
-    const member = this.db
-      .prepare(
-        `SELECT 1 FROM class_memberships
-         WHERE class_id = ? AND user_id = ? AND role = 'student'`,
-      )
-      .get(classId, studentId);
+    const member = await this.db.get(`SELECT 1 FROM class_memberships
+         WHERE class_id = ? AND user_id = ? AND role = 'student'`, classId, studentId);
     if (!member) {
       throw new AppError("NOT_FOUND", "学生不在该班", 404);
     }
 
-    const user = this.db
-      .prepare(`SELECT nickname FROM users WHERE id = ?`)
-      .get(studentId) as { nickname: string | null } | undefined;
+    const user = await this.db.get(`SELECT nickname FROM users WHERE id = ?`, studentId) as { nickname: string | null } | undefined;
 
     const windowDays = Math.min(Math.max(days, 1), 90);
     const since = new Date();
     since.setDate(since.getDate() - windowDays);
     const sinceIso = since.toISOString();
 
-    const assignments = this.db
-      .prepare(
-        `
+    const assignments = await this.db.all(`
         SELECT id, title, type, created_at, published_at
         FROM assignments
         WHERE class_id = ?
           AND status IN ('published', 'revoked')
           AND COALESCE(published_at, created_at) >= ?
         ORDER BY COALESCE(published_at, created_at) DESC
-        `,
-      )
-      .all(classId, sinceIso) as Array<{
+        `, classId, sinceIso) as Array<{
       id: string;
       title: string;
       type: string;
@@ -508,12 +455,8 @@ export class ProgressService {
     const recent: StudentClassStats["recent"] = [];
 
     for (const a of assignments) {
-      const sub = this.db
-        .prepare(
-          `SELECT status, score, updated_at, submitted_at FROM submissions
-           WHERE assignment_id = ? AND student_id = ?`,
-        )
-        .get(a.id, studentId) as
+      const sub = await this.db.get(`SELECT status, score, updated_at, submitted_at FROM submissions
+           WHERE assignment_id = ? AND student_id = ?`, a.id, studentId) as
         | {
             status: string;
             score: number | null;
@@ -542,9 +485,7 @@ export class ProgressService {
         ? null
         : Math.round((completedCount / assignmentTotal) * 1000) / 10;
 
-    const ansAgg = this.db
-      .prepare(
-        `
+    const ansAgg = await this.db.get(`
         SELECT
           COUNT(*) AS total,
           SUM(CASE WHEN ai.is_correct = 1 THEN 1 ELSE 0 END) AS correct
@@ -555,9 +496,7 @@ export class ProgressService {
           AND a.class_id = ?
           AND ai.is_correct IS NOT NULL
           AND ai.updated_at >= ?
-        `,
-      )
-      .get(studentId, classId, sinceIso) as {
+        `, studentId, classId, sinceIso) as {
       total: number;
       correct: number;
     };
@@ -588,7 +527,7 @@ export class ProgressService {
   /**
    * Calendar of days with at least one completed submission (Asia/Shanghai date).
    */
-  getStudentCalendar(
+  async getStudentCalendar(
     studentId: string,
     year: number,
     month: number,
@@ -603,9 +542,7 @@ export class ProgressService {
     const end = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
 
     // SQLite: store ISO; convert roughly by +8h for date key
-    const rows = this.db
-      .prepare(
-        `
+    const rows = await this.db.all(`
         SELECT
           date(datetime(s.updated_at, '+8 hours')) AS d,
           COUNT(*) AS c
@@ -617,9 +554,7 @@ export class ProgressService {
           AND date(datetime(s.updated_at, '+8 hours')) < date(?)
         GROUP BY d
         ORDER BY d ASC
-        `,
-      )
-      .all(studentId, start, end) as Array<{ d: string; c: number }>;
+        `, studentId, start, end) as Array<{ d: string; c: number }>;
 
     return {
       year,
@@ -634,10 +569,8 @@ export class ProgressService {
   /**
    * Knowledge points the student has completed via check-in (or any online item tagged).
    */
-  getStudentKnowledgeDone(studentId: string): KnowledgeDoneItem[] {
-    const rows = this.db
-      .prepare(
-        `
+  async getStudentKnowledgeDone(studentId: string): Promise<KnowledgeDoneItem[]> {
+    const rows = await this.db.all(`
         SELECT
           json_extract(aq.question_snapshot, '$.knowledgeNodeId') AS kid,
           MAX(s.updated_at) AS last_at,
@@ -651,27 +584,21 @@ export class ProgressService {
           AND json_extract(aq.question_snapshot, '$.knowledgeNodeId') != ''
         GROUP BY kid
         ORDER BY last_at DESC
-        `,
-      )
-      .all(studentId) as Array<{
+        `, studentId) as Array<{
       kid: string;
       last_at: string;
       cnt: number;
     }>;
 
     // Also include assignment-level knowledgeNodeIds from config for check-in
-    const checkinRows = this.db
-      .prepare(
-        `
+    const checkinRows = await this.db.all(`
         SELECT a.config_json, s.updated_at
         FROM submissions s
         JOIN assignments a ON a.id = s.assignment_id
         WHERE s.student_id = ?
           AND s.status = 'completed'
           AND a.type = 'knowledge_checkin'
-        `,
-      )
-      .all(studentId) as Array<{ config_json: string; updated_at: string }>;
+        `, studentId) as Array<{ config_json: string; updated_at: string }>;
 
     const map = new Map<
       string,

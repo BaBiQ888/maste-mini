@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { AppDatabase } from "../../infrastructure/persistence/db.js";
 import { createId, nowIso } from "../../infrastructure/persistence/db.js";
 import { AppError } from "../../domain/shared/errors.js";
 import type {
@@ -17,9 +17,9 @@ export interface PublicQuestion extends QuestionSnapshot {
 }
 
 export class QuestionBankService {
-  constructor(private db: Database.Database) {}
+  constructor(private db: AppDatabase) {}
 
-  create(
+  async create(
     teacherId: string,
     input: {
       type: QuestionType;
@@ -30,20 +30,15 @@ export class QuestionBankService {
       knowledgeNodeId?: string | null;
       source?: "manual" | "generated";
     },
-  ): PublicQuestion {
-    this.assertTeacher(teacherId);
-    const payload = this.normalizeInput(input);
+  ): Promise<PublicQuestion> {
+    await this.assertTeacher(teacherId);
+    const payload = await this.normalizeInput(input);
     const id = createId("q");
     const ts = nowIso();
     const source = input.source === "generated" ? "generated" : "manual";
-    this.db
-      .prepare(
-        `INSERT INTO questions
+    await this.db.run(`INSERT INTO questions
          (id, created_by, type, stem, options_json, answer_json, explanation, knowledge_node_id, source, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        id,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id,
         teacherId,
         payload.type,
         payload.stem,
@@ -53,30 +48,31 @@ export class QuestionBankService {
         payload.knowledgeNodeId,
         source,
         ts,
-        ts,
-      );
-    return this.getById(id, teacherId)!;
+        ts,);
+    const q = await this.getById(id, teacherId); if (!q) throw new AppError("NOT_FOUND", "题目不存在", 404); return q;
   }
 
   /** Persist generated snapshots as bank questions (source=generated). */
-  createManyGenerated(
+  async createManyGenerated(
     teacherId: string,
     snaps: QuestionSnapshot[],
-  ): PublicQuestion[] {
-    return snaps.map((s) =>
-      this.create(teacherId, {
-        type: s.type,
-        stem: s.stem,
-        options: s.options,
-        answer: s.answer,
-        explanation: s.explanation,
-        knowledgeNodeId: s.knowledgeNodeId,
-        source: "generated",
-      }),
+  ): Promise<PublicQuestion[]> {
+    return Promise.all(
+      snaps.map(async (s) =>
+        await this.create(teacherId, {
+          type: s.type,
+          stem: s.stem,
+          options: s.options,
+          answer: s.answer,
+          explanation: s.explanation,
+          knowledgeNodeId: s.knowledgeNodeId,
+          source: "generated",
+        }),
+      ),
     );
   }
 
-  update(
+  async update(
     questionId: string,
     teacherId: string,
     input: Partial<{
@@ -87,9 +83,9 @@ export class QuestionBankService {
       explanation: string | null;
       knowledgeNodeId: string | null;
     }>,
-  ): PublicQuestion {
-    const current = this.getRowOwned(questionId, teacherId);
-    const merged = this.normalizeInput({
+  ): Promise<PublicQuestion> {
+    const current = await this.getRowOwned(questionId, teacherId);
+    const merged = await this.normalizeInput({
       type: (input.type || current.type) as QuestionType,
       stem: input.stem ?? current.stem,
       options:
@@ -112,31 +108,25 @@ export class QuestionBankService {
           : current.knowledge_node_id,
     });
     const ts = nowIso();
-    this.db
-      .prepare(
-        `UPDATE questions SET
+    await this.db.run(`UPDATE questions SET
            type = ?, stem = ?, options_json = ?, answer_json = ?,
            explanation = ?, knowledge_node_id = ?, updated_at = ?
-         WHERE id = ?`,
-      )
-      .run(
-        merged.type,
+         WHERE id = ?`, merged.type,
         merged.stem,
         merged.options ? JSON.stringify(merged.options) : null,
         JSON.stringify(merged.answer),
         merged.explanation,
         merged.knowledgeNodeId,
         ts,
-        questionId,
-      );
-    return this.getById(questionId, teacherId)!;
+        questionId,);
+    const q = await this.getById(questionId, teacherId); if (!q) throw new AppError("NOT_FOUND", "题目不存在", 404); return q;
   }
 
-  listForTeacher(
+  async listForTeacher(
     teacherId: string,
     opts?: { knowledgeNodeId?: string; type?: QuestionType },
-  ): PublicQuestion[] {
-    this.assertTeacher(teacherId);
+  ): Promise<PublicQuestion[]> {
+    await this.assertTeacher(teacherId);
     let sql = `SELECT * FROM questions WHERE created_by = ?`;
     const params: unknown[] = [teacherId];
     if (opts?.knowledgeNodeId) {
@@ -148,33 +138,25 @@ export class QuestionBankService {
       params.push(opts.type);
     }
     sql += ` ORDER BY updated_at DESC`;
-    const rows = this.db.prepare(sql).all(...params) as QuestionRow[];
-    return rows.map((r) => this.toPublic(r));
+    const rows = await this.db.all(sql, ...params) as QuestionRow[];
+    return Promise.all(rows.map(async (r) => this.toPublic(r)));
   }
 
-  getById(questionId: string, teacherId: string): PublicQuestion | null {
-    const row = this.db
-      .prepare(`SELECT * FROM questions WHERE id = ? AND created_by = ?`)
-      .get(questionId, teacherId) as QuestionRow | undefined;
-    return row ? this.toPublic(row) : null;
+  async getById(questionId: string, teacherId: string): Promise<PublicQuestion | null> {
+    const row = await this.db.get(`SELECT * FROM questions WHERE id = ? AND created_by = ?`, questionId, teacherId) as QuestionRow | undefined;
+    return row ? await this.toPublic(row) : null;
   }
 
-  getSnapshotById(questionId: string): QuestionSnapshot {
-    const row = this.db
-      .prepare(`SELECT * FROM questions WHERE id = ?`)
-      .get(questionId) as QuestionRow | undefined;
+  async getSnapshotById(questionId: string): Promise<QuestionSnapshot> {
+    const row = await this.db.get(`SELECT * FROM questions WHERE id = ?`, questionId) as QuestionRow | undefined;
     if (!row) throw new AppError("NOT_FOUND", "题目不存在", 404);
-    return this.toSnapshot(row);
+    return await this.toSnapshot(row);
   }
 
-  getManyOwned(ids: string[], teacherId: string): QuestionRow[] {
+  async getManyOwned(ids: string[], teacherId: string): Promise<QuestionRow[]> {
     if (!ids.length) return [];
     const placeholders = ids.map(() => "?").join(",");
-    const rows = this.db
-      .prepare(
-        `SELECT * FROM questions WHERE created_by = ? AND id IN (${placeholders})`,
-      )
-      .all(teacherId, ...ids) as QuestionRow[];
+    const rows = await this.db.all(`SELECT * FROM questions WHERE created_by = ? AND id IN (${placeholders})`, teacherId, ...ids) as QuestionRow[];
     if (rows.length !== ids.length) {
       throw new AppError("INVALID_QUESTIONS", "部分题目不存在或无权使用");
     }
@@ -183,7 +165,7 @@ export class QuestionBankService {
     return ids.map((id) => map.get(id)!);
   }
 
-  private normalizeInput(input: {
+  private async normalizeInput(input: {
     type: QuestionType;
     stem: string;
     options?: ChoiceOption[] | null;
@@ -258,24 +240,20 @@ export class QuestionBankService {
     };
   }
 
-  private assertTeacher(userId: string): void {
-    const row = this.db
-      .prepare(`SELECT role FROM users WHERE id = ?`)
-      .get(userId) as { role: string | null } | undefined;
+  private async assertTeacher(userId: string): Promise<void> {
+    const row = await this.db.get(`SELECT role FROM users WHERE id = ?`, userId) as { role: string | null } | undefined;
     if (row?.role !== "teacher") {
       throw new AppError("FORBIDDEN", "仅老师可管理题库", 403);
     }
   }
 
-  private getRowOwned(id: string, teacherId: string): QuestionRow {
-    const row = this.db
-      .prepare(`SELECT * FROM questions WHERE id = ? AND created_by = ?`)
-      .get(id, teacherId) as QuestionRow | undefined;
+  private async getRowOwned(id: string, teacherId: string): Promise<QuestionRow> {
+    const row = await this.db.get(`SELECT * FROM questions WHERE id = ? AND created_by = ?`, id, teacherId) as QuestionRow | undefined;
     if (!row) throw new AppError("NOT_FOUND", "题目不存在", 404);
     return row;
   }
 
-  private toSnapshot(row: QuestionRow): QuestionSnapshot {
+  private async toSnapshot(row: QuestionRow): Promise<QuestionSnapshot> {
     return {
       id: row.id,
       type: row.type as QuestionType,
@@ -288,8 +266,8 @@ export class QuestionBankService {
     };
   }
 
-  private toPublic(row: QuestionRow): PublicQuestion {
-    const snap = this.toSnapshot(row);
+  private async toPublic(row: QuestionRow): Promise<PublicQuestion> {
+    const snap = await this.toSnapshot(row);
     return {
       ...snap,
       id: row.id,

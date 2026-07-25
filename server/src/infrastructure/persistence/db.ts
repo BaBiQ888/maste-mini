@@ -1,15 +1,17 @@
 /**
- * Persistence layer.
- * - Local / tests: better-sqlite3 (sync)
- * - WeChat Cloud Hosting: MySQL via mysql2, exposed with a better-sqlite3-compatible sync API
+ * Persistence: SQLite (local/tests) + MySQL (WeChat Cloud).
+ * All query APIs are async — never use deasync (blocks event loop → MySQL hangs).
  */
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import mysql from "mysql2/promise";
-import type { Pool, RowDataPacket, ResultSetHeader } from "mysql2/promise";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import deasync from "deasync";
+import type {
+  Pool,
+  PoolConnection,
+  RowDataPacket,
+  ResultSetHeader,
+} from "mysql2/promise";
 
 export type UserRole = "teacher" | "student";
 
@@ -30,8 +32,20 @@ export interface SessionRow {
   expires_at: string;
 }
 
-/** better-sqlite3-compatible surface used by services. */
-export type AppDb = Database.Database;
+export interface AppDatabase {
+  get<T = Record<string, unknown>>(
+    sql: string,
+    ...params: unknown[]
+  ): Promise<T | undefined>;
+  all<T = Record<string, unknown>>(
+    sql: string,
+    ...params: unknown[]
+  ): Promise<T[]>;
+  run(sql: string, ...params: unknown[]): Promise<{ changes: number }>;
+  exec(sql: string): Promise<void>;
+  transaction<T>(fn: () => Promise<T>): Promise<T>;
+  close(): Promise<void>;
+}
 
 export type MysqlConfig = {
   host: string;
@@ -63,18 +77,10 @@ export function resolveDbOptionsFromEnv(
     };
   }
 
-  /**
-   * WeChat Cloud Hosting injects:
-   *   MYSQL_ADDRESS=host:port  MYSQL_USERNAME  MYSQL_PASSWORD  MYSQL_DATABASE
-   * Local / docs use:
-   *   MYSQL_HOST  MYSQL_PORT  MYSQL_USER  MYSQL_PASSWORD  MYSQL_DATABASE
-   */
-  // Trim — cloud consoles sometimes inject trailing spaces/newlines
   const address = (process.env.MYSQL_ADDRESS || "").trim();
   let host = (process.env.MYSQL_HOST || "").trim();
   let port = Number((process.env.MYSQL_PORT || "3306").trim() || 3306);
   if (!host && address) {
-    // "10.17.104.40:3306" or "10.17.104.40"
     const idx = address.lastIndexOf(":");
     if (idx > 0 && /^\d+$/.test(address.slice(idx + 1))) {
       host = address.slice(0, idx).trim();
@@ -84,33 +90,19 @@ export function resolveDbOptionsFromEnv(
     }
   }
 
-  const password = (
-    process.env.MYSQL_PASSWORD ||
-    process.env.MYSQL_PASS ||
-    ""
-  ).trim();
-  const database = (
-    process.env.MYSQL_DATABASE ||
-    process.env.MYSQL_DB ||
-    "math_mini"
-  ).trim();
-  const user = (
-    process.env.MYSQL_USER ||
-    process.env.MYSQL_USERNAME ||
-    process.env.MYSQL_USER_NAME ||
-    "root"
-  ).trim();
-
-  // If cloud only set ADDRESS+PASSWORD, still try MySQL (user defaults root)
   if (host) {
     return {
       driver: "mysql",
       mysql: {
         host,
         port,
-        user,
-        password,
-        database,
+        user: (
+          process.env.MYSQL_USER ||
+          process.env.MYSQL_USERNAME ||
+          "root"
+        ).trim(),
+        password: (process.env.MYSQL_PASSWORD || "").trim(),
+        database: (process.env.MYSQL_DATABASE || "math_mini").trim(),
       },
     };
   }
@@ -124,207 +116,187 @@ export function resolveDbOptionsFromEnv(
   };
 }
 
-/** Sync bridge for mysql2 promises. Always has a wall-clock timeout (avoids infinite hang). */
-function sync<T>(promise: Promise<T>, timeoutMs = 20_000): T {
-  let done = false;
-  let result: T | undefined;
-  let error: unknown;
-  const timer = setTimeout(() => {
-    if (!done) {
-      done = true;
-      error = new Error(`MySQL operation timed out after ${timeoutMs}ms`);
-    }
-  }, timeoutMs);
-  promise.then(
-    (r) => {
-      if (!done) {
-        result = r;
-        done = true;
-      }
-      clearTimeout(timer);
-    },
-    (e) => {
-      if (!done) {
-        error = e;
-        done = true;
-      }
-      clearTimeout(timer);
-    },
-  );
-  deasync.loopWhile(() => !done);
-  if (error) throw error;
-  return result as T;
-}
-
-export function openDatabase(opts?: string | OpenDatabaseOptions): AppDb {
+export async function openDatabase(
+  opts?: string | OpenDatabaseOptions,
+): Promise<AppDatabase> {
   const options: OpenDatabaseOptions =
     typeof opts === "string"
       ? { driver: "sqlite", path: opts }
       : opts ?? resolveDbOptionsFromEnv();
 
   if (options.driver === "mysql") {
-    const db = openMysqlAsSqliteCompat(options.mysql);
-    migrateMysql(db);
+    const db = await openMysqlDatabase(options.mysql);
+    await migrateMysql(db);
     return db;
   }
 
-  return openSqlite(options.path);
-}
-
-function openSqlite(dbPath: string): AppDb {
-  if (dbPath !== ":memory:") {
-    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  }
-  const db = new Database(dbPath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  migrateSqlite(db);
+  const db = openSqliteDatabase(options.path);
+  await migrateSqlite(db);
   return db;
 }
 
-function migrateSqlite(db: Database.Database): void {
-  db.exec(SCHEMA_SQL);
+// ─── SQLite ─────────────────────────────────────────────────────────────────
+
+function openSqliteDatabase(dbPath: string): AppDatabase {
+  if (dbPath !== ":memory:") {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  }
+  const raw = new Database(dbPath);
+  raw.pragma("journal_mode = WAL");
+  raw.pragma("foreign_keys = ON");
+
+  return {
+    async get<T>(sql: string, ...params: unknown[]) {
+      return raw.prepare(sql).get(...params) as T | undefined;
+    },
+    async all<T>(sql: string, ...params: unknown[]) {
+      return raw.prepare(sql).all(...params) as T[];
+    },
+    async run(sql: string, ...params: unknown[]) {
+      const info = raw.prepare(sql).run(...params);
+      return { changes: info.changes };
+    },
+    async exec(sql: string) {
+      raw.exec(sql);
+    },
+    async transaction<T>(fn: () => Promise<T>) {
+      raw.exec("BEGIN");
+      try {
+        const result = await fn();
+        raw.exec("COMMIT");
+        return result;
+      } catch (e) {
+        raw.exec("ROLLBACK");
+        throw e;
+      }
+    },
+    async close() {
+      raw.close();
+    },
+  };
+}
+
+async function migrateSqlite(db: AppDatabase): Promise<void> {
+  await db.exec(SCHEMA_SQL);
   for (const sql of INDEX_SQL) {
     try {
-      db.exec(sql);
+      await db.exec(sql);
     } catch {
       /* exists */
     }
   }
-  const subCols = db
-    .prepare(`PRAGMA table_info(submissions)`)
-    .all() as Array<{ name: string }>;
-  if (!subCols.some((c) => c.name === "timer_started_at")) {
-    db.exec(`ALTER TABLE submissions ADD COLUMN timer_started_at TEXT`);
+  const cols = await db.all<{ name: string }>(`PRAGMA table_info(submissions)`);
+  if (!cols.some((c) => c.name === "timer_started_at")) {
+    await db.exec(`ALTER TABLE submissions ADD COLUMN timer_started_at TEXT`);
   }
 }
 
-// ─── MySQL with better-sqlite3-like API ─────────────────────────────────────
+// ─── MySQL (async only) ─────────────────────────────────────────────────────
 
-type Stmt = {
-  get: (...params: unknown[]) => unknown;
-  all: (...params: unknown[]) => unknown[];
-  run: (...params: unknown[]) => { changes: number };
-};
+const txStack: PoolConnection[] = [];
 
-function openMysqlAsSqliteCompat(cfg: MysqlConfig): AppDb {
+async function openMysqlDatabase(cfg: MysqlConfig): Promise<AppDatabase> {
   console.log(
     `[math-mini] mysql pool → ${cfg.host}:${cfg.port}/${cfg.database} user=${cfg.user}`,
   );
-  const pool: Pool = mysql.createPool({
+  const pool = mysql.createPool({
     host: cfg.host,
     port: cfg.port,
     user: cfg.user,
     password: cfg.password,
     database: cfg.database,
     waitForConnections: true,
+    connectionLimit: 10,
     connectTimeout: 10_000,
-    connectionLimit: 5,
     decimalNumbers: true,
     enableKeepAlive: true,
   });
 
-  // Fail fast (bounded)
   try {
-    sync(pool.query("SELECT 1 AS ok"), 12_000);
-    console.log("[math-mini] mysql SELECT 1 ok");
+    const [rows] = await pool.query("SELECT 1 AS ok");
+    console.log("[math-mini] mysql SELECT 1 ok", rows);
   } catch (e) {
-    console.error("[math-mini] mysql SELECT 1 failed", e);
-    void pool.end().catch(() => {});
+    await pool.end().catch(() => {});
     throw e;
   }
 
-  let txConn: import("mysql2/promise").PoolConnection | null = null;
+  return createMysqlAppDatabase(pool);
+}
 
-  const runner = () => txConn ?? pool;
+function createMysqlAppDatabase(pool: Pool): AppDatabase {
+  const runner = () => txStack[txStack.length - 1] ?? pool;
 
-  const api = {
-    prepare(sql: string): Stmt {
-      return {
-        get(...params: unknown[]) {
-          const [rows] = sync(runner().query(sql, params as never[])) as [
-            RowDataPacket[],
-            unknown,
-          ];
-          return rows[0];
-        },
-        all(...params: unknown[]) {
-          const [rows] = sync(runner().query(sql, params as never[])) as [
-            RowDataPacket[],
-            unknown,
-          ];
-          return rows as unknown[];
-        },
-        run(...params: unknown[]) {
-          const [result] = sync(
-            runner().execute(sql, params as never[]),
-          ) as [ResultSetHeader, unknown];
-          return { changes: result.affectedRows ?? 0 };
-        },
-      };
+  return {
+    async get<T>(sql: string, ...params: unknown[]) {
+      const [rows] = await runner().query(sql, params as never[]);
+      const list = rows as RowDataPacket[];
+      return (list[0] as T) ?? undefined;
     },
-    exec(sql: string) {
+    async all<T>(sql: string, ...params: unknown[]) {
+      const [rows] = await runner().query(sql, params as never[]);
+      return rows as T[];
+    },
+    async run(sql: string, ...params: unknown[]) {
+      const [result] = await runner().execute(sql, params as never[]);
+      const header = result as ResultSetHeader;
+      return { changes: header.affectedRows ?? 0 };
+    },
+    async exec(sql: string) {
+      const r = runner();
       const statements = sql
         .split(/;\s*\n/)
         .map((s) => s.trim())
         .filter((s) => s.length > 0 && !s.startsWith("--"));
       for (const stmt of statements) {
-        sync(runner().query(stmt));
+        await r.query(stmt);
       }
     },
-    pragma(_s: string) {
-      /* no-op for MySQL */
-    },
-    transaction<T>(fn: () => T): () => T {
-      return () => {
-        if (txConn) return fn();
-        const conn = sync(pool.getConnection());
-        txConn = conn;
+    async transaction<T>(fn: () => Promise<T>) {
+      if (txStack.length > 0) return fn();
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        txStack.push(connection);
         try {
-          sync(conn.beginTransaction());
-          try {
-            const result = fn();
-            sync(conn.commit());
-            return result;
-          } catch (e) {
-            sync(conn.rollback());
-            throw e;
-          }
+          const result = await fn();
+          await connection.commit();
+          return result;
+        } catch (e) {
+          await connection.rollback();
+          throw e;
         } finally {
-          txConn = null;
-          conn.release();
+          txStack.pop();
         }
-      };
+      } finally {
+        connection.release();
+      }
     },
-    close() {
-      sync(pool.end());
+    async close() {
+      await pool.end();
     },
   };
-
-  // Cast: services only use prepare/exec/transaction subset
-  return api as unknown as AppDb;
 }
 
-function migrateMysql(db: AppDb): void {
-  db.exec(SCHEMA_SQL);
+async function migrateMysql(db: AppDatabase): Promise<void> {
+  await db.exec(SCHEMA_SQL);
   for (const sql of INDEX_SQL) {
     try {
-      db.exec(sql);
+      await db.exec(sql);
     } catch {
       /* exists */
     }
   }
   try {
-    const cols = db.prepare(`SHOW COLUMNS FROM submissions`).all() as Array<{
-      Field: string;
-    }>;
+    const cols = await db.all<{ Field: string }>(
+      `SHOW COLUMNS FROM submissions`,
+    );
     if (!cols.some((c) => c.Field === "timer_started_at")) {
-      db.exec(
+      await db.exec(
         `ALTER TABLE submissions ADD COLUMN timer_started_at VARCHAR(40) NULL`,
       );
     }
   } catch {
-    /* schema already includes column */
+    /* ok */
   }
 }
 
@@ -447,7 +419,6 @@ const SCHEMA_SQL = `
     );
 `;
 
-/** Best-effort indexes (ignore if already exist / dialect differences). */
 const INDEX_SQL = [
   "CREATE INDEX idx_sessions_user ON sessions(user_id)",
   "CREATE INDEX idx_classes_teacher ON classes(teacher_id)",

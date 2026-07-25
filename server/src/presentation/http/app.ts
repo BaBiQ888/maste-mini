@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
-import type Database from "better-sqlite3";
+import type { AppDatabase } from "../../infrastructure/persistence/db.js";
 import path from "node:path";
 import {
   AuthError,
@@ -43,7 +43,7 @@ export interface AppOptions {
 }
 
 export function createApp(
-  db: Database.Database,
+  db: AppDatabase,
   options: AppOptions | WechatConfig,
 ) {
   const wechat: WechatConfig =
@@ -118,14 +118,14 @@ export function createApp(
 
   app.post("/api/v1/auth/logout", async (c) => {
     const token = bearer(c.req.header("Authorization"));
-    if (token) identity.logout(token);
+    if (token) await identity.logout(token);
     return c.json({ ok: true });
   });
 
   const authed = new Hono<AppEnv>();
   authed.use("*", async (c, next) => {
     const token = bearer(c.req.header("Authorization"));
-    const user = identity.getUserByToken(token);
+    const user = await identity.getUserByToken(token);
     if (!user || !token) {
       return c.json(
         { code: "UNAUTHORIZED", message: "未登录或会话已过期" },
@@ -142,7 +142,7 @@ export function createApp(
   authed.patch("/me", async (c) => {
     try {
       const body = patchBody.parse(await c.req.json());
-      const user = identity.updateProfile(c.get("user").id, {
+      const user = await identity.updateProfile(c.get("user").id, {
         nickname: body.nickname,
         avatarUrl: body.avatarUrl ?? undefined,
         role: body.role,
@@ -157,17 +157,17 @@ export function createApp(
   authed.post("/classes", async (c) => {
     try {
       const body = createClassBody.parse(await c.req.json());
-      const cls = classroom.createClass(c.get("user").id, body);
+      const cls = await classroom.createClass(c.get("user").id, body);
       return c.json({ class: cls }, 201);
     } catch (e) {
       return handleError(c, e);
     }
   });
 
-  authed.get("/classes", (c) => {
+  authed.get("/classes", async (c) => {
     try {
       const includeArchived = c.req.query("includeArchived") === "1";
-      const classes = classroom.listClassesForUser(c.get("user").id, {
+      const classes = await classroom.listClassesForUser(c.get("user").id, {
         includeArchived,
       });
       return c.json({ classes });
@@ -176,9 +176,9 @@ export function createApp(
     }
   });
 
-  authed.get("/classes/:id", (c) => {
+  authed.get("/classes/:id", async (c) => {
     try {
-      const cls = classroom.getClassForUser(
+      const cls = await classroom.getClassForUser(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -191,9 +191,9 @@ export function createApp(
     }
   });
 
-  authed.get("/classes/:id/members", (c) => {
+  authed.get("/classes/:id/members", async (c) => {
     try {
-      const members = classroom.listMembers(
+      const members = await classroom.listMembers(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -206,16 +206,16 @@ export function createApp(
   authed.post("/classes/join", async (c) => {
     try {
       const body = joinBody.parse(await c.req.json());
-      const cls = classroom.joinByCode(c.get("user").id, body.inviteCode);
+      const cls = await classroom.joinByCode(c.get("user").id, body.inviteCode);
       return c.json({ class: cls });
     } catch (e) {
       return handleError(c, e);
     }
   });
 
-  authed.post("/classes/:id/invite/refresh", (c) => {
+  authed.post("/classes/:id/invite/refresh", async (c) => {
     try {
-      const cls = classroom.refreshInviteCode(
+      const cls = await classroom.refreshInviteCode(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -225,9 +225,9 @@ export function createApp(
     }
   });
 
-  authed.delete("/classes/:id/members/:userId", (c) => {
+  authed.delete("/classes/:id/members/:userId", async (c) => {
     try {
-      classroom.removeMember(
+      await classroom.removeMember(
         c.req.param("id"),
         c.get("user").id,
         c.req.param("userId"),
@@ -238,18 +238,18 @@ export function createApp(
     }
   });
 
-  authed.post("/classes/:id/archive", (c) => {
+  authed.post("/classes/:id/archive", async (c) => {
     try {
-      const cls = classroom.archiveClass(c.req.param("id"), c.get("user").id);
+      const cls = await classroom.archiveClass(c.req.param("id"), c.get("user").id);
       return c.json({ class: cls });
     } catch (e) {
       return handleError(c, e);
     }
   });
 
-  authed.post("/classes/:id/unarchive", (c) => {
+  authed.post("/classes/:id/unarchive", async (c) => {
     try {
-      const cls = classroom.unarchiveClass(
+      const cls = await classroom.unarchiveClass(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -267,7 +267,7 @@ export function createApp(
           403,
         );
       }
-      const row = classroom.assertOwnsClass(
+      const row = await classroom.assertOwnsClass(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -301,7 +301,7 @@ export function createApp(
   });
 
   // —— Knowledge tree ——
-  authed.get("/knowledge-nodes", (c) => {
+  authed.get("/knowledge-nodes", async (c) => {
     try {
       const grade = c.req.query("grade");
       const type = c.req.query("type") as
@@ -312,9 +312,9 @@ export function createApp(
       const q = c.req.query("q") || undefined;
       const g = grade != null && grade !== "" ? Number(grade) : undefined;
       if (c.req.query("tree") === "1" && g != null && !Number.isNaN(g)) {
-        return c.json({ tree: knowledge.treeByGrade(g) });
+        return c.json({ tree: await knowledge.treeByGrade(g) });
       }
-      const nodes = knowledge.list({
+      const nodes = await knowledge.list({
         grade: g != null && !Number.isNaN(g) ? g : undefined,
         type,
         q,
@@ -325,9 +325,9 @@ export function createApp(
     }
   });
 
-  authed.get("/knowledge-nodes/:id", (c) => {
+  authed.get("/knowledge-nodes/:id", async (c) => {
     try {
-      const node = knowledge.getById(c.req.param("id"));
+      const node = await knowledge.getById(c.req.param("id"));
       if (!node) {
         return c.json({ code: "NOT_FOUND", message: "知识点不存在" }, 404);
       }
@@ -338,7 +338,7 @@ export function createApp(
   });
 
   // —— Drill ——
-  authed.get("/drill/operations", (c) => {
+  authed.get("/drill/operations", async (c) => {
     try {
       const grade = c.req.query("grade");
       const g = grade ? Number(grade) : undefined;
@@ -378,14 +378,14 @@ export function createApp(
   authed.post("/questions", async (c) => {
     try {
       const body = createQuestionBody.parse(await c.req.json());
-      const question = questionBank.create(c.get("user").id, body);
+      const question = await questionBank.create(c.get("user").id, body);
       return c.json({ question }, 201);
     } catch (e) {
       return handleError(c, e);
     }
   });
 
-  authed.get("/questions", (c) => {
+  authed.get("/questions", async (c) => {
     try {
       const type = c.req.query("type") as
         | "fill_blank"
@@ -393,7 +393,7 @@ export function createApp(
         | "true_false"
         | undefined;
       const knowledgeNodeId = c.req.query("knowledgeNodeId") || undefined;
-      const questions = questionBank.listForTeacher(c.get("user").id, {
+      const questions = await questionBank.listForTeacher(c.get("user").id, {
         type,
         knowledgeNodeId,
       });
@@ -403,9 +403,9 @@ export function createApp(
     }
   });
 
-  authed.get("/questions/:id", (c) => {
+  authed.get("/questions/:id", async (c) => {
     try {
-      const question = questionBank.getById(
+      const question = await questionBank.getById(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -421,7 +421,7 @@ export function createApp(
   authed.patch("/questions/:id", async (c) => {
     try {
       const body = updateQuestionBody.parse(await c.req.json());
-      const question = questionBank.update(
+      const question = await questionBank.update(
         c.req.param("id"),
         c.get("user").id,
         body,
@@ -436,7 +436,7 @@ export function createApp(
   authed.post("/assignments", async (c) => {
     try {
       const body = createAssignmentBody.parse(await c.req.json());
-      const assignment = assignments.create(c.get("user").id, {
+      const assignment = await assignments.create(c.get("user").id, {
         ...body,
         generatedSnapshots: body.generatedSnapshots as
           | import("../../domain/question/types.js").QuestionSnapshot[]
@@ -448,7 +448,7 @@ export function createApp(
     }
   });
 
-  authed.get("/assignments", (c) => {
+  authed.get("/assignments", async (c) => {
     try {
       const user = c.get("user");
       const classId = c.req.query("classId") || undefined;
@@ -459,13 +459,13 @@ export function createApp(
         | undefined;
 
       if (user.role === "teacher") {
-        const list = assignments.listForTeacher(user.id, { classId, status });
-        const pendingGrade = assignments.listPendingGradeCount(user.id);
+        const list = await assignments.listForTeacher(user.id, { classId, status });
+        const pendingGrade = await assignments.listPendingGradeCount(user.id);
         return c.json({ assignments: list, pendingGrade });
       }
       if (user.role === "student") {
-        const list = assignments.listForStudent(user.id);
-        const incompleteCount = progress.countStudentIncomplete(user.id);
+        const list = await assignments.listForStudent(user.id);
+        const incompleteCount = await progress.countStudentIncomplete(user.id);
         return c.json({ assignments: list, incompleteCount });
       }
       return c.json({ assignments: [] });
@@ -474,9 +474,9 @@ export function createApp(
     }
   });
 
-  authed.get("/assignments/:id/summary", (c) => {
+  authed.get("/assignments/:id/summary", async (c) => {
     try {
-      const summary = progress.getAssignmentSummary(
+      const summary = await progress.getAssignmentSummary(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -486,9 +486,9 @@ export function createApp(
     }
   });
 
-  authed.get("/assignments/:id/reminder-text", (c) => {
+  authed.get("/assignments/:id/reminder-text", async (c) => {
     try {
-      const text = progress.buildReminderText(
+      const text = await progress.buildReminderText(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -498,9 +498,9 @@ export function createApp(
     }
   });
 
-  authed.get("/classes/:id/dashboard", (c) => {
+  authed.get("/classes/:id/dashboard", async (c) => {
     try {
-      const dashboard = progress.getClassDashboard(
+      const dashboard = await progress.getClassDashboard(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -510,10 +510,10 @@ export function createApp(
     }
   });
 
-  authed.get("/classes/:id/students/:userId/stats", (c) => {
+  authed.get("/classes/:id/students/:userId/stats", async (c) => {
     try {
       const days = Number(c.req.query("days") || 14);
-      const stats = progress.getStudentStats(
+      const stats = await progress.getStudentStats(
         c.req.param("id"),
         c.req.param("userId"),
         c.get("user").id,
@@ -525,9 +525,9 @@ export function createApp(
     }
   });
 
-  authed.get("/assignments/:id/question-stats", (c) => {
+  authed.get("/assignments/:id/question-stats", async (c) => {
     try {
-      const stats = progress.getQuestionStats(
+      const stats = await progress.getQuestionStats(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -537,12 +537,12 @@ export function createApp(
     }
   });
 
-  authed.get("/me/calendar", (c) => {
+  authed.get("/me/calendar", async (c) => {
     try {
       const now = new Date();
       const year = Number(c.req.query("year") || now.getFullYear());
       const month = Number(c.req.query("month") || now.getMonth() + 1);
-      const calendar = progress.getStudentCalendar(
+      const calendar = await progress.getStudentCalendar(
         c.get("user").id,
         year,
         month,
@@ -553,18 +553,18 @@ export function createApp(
     }
   });
 
-  authed.get("/me/knowledge-progress", (c) => {
+  authed.get("/me/knowledge-progress", async (c) => {
     try {
-      const items = progress.getStudentKnowledgeDone(c.get("user").id);
+      const items = await progress.getStudentKnowledgeDone(c.get("user").id);
       return c.json({ items });
     } catch (e) {
       return handleError(c, e);
     }
   });
 
-  authed.get("/assignments/:id", (c) => {
+  authed.get("/assignments/:id", async (c) => {
     try {
-      const assignment = assignments.getAssignment(
+      const assignment = await assignments.getAssignment(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -577,9 +577,9 @@ export function createApp(
     }
   });
 
-  authed.post("/assignments/:id/publish", (c) => {
+  authed.post("/assignments/:id/publish", async (c) => {
     try {
-      const assignment = assignments.publish(
+      const assignment = await assignments.publish(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -589,9 +589,9 @@ export function createApp(
     }
   });
 
-  authed.post("/assignments/:id/revoke", (c) => {
+  authed.post("/assignments/:id/revoke", async (c) => {
     try {
-      const assignment = assignments.revoke(
+      const assignment = await assignments.revoke(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -601,9 +601,9 @@ export function createApp(
     }
   });
 
-  authed.post("/assignments/:id/duplicate", (c) => {
+  authed.post("/assignments/:id/duplicate", async (c) => {
     try {
-      const assignment = assignments.duplicate(
+      const assignment = await assignments.duplicate(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -613,9 +613,9 @@ export function createApp(
     }
   });
 
-  authed.get("/assignments/:id/my-submission", (c) => {
+  authed.get("/assignments/:id/my-submission", async (c) => {
     try {
-      const submission = assignments.getOrCreateMySubmission(
+      const submission = await assignments.getOrCreateMySubmission(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -625,9 +625,9 @@ export function createApp(
     }
   });
 
-  authed.get("/assignments/:id/submissions", (c) => {
+  authed.get("/assignments/:id/submissions", async (c) => {
     try {
-      const list = assignments.listSubmissionsForTeacher(
+      const list = await assignments.listSubmissionsForTeacher(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -637,9 +637,9 @@ export function createApp(
     }
   });
 
-  authed.get("/assignments/:id/questions", (c) => {
+  authed.get("/assignments/:id/questions", async (c) => {
     try {
-      const questions = assignments.listAssignmentQuestions(
+      const questions = await assignments.listAssignmentQuestions(
         c.req.param("id"),
         c.get("user").id,
       );
@@ -652,7 +652,7 @@ export function createApp(
   authed.put("/assignments/:id/questions", async (c) => {
     try {
       const body = setQuestionsBody.parse(await c.req.json());
-      const questions = assignments.setQuestions(
+      const questions = await assignments.setQuestions(
         c.req.param("id"),
         c.get("user").id,
         body.questionIds,
@@ -666,7 +666,7 @@ export function createApp(
   authed.post("/submissions/:id/photos", async (c) => {
     try {
       const body = submitPhotosBody.parse(await c.req.json());
-      const submission = assignments.submitPhotos(
+      const submission = await assignments.submitPhotos(
         c.req.param("id"),
         c.get("user").id,
         body.photoUrls,
@@ -680,7 +680,7 @@ export function createApp(
   authed.put("/submissions/:id/draft", async (c) => {
     try {
       const body = onlineAnswersBody.parse(await c.req.json());
-      const submission = assignments.saveDraftAnswers(
+      const submission = await assignments.saveDraftAnswers(
         c.req.param("id"),
         c.get("user").id,
         body.answers,
@@ -694,7 +694,7 @@ export function createApp(
   authed.post("/submissions/:id/answers", async (c) => {
     try {
       const body = onlineAnswersBody.parse(await c.req.json());
-      const submission = assignments.submitOnlineAnswers(
+      const submission = await assignments.submitOnlineAnswers(
         c.req.param("id"),
         c.get("user").id,
         body.answers,
@@ -709,7 +709,7 @@ export function createApp(
   authed.post("/submissions/:id/correct", async (c) => {
     try {
       const body = onlineAnswersBody.parse(await c.req.json());
-      const submission = assignments.correctOnlineAnswers(
+      const submission = await assignments.correctOnlineAnswers(
         c.req.param("id"),
         c.get("user").id,
         body.answers,
@@ -723,7 +723,7 @@ export function createApp(
   authed.post("/submissions/:id/grade", async (c) => {
     try {
       const body = gradeBody.parse(await c.req.json());
-      const submission = assignments.gradePhoto(
+      const submission = await assignments.gradePhoto(
         c.req.param("id"),
         c.get("user").id,
         body,

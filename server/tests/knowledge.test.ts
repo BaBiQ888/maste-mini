@@ -33,9 +33,9 @@ describe("KnowledgeTreeService", () => {
   });
 });
 
-function testApp() {
+async function testApp() {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "math-mini-k-"));
-  const db = openDatabase(":memory:");
+  const db = await openDatabase(":memory:");
   return createApp(db, {
     wechat: { appId: "", appSecret: "", mock: true },
     dataDir,
@@ -76,9 +76,9 @@ function auth(token: string) {
 describe("knowledge checkin assignment", () => {
   let app: ReturnType<typeof testApp>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetKnowledgeTreeCache();
-    app = testApp();
+    app = await testApp();
   });
 
   it("lists knowledge nodes via API and publishes checkin", async () => {

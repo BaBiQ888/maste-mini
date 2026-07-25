@@ -40,14 +40,14 @@ COPY content ./content
 
 # 确保 native 模块与当前镜像匹配
 WORKDIR /app
-RUN npm rebuild better-sqlite3 deasync --workspace=server || true
+RUN npm rebuild better-sqlite3 --workspace=server || true
 
 WORKDIR /app/server
 
 ENV NODE_ENV=production
 ENV PORT=80
 # Bump when shipping env-parsing fixes so /health proves new image
-ENV CODE_VERSION=listen-first-v4
+ENV CODE_VERSION=async-mysql-v5
 EXPOSE 80
 
 CMD ["node", "dist/main/index.js"]

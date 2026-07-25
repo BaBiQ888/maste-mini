@@ -5,9 +5,9 @@ import path from "node:path";
 import { createApp } from "../src/presentation/http/app.js";
 import { openDatabase } from "../src/infrastructure/persistence/db.js";
 
-function testApp() {
+async function testApp() {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "math-mini-a-"));
-  const db = openDatabase(":memory:");
+  const db = await openDatabase(":memory:");
   return createApp(db, {
     wechat: { appId: "", appSecret: "", mock: true },
     dataDir,
@@ -48,8 +48,8 @@ function auth(token: string) {
 describe("Phase 10 analytics", () => {
   let app: ReturnType<typeof testApp>;
 
-  beforeEach(() => {
-    app = testApp();
+  beforeEach(async () => {
+    app = await testApp();
   });
 
   async function setupOnlineComplete() {

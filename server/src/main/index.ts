@@ -120,7 +120,7 @@ function dbLabelOf(opts: OpenDatabaseOptions): string {
 }
 
 /** Open DB after listen so readiness probes succeed */
-function bootDatabase(): void {
+async function bootDatabase(): Promise<void> {
   boot.phase = "connecting_db";
   boot.dbDriver = dbOpts.driver;
   boot.dbLabel = dbLabelOf(dbOpts);
@@ -137,7 +137,7 @@ function bootDatabase(): void {
   }
 
   try {
-    const db = openDatabase(dbOpts);
+    const db = await openDatabase(dbOpts);
     console.log("[math-mini] database ready");
 
     const app = createApp(db, {
@@ -167,11 +167,9 @@ function bootDatabase(): void {
 
 // Defer DB init so the event loop can accept probe connections first
 setImmediate(() => {
-  try {
-    bootDatabase();
-  } catch (err) {
+  bootDatabase().catch((err) => {
     console.error("[math-mini] unexpected boot error", err);
     boot.phase = "db_error";
     boot.dbError = err instanceof Error ? err.message : String(err);
-  }
+  });
 });

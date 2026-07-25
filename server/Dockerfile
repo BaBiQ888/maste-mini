@@ -30,9 +30,9 @@ COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY . .
-RUN npm rebuild better-sqlite3 deasync || true
+RUN npm rebuild better-sqlite3 || true
 ENV NODE_ENV=production
 ENV PORT=80
-ENV CODE_VERSION=listen-first-v4
+ENV CODE_VERSION=async-mysql-v5
 EXPOSE 80
 CMD ["node", "dist/main/index.js"]

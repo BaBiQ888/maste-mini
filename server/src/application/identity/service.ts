@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { AppDatabase } from "../../infrastructure/persistence/db.js";
 import {
   createId,
   nowIso,
@@ -26,7 +26,7 @@ export interface LoginResult {
 
 export class IdentityService {
   constructor(
-    private db: Database.Database,
+    private db: AppDatabase,
     private wechat: WechatConfig,
   ) {}
 
@@ -36,9 +36,7 @@ export class IdentityService {
     avatarUrl?: string;
   }): Promise<LoginResult> {
     const session = await codeToSession(input.code, this.wechat);
-    const existing = this.db
-      .prepare("SELECT * FROM users WHERE openid = ?")
-      .get(session.openid) as UserRow | undefined;
+    const existing = await this.db.get("SELECT * FROM users WHERE openid = ?", session.openid) as UserRow | undefined;
 
     const ts = nowIso();
     let user: UserRow;
@@ -47,11 +45,7 @@ export class IdentityService {
     if (existing) {
       const nickname = input.nickname ?? existing.nickname;
       const avatarUrl = input.avatarUrl ?? existing.avatar_url;
-      this.db
-        .prepare(
-          `UPDATE users SET nickname = ?, avatar_url = ?, updated_at = ? WHERE id = ?`,
-        )
-        .run(nickname, avatarUrl, ts, existing.id);
+      await this.db.run(`UPDATE users SET nickname = ?, avatar_url = ?, updated_at = ? WHERE id = ?`, nickname, avatarUrl, ts, existing.id);
       user = {
         ...existing,
         nickname,
@@ -61,66 +55,46 @@ export class IdentityService {
     } else {
       isNewUser = true;
       const id = createId("usr");
-      this.db
-        .prepare(
-          `INSERT INTO users (id, openid, role, nickname, avatar_url, created_at, updated_at)
-           VALUES (?, ?, NULL, ?, ?, ?, ?)`,
-        )
-        .run(
-          id,
+      await this.db.run(`INSERT INTO users (id, openid, role, nickname, avatar_url, created_at, updated_at)
+           VALUES (?, ?, NULL, ?, ?, ?, ?)`, id,
           session.openid,
           input.nickname ?? null,
           input.avatarUrl ?? null,
           ts,
-          ts,
-        );
-      user = this.db
-        .prepare("SELECT * FROM users WHERE id = ?")
-        .get(id) as UserRow;
+          ts,);
+      user = await this.db.get("SELECT * FROM users WHERE id = ?", id) as UserRow;
     }
 
     const token = createId("tok");
     const expires = new Date();
     expires.setDate(expires.getDate() + SESSION_DAYS);
-    this.db
-      .prepare(
-        `INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`,
-      )
-      .run(token, user.id, ts, expires.toISOString());
+    await this.db.run(`INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`, token, user.id, ts, expires.toISOString());
 
     return { token, user: toPublic(user), isNewUser };
   }
 
-  getUserByToken(token: string | undefined | null): PublicUser | null {
+  async getUserByToken(token: string | undefined | null): Promise<PublicUser | null> {
     if (!token) return null;
-    const row = this.db
-      .prepare(
-        `SELECT u.* FROM sessions s
+    const row = await this.db.get(`SELECT u.* FROM sessions s
          JOIN users u ON u.id = s.user_id
-         WHERE s.token = ? AND s.expires_at > ?`,
-      )
-      .get(token, nowIso()) as UserRow | undefined;
+         WHERE s.token = ? AND s.expires_at > ?`, token, nowIso()) as UserRow | undefined;
     return row ? toPublic(row) : null;
   }
 
-  getUserById(id: string): PublicUser | null {
-    const row = this.db
-      .prepare("SELECT * FROM users WHERE id = ?")
-      .get(id) as UserRow | undefined;
+  async getUserById(id: string): Promise<PublicUser | null> {
+    const row = await this.db.get("SELECT * FROM users WHERE id = ?", id) as UserRow | undefined;
     return row ? toPublic(row) : null;
   }
 
-  updateProfile(
+  async updateProfile(
     userId: string,
     patch: {
       nickname?: string;
       avatarUrl?: string;
       role?: UserRole;
     },
-  ): PublicUser {
-    const current = this.db
-      .prepare("SELECT * FROM users WHERE id = ?")
-      .get(userId) as UserRow | undefined;
+  ): Promise<PublicUser> {
+    const current = await this.db.get("SELECT * FROM users WHERE id = ?", userId) as UserRow | undefined;
     if (!current) {
       throw new AuthError("NOT_FOUND", "用户不存在");
     }
@@ -142,31 +116,23 @@ export class IdentityService {
       patch.avatarUrl !== undefined ? patch.avatarUrl : current.avatar_url;
     const ts = nowIso();
 
-    this.db
-      .prepare(
-        `UPDATE users SET role = ?, nickname = ?, avatar_url = ?, updated_at = ? WHERE id = ?`,
-      )
-      .run(role, nickname, avatarUrl, ts, userId);
+    await this.db.run(`UPDATE users SET role = ?, nickname = ?, avatar_url = ?, updated_at = ? WHERE id = ?`, role, nickname, avatarUrl, ts, userId);
 
-    return this.getUserById(userId)!;
+    return await this.getUserById(userId)!;
   }
 
-  logout(token: string): void {
-    this.db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
+  async logout(token: string): Promise<void> {
+    await this.db.run("DELETE FROM sessions WHERE token = ?", token);
   }
 
   /** Test helper */
-  countUsersByOpenid(openid: string): number {
-    const row = this.db
-      .prepare("SELECT COUNT(*) AS c FROM users WHERE openid = ?")
-      .get(openid) as { c: number };
+  async countUsersByOpenid(openid: string): Promise<number> {
+    const row = await this.db.get("SELECT COUNT(*) AS c FROM users WHERE openid = ?", openid) as { c: number };
     return row.c;
   }
 
-  getSession(token: string): SessionRow | undefined {
-    return this.db
-      .prepare("SELECT * FROM sessions WHERE token = ?")
-      .get(token) as SessionRow | undefined;
+  async getSession(token: string): Promise<SessionRow | undefined> {
+    return await this.db.get("SELECT * FROM sessions WHERE token = ?", token) as SessionRow | undefined;
   }
 }
 

@@ -5,9 +5,9 @@ import path from "node:path";
 import { createApp } from "../src/presentation/http/app.js";
 import { openDatabase } from "../src/infrastructure/persistence/db.js";
 
-function testApp() {
+async function testApp() {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "math-mini-p11-"));
-  const db = openDatabase(":memory:");
+  const db = await openDatabase(":memory:");
   return { app: createApp(db, { wechat: { appId: "", appSecret: "", mock: true }, dataDir }), db };
 }
 
@@ -46,8 +46,8 @@ describe("Phase 11", () => {
   let app: ReturnType<typeof testApp>["app"];
   let db: ReturnType<typeof testApp>["db"];
 
-  beforeEach(() => {
-    const t = testApp();
+  beforeEach(async () => {
+    const t = await testApp();
     app = t.app;
     db = t.db;
   });
@@ -188,9 +188,11 @@ describe("Phase 11", () => {
     expect(mine.submission.timeRemainingSec).toBeLessThanOrEqual(60);
 
     // backdate timer so force is allowed
-    db.prepare(
+    await db.run(
       `UPDATE submissions SET timer_started_at = ? WHERE id = ?`,
-    ).run(new Date(Date.now() - 120_000).toISOString(), mine.submission.id);
+      new Date(Date.now() - 120_000).toISOString(),
+      mine.submission.id,
+    );
 
     const forced = await (
       await app.request(`/api/v1/submissions/${mine.submission.id}/answers`, {

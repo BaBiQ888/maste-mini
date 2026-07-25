@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { AppDatabase } from "../../infrastructure/persistence/db.js";
 import { createId, nowIso } from "../../infrastructure/persistence/db.js";
 import { AppError } from "../../domain/shared/errors.js";
 import type {
@@ -107,12 +107,12 @@ const MAX_PHOTOS = 6;
 
 export class AssignmentService {
   constructor(
-    private db: Database.Database,
+    private db: AppDatabase,
     private questions?: QuestionBankService,
     private knowledge: KnowledgeTreeService = new KnowledgeTreeService(),
   ) {}
 
-  create(
+  async create(
     teacherId: string,
     input: {
       classId: string;
@@ -131,7 +131,7 @@ export class AssignmentService {
       generatedSnapshots?: QuestionSnapshot[];
     },
   ): PublicAssignment {
-    this.assertTeacherOwnsActiveClass(teacherId, input.classId);
+    await this.assertTeacherOwnsActiveClass(teacherId, input.classId);
     const onlineTypes: AssignmentType[] = ["daily_drill", "knowledge_checkin"];
     if (
       input.type !== "photo_homework" &&
@@ -149,7 +149,7 @@ export class AssignmentService {
         throw new AppError("INTERNAL", "题库服务未配置", 500);
       }
       if (input.generatedSnapshots?.length) {
-        const created = this.questions.createManyGenerated(
+        const created = await this.questions!.createManyGenerated(
           teacherId,
           input.generatedSnapshots,
         );
@@ -187,15 +187,10 @@ export class AssignmentService {
     const publish = input.publish === true;
     const status: AssignmentStatus = publish ? "published" : "draft";
 
-    const tx = this.db.transaction(() => {
-      this.db
-        .prepare(
-          `INSERT INTO assignments
+    await this.db.transaction(async () => {
+      await this.db.run(`INSERT INTO assignments
            (id, class_id, type, title, description, status, due_at, config_json, created_by, created_at, updated_at, published_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          id,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id,
           input.classId,
           input.type,
           title,
@@ -206,25 +201,23 @@ export class AssignmentService {
           teacherId,
           ts,
           ts,
-          publish ? ts : null,
-        );
+          publish ? ts : null,);
 
       if (questionIds.length) {
-        this.attachQuestionsInternal(id, teacherId, questionIds, ts);
+        await this.attachQuestionsInternal(id, teacherId, questionIds, ts);
       }
     });
-    tx();
 
-    return this.getAssignment(id, teacherId)!;
+    return await this.getAssignment(id, teacherId)!;
   }
 
   /** Replace question set on a draft assignment */
-  setQuestions(
+  async setQuestions(
     assignmentId: string,
     teacherId: string,
     questionIds: string[],
-  ): PublicAssignmentQuestion[] {
-    const row = this.getAssignmentRowOwned(assignmentId, teacherId);
+  ): Promise<PublicAssignmentQuestion[]> {
+    const row = await this.getAssignmentRowOwned(assignmentId, teacherId);
     if (row.status !== "draft") {
       throw new AppError("INVALID_STATUS", "仅草稿可修改题目");
     }
@@ -235,34 +228,25 @@ export class AssignmentService {
       throw new AppError("INVALID_QUESTIONS", "至少选择 1 道题");
     }
     const ts = nowIso();
-    const tx = this.db.transaction(() => {
-      this.db
-        .prepare(`DELETE FROM assignment_questions WHERE assignment_id = ?`)
-        .run(assignmentId);
-      this.attachQuestionsInternal(assignmentId, teacherId, questionIds, ts);
-      this.db
-        .prepare(`UPDATE assignments SET updated_at = ? WHERE id = ?`)
-        .run(ts, assignmentId);
+    await this.db.transaction(async () => {
+      await this.db.run(`DELETE FROM assignment_questions WHERE assignment_id = ?`, assignmentId);
+      await this.attachQuestionsInternal(assignmentId, teacherId, questionIds, ts);
+      await this.db.run(`UPDATE assignments SET updated_at = ? WHERE id = ?`, ts, assignmentId);
     });
-    tx();
-    return this.listAssignmentQuestions(assignmentId, teacherId);
+    return await this.listAssignmentQuestions(assignmentId, teacherId);
   }
 
-  listAssignmentQuestions(
+  async listAssignmentQuestions(
     assignmentId: string,
     userId: string,
-  ): PublicAssignmentQuestion[] {
+  ): Promise<PublicAssignmentQuestion[]> {
     // teacher or student member with access
-    this.getAssignment(assignmentId, userId);
-    const isTeacher = this.isClassTeacherOfAssignment(assignmentId, userId);
+    await this.getAssignment(assignmentId, userId);
+    const isTeacher = await this.isClassTeacherOfAssignment(assignmentId, userId);
 
-    const rows = this.db
-      .prepare(
-        `SELECT * FROM assignment_questions
+    const rows = await this.db.all(`SELECT * FROM assignment_questions
          WHERE assignment_id = ?
-         ORDER BY sort_order ASC`,
-      )
-      .all(assignmentId) as Array<{
+         ORDER BY sort_order ASC`, assignmentId) as Array<{
       id: string;
       sort_order: number;
       source_question_id: string | null;
@@ -292,128 +276,96 @@ export class AssignmentService {
     });
   }
 
-  private isClassTeacherOfAssignment(
+  private async isClassTeacherOfAssignment(
     assignmentId: string,
     userId: string,
-  ): boolean {
-    const row = this.db
-      .prepare(
-        `SELECT 1 AS ok FROM assignments a
+  ): Promise<boolean> {
+    const row = await this.db.get(`SELECT 1 AS ok FROM assignments a
          JOIN classes c ON c.id = a.class_id
-         WHERE a.id = ? AND c.teacher_id = ?`,
-      )
-      .get(assignmentId, userId) as { ok: number } | undefined;
+         WHERE a.id = ? AND c.teacher_id = ?`, assignmentId, userId) as { ok: number } | undefined;
     return !!row;
   }
 
-  publish(assignmentId: string, teacherId: string): PublicAssignment {
-    const row = this.getAssignmentRowOwned(assignmentId, teacherId);
+  async publish(assignmentId: string, teacherId: string): Promise<PublicAssignment> {
+    const row = await this.getAssignmentRowOwned(assignmentId, teacherId);
     if (row.status === "published") {
-      return this.toPublicAssignment(row);
+      return await this.toPublicAssignment(row);
     }
     if (row.status === "revoked") {
       throw new AppError("INVALID_STATUS", "已下架的作业不能重新发布，请复制新建");
     }
-    this.assertClassActive(row.class_id);
+    await this.assertClassActive(row.class_id);
 
     if (row.type !== "photo_homework") {
       const count = (
-        this.db
-          .prepare(
-            `SELECT COUNT(*) AS c FROM assignment_questions WHERE assignment_id = ?`,
-          )
-          .get(assignmentId) as { c: number }
+        await this.db.get(`SELECT COUNT(*) AS c FROM assignment_questions WHERE assignment_id = ?`, assignmentId) as { c: number }
       ).c;
       if (!count) {
         throw new AppError("INVALID_QUESTIONS", "请先添加题目再发布");
       }
       // Freeze snapshots from current source at publish time
-      this.refreezeSnapshotsFromSource(assignmentId, teacherId);
+      await this.refreezeSnapshotsFromSource(assignmentId, teacherId);
     }
 
     const ts = nowIso();
-    this.db
-      .prepare(
-        `UPDATE assignments SET status = 'published', published_at = ?, updated_at = ? WHERE id = ?`,
-      )
-      .run(ts, ts, assignmentId);
-    return this.getAssignment(assignmentId, teacherId)!;
+    await this.db.run(`UPDATE assignments SET status = 'published', published_at = ?, updated_at = ? WHERE id = ?`, ts, ts, assignmentId);
+    return await this.getAssignment(assignmentId, teacherId)!;
   }
 
-  private attachQuestionsInternal(
+  private async attachQuestionsInternal(
     assignmentId: string,
     teacherId: string,
     questionIds: string[],
     ts: string,
-  ): void {
+  ): Promise<void> {
     if (!this.questions) {
       throw new AppError("INTERNAL", "题库服务未配置", 500);
     }
-    const rows = this.questions.getManyOwned(questionIds, teacherId);
-    const insert = this.db.prepare(
-      `INSERT INTO assignment_questions
+    const rows = await this.questions!.getManyOwned(questionIds, teacherId);
+    const __sql_insert = `INSERT INTO assignment_questions
        (id, assignment_id, sort_order, source_question_id, question_snapshot, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    );
-    rows.forEach((q, i) => {
-      const snap = this.questions!.getSnapshotById(q.id);
-      // strip mutable source id from answer surface? keep id for debug as sourceQuestionId
+       VALUES (?, ?, ?, ?, ?, ?)`;
+    for (const [i, q] of rows.entries()) {
+      const snap = await this.questions!.getSnapshotById(q.id);
       const snapshot: QuestionSnapshot = { ...snap };
-      insert.run(
-        createId("aq"),
-        assignmentId,
-        i,
-        q.id,
-        JSON.stringify(snapshot),
-        ts,
-      );
-    });
+      await this.db.run(__sql_insert, createId("aq"), assignmentId, i, q.id, JSON.stringify(snapshot), ts);
+    }
   }
 
   /** Re-copy source questions into snapshots (draft → publish). */
-  private refreezeSnapshotsFromSource(
+  private async refreezeSnapshotsFromSource(
     assignmentId: string,
     teacherId: string,
-  ): void {
+  ): Promise<void> {
     if (!this.questions) return;
-    const links = this.db
-      .prepare(
-        `SELECT id, source_question_id, sort_order FROM assignment_questions
-         WHERE assignment_id = ? ORDER BY sort_order`,
-      )
-      .all(assignmentId) as Array<{
+    const links = await this.db.all(`SELECT id, source_question_id, sort_order FROM assignment_questions
+         WHERE assignment_id = ? ORDER BY sort_order`, assignmentId) as Array<{
       id: string;
       source_question_id: string | null;
       sort_order: number;
     }>;
 
-    const update = this.db.prepare(
-      `UPDATE assignment_questions SET question_snapshot = ? WHERE id = ?`,
-    );
+    const __sql_update = `UPDATE assignment_questions SET question_snapshot = ? WHERE id = ?`;
     for (const link of links) {
       if (!link.source_question_id) continue;
       // ensure ownership
-      this.questions.getManyOwned([link.source_question_id], teacherId);
-      const snap = this.questions.getSnapshotById(link.source_question_id);
-      update.run(JSON.stringify(snap), link.id);
+      await this.questions!.getManyOwned([link.source_question_id], teacherId);
+      const snap = await this.questions!.getSnapshotById(link.source_question_id);
+      await this.db.run(__sql_update, JSON.stringify(snap), link.id);
     }
   }
 
-  revoke(assignmentId: string, teacherId: string): PublicAssignment {
-    this.getAssignmentRowOwned(assignmentId, teacherId);
+  async revoke(assignmentId: string, teacherId: string): Promise<PublicAssignment> {
+    await this.getAssignmentRowOwned(assignmentId, teacherId);
     const ts = nowIso();
-    this.db
-      .prepare(
-        `UPDATE assignments SET status = 'revoked', updated_at = ? WHERE id = ?`,
-      )
-      .run(ts, assignmentId);
-    return this.getAssignment(assignmentId, teacherId)!;
+    await this.db.run(`UPDATE assignments SET status = 'revoked', updated_at = ? WHERE id = ?`, ts, assignmentId);
+    return await this.getAssignment(assignmentId, teacherId)!;
   }
 
-  listForTeacher(
+  async listForTeacher(
     teacherId: string,
     opts?: { classId?: string; status?: AssignmentStatus },
-  ): PublicAssignment[] {
+  ): Promise<PublicAssignment[]> {
     let sql = `
       SELECT a.*, c.name AS class_name
       FROM assignments a
@@ -430,16 +382,14 @@ export class AssignmentService {
       params.push(opts.status);
     }
     sql += ` ORDER BY a.created_at DESC`;
-    const rows = this.db.prepare(sql).all(...params) as Array<
+    const rows = await this.db.all(sql, ...params) as Array<
       AssignmentRow & { class_name: string }
     >;
-    return rows.map((r) => this.toPublicAssignment(r, r.class_name));
+    return Promise.all(rows.map(async (r) => await this.toPublicAssignment(r, r.class_name)));
   }
 
-  listForStudent(studentId: string): PublicAssignment[] {
-    const rows = this.db
-      .prepare(
-        `
+  async listForStudent(studentId: string): Promise<PublicAssignment[]> {
+    const rows = await this.db.all(`
         SELECT a.*, c.name AS class_name
         FROM assignments a
         JOIN classes c ON c.id = a.class_id
@@ -447,75 +397,57 @@ export class AssignmentService {
         WHERE a.status = 'published'
           AND c.archived = 0
         ORDER BY a.due_at IS NULL, a.due_at ASC, a.published_at DESC
-        `,
-      )
-      .all(studentId) as Array<AssignmentRow & { class_name: string }>;
-    return rows.map((r) => this.toPublicAssignment(r, r.class_name));
+        `, studentId) as Array<AssignmentRow & { class_name: string }>;
+    return Promise.all(rows.map(async (r) => await this.toPublicAssignment(r, r.class_name)));
   }
 
-  getAssignment(
+  async getAssignment(
     assignmentId: string,
     userId: string,
-  ): PublicAssignment | null {
-    const row = this.db
-      .prepare(
-        `SELECT a.*, c.name AS class_name, c.teacher_id
+  ): Promise<PublicAssignment | null> {
+    const row = await this.db.get(`SELECT a.*, c.name AS class_name, c.teacher_id
          FROM assignments a
          JOIN classes c ON c.id = a.class_id
-         WHERE a.id = ?`,
-      )
-      .get(assignmentId) as
+         WHERE a.id = ?`, assignmentId) as
       | (AssignmentRow & { class_name: string; teacher_id: string })
       | undefined;
     if (!row) return null;
 
     if (row.teacher_id === userId) {
-      return this.toPublicAssignment(row, row.class_name);
+      return await this.toPublicAssignment(row, row.class_name);
     }
 
-    const member = this.db
-      .prepare(
-        `SELECT 1 FROM class_memberships WHERE class_id = ? AND user_id = ?`,
-      )
-      .get(row.class_id, userId);
+    const member = await this.db.get(`SELECT 1 FROM class_memberships WHERE class_id = ? AND user_id = ?`, row.class_id, userId);
     if (!member) {
       throw new AppError("FORBIDDEN", "无权查看该作业", 403);
     }
     if (row.status !== "published") {
       throw new AppError("FORBIDDEN", "作业未发布", 403);
     }
-    return this.toPublicAssignment(row, row.class_name);
+    return await this.toPublicAssignment(row, row.class_name);
   }
 
-  getOrCreateMySubmission(
+  async getOrCreateMySubmission(
     assignmentId: string,
     studentId: string,
-  ): PublicSubmission {
-    this.assertStudentCanAccessPublished(assignmentId, studentId);
-    let sub = this.findSubmission(assignmentId, studentId);
+  ): Promise<PublicSubmission> {
+    await this.assertStudentCanAccessPublished(assignmentId, studentId);
+    let sub = await this.findSubmission(assignmentId, studentId);
     if (!sub) {
       const id = createId("sub");
       const ts = nowIso();
-      const asg = this.db
-        .prepare(`SELECT type, config_json FROM assignments WHERE id = ?`)
-        .get(assignmentId) as { type: string; config_json: string };
-      const limit = this.readTimeLimitSec(asg.config_json);
+      const asg = await this.db.get(`SELECT type, config_json FROM assignments WHERE id = ?`, assignmentId) as { type: string; config_json: string };
+      const limit = await this.readTimeLimitSec(asg.config_json);
       const timerStart =
         asg.type !== "photo_homework" && limit ? ts : null;
-      this.db
-        .prepare(
-          `INSERT INTO submissions
+      await this.db.run(`INSERT INTO submissions
            (id, assignment_id, student_id, status, overdue, score, created_at, updated_at, submitted_at, timer_started_at)
-           VALUES (?, ?, ?, 'not_started', 0, NULL, ?, ?, NULL, ?)`,
-        )
-        .run(id, assignmentId, studentId, ts, ts, timerStart);
-      sub = this.findSubmission(assignmentId, studentId)!;
+           VALUES (?, ?, ?, 'not_started', 0, NULL, ?, ?, NULL, ?)`, id, assignmentId, studentId, ts, ts, timerStart);
+      sub = await this.findSubmission(assignmentId, studentId)!;
     } else {
       // start timer on first open for timed online work
-      const asg = this.db
-        .prepare(`SELECT type, config_json FROM assignments WHERE id = ?`)
-        .get(assignmentId) as { type: string; config_json: string };
-      const limit = this.readTimeLimitSec(asg.config_json);
+      const asg = await this.db.get(`SELECT type, config_json FROM assignments WHERE id = ?`, assignmentId) as { type: string; config_json: string };
+      const limit = await this.readTimeLimitSec(asg.config_json);
       if (
         asg.type !== "photo_homework" &&
         limit &&
@@ -523,35 +455,26 @@ export class AssignmentService {
         (sub.status === "not_started" || sub.status === "in_progress")
       ) {
         const ts = nowIso();
-        this.db
-          .prepare(
-            `UPDATE submissions SET timer_started_at = ?, updated_at = ? WHERE id = ?`,
-          )
-          .run(ts, ts, sub.id);
-        sub = this.findSubmission(assignmentId, studentId)!;
+        await this.db.run(`UPDATE submissions SET timer_started_at = ?, updated_at = ? WHERE id = ?`, ts, ts, sub.id);
+        sub = await this.findSubmission(assignmentId, studentId)!;
       }
     }
-    return this.toPublicSubmission(sub, undefined, true);
+    return await this.toPublicSubmission(sub, undefined, true);
   }
 
   /** Duplicate assignment as a new draft (independent snapshots). */
-  duplicate(assignmentId: string, teacherId: string): PublicAssignment {
-    const row = this.getAssignmentRowOwned(assignmentId, teacherId);
-    this.assertTeacherOwnsActiveClass(teacherId, row.class_id);
+  async duplicate(assignmentId: string, teacherId: string): Promise<PublicAssignment> {
+    const row = await this.getAssignmentRowOwned(assignmentId, teacherId);
+    await this.assertTeacherOwnsActiveClass(teacherId, row.class_id);
 
     const newId = createId("asg");
     const ts = nowIso();
     const title = `${row.title}（副本）`.slice(0, 80);
 
-    const tx = this.db.transaction(() => {
-      this.db
-        .prepare(
-          `INSERT INTO assignments
+    await this.db.transaction(async () => {
+      await this.db.run(`INSERT INTO assignments
            (id, class_id, type, title, description, status, due_at, config_json, created_by, created_at, updated_at, published_at)
-           VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, NULL)`,
-        )
-        .run(
-          newId,
+           VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, NULL)`, newId,
           row.class_id,
           row.type,
           title,
@@ -560,27 +483,20 @@ export class AssignmentService {
           row.config_json,
           teacherId,
           ts,
-          ts,
-        );
+          ts,);
 
-      const qs = this.db
-        .prepare(
-          `SELECT sort_order, source_question_id, question_snapshot
-           FROM assignment_questions WHERE assignment_id = ? ORDER BY sort_order`,
-        )
-        .all(assignmentId) as Array<{
+      const qs = await this.db.all(`SELECT sort_order, source_question_id, question_snapshot
+           FROM assignment_questions WHERE assignment_id = ? ORDER BY sort_order`, assignmentId) as Array<{
         sort_order: number;
         source_question_id: string | null;
         question_snapshot: string;
       }>;
 
-      const insert = this.db.prepare(
-        `INSERT INTO assignment_questions
+      const __sql_insert = `INSERT INTO assignment_questions
          (id, assignment_id, sort_order, source_question_id, question_snapshot, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      );
+         VALUES (?, ?, ?, ?, ?, ?)`;
       for (const q of qs) {
-        insert.run(
+        await this.db.run(__sql_insert, 
           createId("aq"),
           newId,
           q.sort_order,
@@ -590,24 +506,23 @@ export class AssignmentService {
         );
       }
     });
-    tx();
-    return this.getAssignment(newId, teacherId)!;
+    return await this.getAssignment(newId, teacherId)!;
   }
 
   /**
    * Save draft answers for online assignment (mid-way resume).
    */
-  saveDraftAnswers(
+  async saveDraftAnswers(
     submissionId: string,
     studentId: string,
     answers: Array<{ assignmentQuestionId: string; response: unknown }>,
-  ): PublicSubmission {
-    const sub = this.getSubmissionRow(submissionId);
+  ): Promise<PublicSubmission> {
+    const sub = await this.getSubmissionRow(submissionId);
     if (sub.student_id !== studentId) {
       throw new AppError("FORBIDDEN", "只能保存自己的作答", 403);
     }
-    this.assertOnlineAssignment(sub.assignment_id);
-    this.assertStudentCanAccessPublished(sub.assignment_id, studentId);
+    await this.assertOnlineAssignment(sub.assignment_id);
+    await this.assertStudentCanAccessPublished(sub.assignment_id, studentId);
 
     if (sub.status === "completed") {
       throw new AppError("INVALID_STATUS", "已完成，不能再改");
@@ -616,14 +531,14 @@ export class AssignmentService {
       throw new AppError("INVALID_STATUS", "请使用订正接口提交错题");
     }
 
-    const qMap = this.loadQuestionMap(sub.assignment_id);
+    const qMap = await this.loadQuestionMap(sub.assignment_id);
     const ts = nowIso();
-    const tx = this.db.transaction(() => {
+    await this.db.transaction(async () => {
       for (const a of answers) {
         if (!qMap.has(a.assignmentQuestionId)) {
           throw new AppError("INVALID_QUESTION", "题目不属于该作业");
         }
-        this.upsertAnswerItem(
+        await this.upsertAnswerItem(
           submissionId,
           a.assignmentQuestionId,
           a.response,
@@ -633,16 +548,11 @@ export class AssignmentService {
         );
       }
       if (sub.status === "not_started" || sub.status === "in_progress") {
-        this.db
-          .prepare(
-            `UPDATE submissions SET status = 'in_progress', updated_at = ? WHERE id = ?`,
-          )
-          .run(ts, submissionId);
+        await this.db.run(`UPDATE submissions SET status = 'in_progress', updated_at = ? WHERE id = ?`, ts, submissionId);
       }
     });
-    tx();
-    return this.toPublicSubmission(
-      this.getSubmissionRow(submissionId),
+    return await this.toPublicSubmission(
+      await this.getSubmissionRow(submissionId),
       undefined,
       true,
     );
@@ -652,18 +562,18 @@ export class AssignmentService {
    * First submit (or resubmit all while in_progress): auto-grade entire paper.
    * @param force when true (timer auto-submit), unanswered items count as wrong
    */
-  submitOnlineAnswers(
+  async submitOnlineAnswers(
     submissionId: string,
     studentId: string,
     answers: Array<{ assignmentQuestionId: string; response: unknown }>,
     opts?: { force?: boolean },
-  ): PublicSubmission {
-    const sub = this.getSubmissionRow(submissionId);
+  ): Promise<PublicSubmission> {
+    const sub = await this.getSubmissionRow(submissionId);
     if (sub.student_id !== studentId) {
       throw new AppError("FORBIDDEN", "只能提交自己的作答", 403);
     }
-    this.assertOnlineAssignment(sub.assignment_id);
-    this.assertStudentCanAccessPublished(sub.assignment_id, studentId);
+    await this.assertOnlineAssignment(sub.assignment_id);
+    await this.assertStudentCanAccessPublished(sub.assignment_id, studentId);
 
     if (
       sub.status !== "not_started" &&
@@ -675,13 +585,13 @@ export class AssignmentService {
       );
     }
 
-    const qMap = this.loadQuestionMap(sub.assignment_id);
+    const qMap = await this.loadQuestionMap(sub.assignment_id);
     if (!qMap.size) {
       throw new AppError("INVALID_QUESTIONS", "作业无题目");
     }
 
     // merge with existing draft
-    const existing = this.loadAnswerRows(submissionId);
+    const existing = await this.loadAnswerRows(submissionId);
     const responseMap = new Map<string, unknown>();
     for (const e of existing) {
       if (e.response_json != null) {
@@ -706,9 +616,7 @@ export class AssignmentService {
       }
     }
 
-    const assignment = this.db
-      .prepare(`SELECT due_at, status, config_json FROM assignments WHERE id = ?`)
-      .get(sub.assignment_id) as {
+    const assignment = await this.db.get(`SELECT due_at, status, config_json FROM assignments WHERE id = ?`, sub.assignment_id) as {
       due_at: string | null;
       status: string;
       config_json: string;
@@ -720,7 +628,7 @@ export class AssignmentService {
     // If timed and not force, still allow normal submit
     // If force, verify timer actually expired (or allow for tests with force)
     if (force) {
-      const limit = this.readTimeLimitSec(assignment.config_json);
+      const limit = await this.readTimeLimitSec(assignment.config_json);
       if (limit && sub.timer_started_at) {
         const elapsed =
           (Date.now() - new Date(sub.timer_started_at).getTime()) / 1000;
@@ -740,41 +648,34 @@ export class AssignmentService {
     let correctCount = 0;
     const total = qMap.size;
 
-    const tx = this.db.transaction(() => {
+    await this.db.transaction(async () => {
       for (const [qid, snap] of qMap) {
         const resp = responseMap.has(qid) ? responseMap.get(qid) : null;
         const { correct } = gradeOne(snap, resp);
         if (correct) correctCount += 1;
-        this.upsertAnswerItem(submissionId, qid, resp, correct, 0, ts);
+        await this.upsertAnswerItem(submissionId, qid, resp, correct, 0, ts);
       }
       const allCorrect = correctCount === total;
       const score = Math.round((correctCount / total) * 1000) / 10;
-      this.db
-        .prepare(
-          `UPDATE submissions
+      await this.db.run(`UPDATE submissions
            SET status = ?, overdue = ?, score = ?,
                submitted_at = ?, updated_at = ?
-           WHERE id = ?`,
-        )
-        .run(
-          allCorrect ? "completed" : "pending_correction",
+           WHERE id = ?`, allCorrect ? "completed" : "pending_correction",
           overdue,
           score,
           ts,
           ts,
-          submissionId,
-        );
+          submissionId,);
     });
-    tx();
 
-    return this.toPublicSubmission(
-      this.getSubmissionRow(submissionId),
+    return await this.toPublicSubmission(
+      await this.getSubmissionRow(submissionId),
       undefined,
       true,
     );
   }
 
-  private readTimeLimitSec(configJson: string): number | null {
+  private async readTimeLimitSec(configJson: string): Promise<number | null> {
     try {
       const cfg = JSON.parse(configJson || "{}") as {
         timeLimitSec?: number | null;
@@ -790,44 +691,40 @@ export class AssignmentService {
   /**
    * Correct only wrong items; all must become correct to complete.
    */
-  correctOnlineAnswers(
+  async correctOnlineAnswers(
     submissionId: string,
     studentId: string,
     answers: Array<{ assignmentQuestionId: string; response: unknown }>,
-  ): PublicSubmission {
-    const sub = this.getSubmissionRow(submissionId);
+  ): Promise<PublicSubmission> {
+    const sub = await this.getSubmissionRow(submissionId);
     if (sub.student_id !== studentId) {
       throw new AppError("FORBIDDEN", "只能订正自己的作答", 403);
     }
-    this.assertOnlineAssignment(sub.assignment_id);
-    this.assertStudentCanAccessPublished(sub.assignment_id, studentId);
+    await this.assertOnlineAssignment(sub.assignment_id);
+    await this.assertStudentCanAccessPublished(sub.assignment_id, studentId);
 
     if (sub.status !== "pending_correction") {
       throw new AppError("INVALID_STATUS", "当前无需订正");
     }
 
-    const qMap = this.loadQuestionMap(sub.assignment_id);
-    const rows = this.loadAnswerRows(submissionId);
+    const qMap = await this.loadQuestionMap(sub.assignment_id);
+    const rows = await this.loadAnswerRows(submissionId);
     const wrongIds = new Set(
       rows.filter((r) => r.is_correct === 0).map((r) => r.assignment_question_id),
     );
     if (!wrongIds.size) {
       // nothing wrong — mark completed
       const ts = nowIso();
-      this.db
-        .prepare(
-          `UPDATE submissions SET status = 'completed', score = 100, updated_at = ? WHERE id = ?`,
-        )
-        .run(ts, submissionId);
-      return this.toPublicSubmission(
-        this.getSubmissionRow(submissionId),
+      await this.db.run(`UPDATE submissions SET status = 'completed', score = 100, updated_at = ? WHERE id = ?`, ts, submissionId);
+      return await this.toPublicSubmission(
+        await this.getSubmissionRow(submissionId),
         undefined,
         true,
       );
     }
 
     const ts = nowIso();
-    const tx = this.db.transaction(() => {
+    await this.db.transaction(async () => {
       for (const a of answers) {
         if (!wrongIds.has(a.assignmentQuestionId)) {
           throw new AppError("INVALID_QUESTION", "只能订正错题");
@@ -838,7 +735,7 @@ export class AssignmentService {
           (r) => r.assignment_question_id === a.assignmentQuestionId,
         );
         const round = (prev?.correction_round || 0) + 1;
-        this.upsertAnswerItem(
+        await this.upsertAnswerItem(
           submissionId,
           a.assignmentQuestionId,
           a.response,
@@ -849,58 +746,43 @@ export class AssignmentService {
       }
 
       // re-check all
-      const after = this.loadAnswerRows(submissionId);
+      const after = await this.loadAnswerRows(submissionId);
       const stillWrong = after.some((r) => r.is_correct !== 1);
       const correctCount = after.filter((r) => r.is_correct === 1).length;
       const total = after.length || qMap.size;
       const score = Math.round((correctCount / total) * 1000) / 10;
 
-      const assignment = this.db
-        .prepare(`SELECT due_at FROM assignments WHERE id = ?`)
-        .get(sub.assignment_id) as { due_at: string | null };
+      const assignment = await this.db.get(`SELECT due_at FROM assignments WHERE id = ?`, sub.assignment_id) as { due_at: string | null };
       const overdue =
         assignment.due_at && new Date(assignment.due_at).getTime() < Date.now()
           ? 1
           : sub.overdue;
 
-      this.db
-        .prepare(
-          `UPDATE submissions SET status = ?, score = ?, overdue = ?, updated_at = ? WHERE id = ?`,
-        )
-        .run(
-          stillWrong ? "pending_correction" : "completed",
+      await this.db.run(`UPDATE submissions SET status = ?, score = ?, overdue = ?, updated_at = ? WHERE id = ?`, stillWrong ? "pending_correction" : "completed",
           score,
           overdue,
           ts,
-          submissionId,
-        );
+          submissionId,);
     });
-    tx();
 
-    return this.toPublicSubmission(
-      this.getSubmissionRow(submissionId),
+    return await this.toPublicSubmission(
+      await this.getSubmissionRow(submissionId),
       undefined,
       true,
     );
   }
 
-  private assertOnlineAssignment(assignmentId: string): void {
-    const row = this.db
-      .prepare(`SELECT type FROM assignments WHERE id = ?`)
-      .get(assignmentId) as { type: string } | undefined;
+  private async assertOnlineAssignment(assignmentId: string): Promise<void> {
+    const row = await this.db.get(`SELECT type FROM assignments WHERE id = ?`, assignmentId) as { type: string } | undefined;
     if (!row || row.type === "photo_homework") {
       throw new AppError("INVALID_TYPE", "仅在线作业支持此操作");
     }
   }
 
-  private loadQuestionMap(
+  private async loadQuestionMap(
     assignmentId: string,
-  ): Map<string, QuestionSnapshot> {
-    const rows = this.db
-      .prepare(
-        `SELECT id, question_snapshot FROM assignment_questions WHERE assignment_id = ?`,
-      )
-      .all(assignmentId) as Array<{ id: string; question_snapshot: string }>;
+  ): Promise<Map<string, QuestionSnapshot>> {
+    const rows = await this.db.all(`SELECT id, question_snapshot FROM assignment_questions WHERE assignment_id = ?`, assignmentId) as Array<{ id: string; question_snapshot: string }>;
     const map = new Map<string, QuestionSnapshot>();
     for (const r of rows) {
       map.set(r.id, JSON.parse(r.question_snapshot) as QuestionSnapshot);
@@ -908,15 +790,18 @@ export class AssignmentService {
     return map;
   }
 
-  private loadAnswerRows(submissionId: string): Array<{
-    assignment_question_id: string;
-    response_json: string | null;
-    is_correct: number | null;
-    correction_round: number;
-  }> {
-    return this.db
-      .prepare(`SELECT * FROM answer_items WHERE submission_id = ?`)
-      .all(submissionId) as Array<{
+  private async loadAnswerRows(submissionId: string): Promise<
+    Array<{
+      assignment_question_id: string;
+      response_json: string | null;
+      is_correct: number | null;
+      correction_round: number;
+    }>
+  > {
+    return (await this.db.all(
+      `SELECT * FROM answer_items WHERE submission_id = ?`,
+      submissionId,
+    )) as Array<{
       assignment_question_id: string;
       response_json: string | null;
       is_correct: number | null;
@@ -924,19 +809,15 @@ export class AssignmentService {
     }>;
   }
 
-  private upsertAnswerItem(
+  private async upsertAnswerItem(
     submissionId: string,
     assignmentQuestionId: string,
     response: unknown,
     isCorrect: boolean | null,
     correctionRound: number,
     ts: string,
-  ): void {
-    const existing = this.db
-      .prepare(
-        `SELECT id FROM answer_items WHERE submission_id = ? AND assignment_question_id = ?`,
-      )
-      .get(submissionId, assignmentQuestionId) as { id: string } | undefined;
+  ): Promise<void> {
+    const existing = await this.db.get(`SELECT id FROM answer_items WHERE submission_id = ? AND assignment_question_id = ?`, submissionId, assignmentQuestionId) as { id: string } | undefined;
 
     const responseJson =
       response === undefined ? null : JSON.stringify(response);
@@ -944,48 +825,36 @@ export class AssignmentService {
       isCorrect === null || isCorrect === undefined ? null : isCorrect ? 1 : 0;
 
     if (existing) {
-      this.db
-        .prepare(
-          `UPDATE answer_items
+      await this.db.run(`UPDATE answer_items
            SET response_json = ?, is_correct = ?, correction_round = ?, updated_at = ?
-           WHERE id = ?`,
-        )
-        .run(
-          responseJson,
+           WHERE id = ?`, responseJson,
           correctInt,
           correctionRound,
           ts,
-          existing.id,
-        );
+          existing.id,);
     } else {
-      this.db
-        .prepare(
-          `INSERT INTO answer_items
+      await this.db.run(`INSERT INTO answer_items
            (id, submission_id, assignment_question_id, response_json, is_correct, correction_round, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          createId("ans"),
+           VALUES (?, ?, ?, ?, ?, ?, ?)`, createId("ans"),
           submissionId,
           assignmentQuestionId,
           responseJson,
           correctInt,
           correctionRound,
-          ts,
-        );
+          ts,);
     }
   }
 
-  submitPhotos(
+  async submitPhotos(
     submissionId: string,
     studentId: string,
     photoUrls: string[],
-  ): PublicSubmission {
-    const sub = this.getSubmissionRow(submissionId);
+  ): Promise<PublicSubmission> {
+    const sub = await this.getSubmissionRow(submissionId);
     if (sub.student_id !== studentId) {
       throw new AppError("FORBIDDEN", "只能提交自己的作业", 403);
     }
-    this.assertStudentCanAccessPublished(sub.assignment_id, studentId);
+    await this.assertStudentCanAccessPublished(sub.assignment_id, studentId);
 
     if (
       sub.status !== "not_started" &&
@@ -1015,9 +884,7 @@ export class AssignmentService {
       }
     }
 
-    const assignment = this.db
-      .prepare(`SELECT due_at, status FROM assignments WHERE id = ?`)
-      .get(sub.assignment_id) as { due_at: string | null; status: string };
+    const assignment = await this.db.get(`SELECT due_at, status FROM assignments WHERE id = ?`, sub.assignment_id) as { due_at: string | null; status: string };
     if (assignment.status !== "published") {
       throw new AppError("INVALID_STATUS", "作业未发布或已下架");
     }
@@ -1028,38 +895,27 @@ export class AssignmentService {
         ? 1
         : 0;
 
-    const tx = this.db.transaction(() => {
-      this.db
-        .prepare(`DELETE FROM photo_assets WHERE submission_id = ?`)
-        .run(submissionId);
+    await this.db.transaction(async () => {
+      await this.db.run(`DELETE FROM photo_assets WHERE submission_id = ?`, submissionId);
       // clear previous grade when resubmitting
-      this.db
-        .prepare(`DELETE FROM photo_grades WHERE submission_id = ?`)
-        .run(submissionId);
+      await this.db.run(`DELETE FROM photo_grades WHERE submission_id = ?`, submissionId);
 
-      const insert = this.db.prepare(
-        `INSERT INTO photo_assets (id, submission_id, url, sort_order, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
-      );
-      urls.forEach((url, i) => {
-        insert.run(createId("ph"), submissionId, url, i, ts);
-      });
+      const __sql_insert = `INSERT INTO photo_assets (id, submission_id, url, sort_order, created_at)
+         VALUES (?, ?, ?, ?, ?)`;
+      for (const [i, url] of urls.entries()) {
+        await this.db.run(__sql_insert, createId("ph"), submissionId, url, i, ts);
+      }
 
-      this.db
-        .prepare(
-          `UPDATE submissions
+      await this.db.run(`UPDATE submissions
            SET status = 'submitted', overdue = ?, score = NULL,
                submitted_at = ?, updated_at = ?
-           WHERE id = ?`,
-        )
-        .run(overdue, ts, ts, submissionId);
+           WHERE id = ?`, overdue, ts, ts, submissionId);
     });
-    tx();
 
-    return this.toPublicSubmission(this.getSubmissionRow(submissionId));
+    return await this.toPublicSubmission(await this.getSubmissionRow(submissionId));
   }
 
-  gradePhoto(
+  async gradePhoto(
     submissionId: string,
     teacherId: string,
     input: {
@@ -1068,9 +924,9 @@ export class AssignmentService {
       comment?: string | null;
       requireResubmit?: boolean;
     },
-  ): PublicSubmission {
-    const sub = this.getSubmissionRow(submissionId);
-    const asg = this.getAssignmentRowOwned(sub.assignment_id, teacherId);
+  ): Promise<PublicSubmission> {
+    const sub = await this.getSubmissionRow(submissionId);
+    const asg = await this.getAssignmentRowOwned(sub.assignment_id, teacherId);
 
     if (asg.type !== "photo_homework") {
       throw new AppError("INVALID_TYPE", "仅拍照作业支持此批改");
@@ -1090,11 +946,7 @@ export class AssignmentService {
     }
     // Must have photos
     const photoCount = (
-      this.db
-        .prepare(
-          `SELECT COUNT(*) AS c FROM photo_assets WHERE submission_id = ?`,
-        )
-        .get(submissionId) as { c: number }
+      await this.db.get(`SELECT COUNT(*) AS c FROM photo_assets WHERE submission_id = ?`, submissionId) as { c: number }
     ).c;
     if (!photoCount) {
       throw new AppError("INVALID_STATUS", "学生尚未提交照片");
@@ -1118,10 +970,8 @@ export class AssignmentService {
       : "completed";
     const ts = nowIso();
 
-    const tx = this.db.transaction(() => {
-      this.db
-        .prepare(
-          `INSERT INTO photo_grades
+    await this.db.transaction(async () => {
+      await this.db.run(`INSERT INTO photo_grades
              (submission_id, result, score, comment, require_resubmit, graded_by, graded_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(submission_id) DO UPDATE SET
@@ -1130,37 +980,26 @@ export class AssignmentService {
              comment = excluded.comment,
              require_resubmit = excluded.require_resubmit,
              graded_by = excluded.graded_by,
-             graded_at = excluded.graded_at`,
-        )
-        .run(
-          submissionId,
+             graded_at = excluded.graded_at`, submissionId,
           input.result,
           score,
           input.comment?.trim() || null,
           requireResubmit ? 1 : 0,
           teacherId,
-          ts,
-        );
+          ts,);
 
-      this.db
-        .prepare(
-          `UPDATE submissions SET status = ?, score = ?, updated_at = ? WHERE id = ?`,
-        )
-        .run(newStatus, requireResubmit ? null : score, ts, submissionId);
+      await this.db.run(`UPDATE submissions SET status = ?, score = ?, updated_at = ? WHERE id = ?`, newStatus, requireResubmit ? null : score, ts, submissionId);
     });
-    tx();
 
-    return this.toPublicSubmission(this.getSubmissionRow(submissionId));
+    return await this.toPublicSubmission(await this.getSubmissionRow(submissionId));
   }
 
-  listSubmissionsForTeacher(
+  async listSubmissionsForTeacher(
     assignmentId: string,
     teacherId: string,
-  ): PublicSubmission[] {
-    this.getAssignmentRowOwned(assignmentId, teacherId);
-    const rows = this.db
-      .prepare(
-        `
+  ): Promise<PublicSubmission[]> {
+    await this.getAssignmentRowOwned(assignmentId, teacherId);
+    const rows = await this.db.all(`
         SELECT s.*, u.nickname
         FROM submissions s
         JOIN users u ON u.id = s.student_id
@@ -1173,17 +1012,13 @@ export class AssignmentService {
             ELSE 3
           END,
           s.updated_at DESC
-        `,
-      )
-      .all(assignmentId) as Array<SubmissionRow & { nickname: string | null }>;
+        `, assignmentId) as Array<SubmissionRow & { nickname: string | null }>;
 
-    return rows.map((r) => this.toPublicSubmission(r, r.nickname));
+    return Promise.all(rows.map(async (r) => await this.toPublicSubmission(r, r.nickname)));
   }
 
-  listPendingGradeCount(teacherId: string): number {
-    const row = this.db
-      .prepare(
-        `
+  async listPendingGradeCount(teacherId: string): Promise<number> {
+    const row = await this.db.get(`
         SELECT COUNT(*) AS c
         FROM submissions s
         JOIN assignments a ON a.id = s.assignment_id
@@ -1191,21 +1026,17 @@ export class AssignmentService {
         WHERE c.teacher_id = ?
           AND a.status = 'published'
           AND s.status = 'submitted'
-        `,
-      )
-      .get(teacherId) as { c: number };
+        `, teacherId) as { c: number };
     return row.c;
   }
 
   // —— helpers ——
 
-  private assertTeacherOwnsActiveClass(
+  private async assertTeacherOwnsActiveClass(
     teacherId: string,
     classId: string,
-  ): void {
-    const row = this.db
-      .prepare(`SELECT teacher_id, archived FROM classes WHERE id = ?`)
-      .get(classId) as { teacher_id: string; archived: number } | undefined;
+  ): Promise<void> {
+    const row = await this.db.get(`SELECT teacher_id, archived FROM classes WHERE id = ?`, classId) as { teacher_id: string; archived: number } | undefined;
     if (!row) throw new AppError("NOT_FOUND", "班级不存在", 404);
     if (row.teacher_id !== teacherId) {
       throw new AppError("FORBIDDEN", "只能在自己的班级布置作业", 403);
@@ -1215,75 +1046,59 @@ export class AssignmentService {
     }
   }
 
-  private assertClassActive(classId: string): void {
-    const row = this.db
-      .prepare(`SELECT archived FROM classes WHERE id = ?`)
-      .get(classId) as { archived: number } | undefined;
+  private async assertClassActive(classId: string): Promise<void> {
+    const row = await this.db.get(`SELECT archived FROM classes WHERE id = ?`, classId) as { archived: number } | undefined;
     if (!row) throw new AppError("NOT_FOUND", "班级不存在", 404);
     if (row.archived) {
       throw new AppError("CLASS_ARCHIVED", "归档班级不能发布作业");
     }
   }
 
-  private getAssignmentRowOwned(
+  private async getAssignmentRowOwned(
     assignmentId: string,
     teacherId: string,
-  ): AssignmentRow {
-    const row = this.db
-      .prepare(
-        `SELECT a.* FROM assignments a
+  ): Promise<AssignmentRow> {
+    const row = await this.db.get(`SELECT a.* FROM assignments a
          JOIN classes c ON c.id = a.class_id
-         WHERE a.id = ? AND c.teacher_id = ?`,
-      )
-      .get(assignmentId, teacherId) as AssignmentRow | undefined;
+         WHERE a.id = ? AND c.teacher_id = ?`, assignmentId, teacherId) as AssignmentRow | undefined;
     if (!row) throw new AppError("NOT_FOUND", "作业不存在或无权操作", 404);
     return row;
   }
 
-  private assertStudentCanAccessPublished(
+  private async assertStudentCanAccessPublished(
     assignmentId: string,
     studentId: string,
-  ): AssignmentRow {
-    const row = this.db
-      .prepare(
-        `
+  ): Promise<AssignmentRow> {
+    const row = await this.db.get(`
         SELECT a.*
         FROM assignments a
         JOIN class_memberships m ON m.class_id = a.class_id AND m.user_id = ?
         JOIN classes c ON c.id = a.class_id
         WHERE a.id = ? AND a.status = 'published' AND c.archived = 0
-        `,
-      )
-      .get(studentId, assignmentId) as AssignmentRow | undefined;
+        `, studentId, assignmentId) as AssignmentRow | undefined;
     if (!row) {
       throw new AppError("FORBIDDEN", "无权访问该作业", 403);
     }
     return row;
   }
 
-  private findSubmission(
+  private async findSubmission(
     assignmentId: string,
     studentId: string,
-  ): SubmissionRow | undefined {
-    return this.db
-      .prepare(
-        `SELECT * FROM submissions WHERE assignment_id = ? AND student_id = ?`,
-      )
-      .get(assignmentId, studentId) as SubmissionRow | undefined;
+  ): Promise<SubmissionRow | undefined> {
+    return await this.db.get(`SELECT * FROM submissions WHERE assignment_id = ? AND student_id = ?`, assignmentId, studentId) as SubmissionRow | undefined;
   }
 
-  private getSubmissionRow(id: string): SubmissionRow {
-    const row = this.db
-      .prepare(`SELECT * FROM submissions WHERE id = ?`)
-      .get(id) as SubmissionRow | undefined;
+  private async getSubmissionRow(id: string): Promise<SubmissionRow> {
+    const row = await this.db.get(`SELECT * FROM submissions WHERE id = ?`, id) as SubmissionRow | undefined;
     if (!row) throw new AppError("NOT_FOUND", "提交记录不存在", 404);
     return row;
   }
 
-  private toPublicAssignment(
+  private async toPublicAssignment(
     row: AssignmentRow,
     className?: string,
-  ): PublicAssignment {
+  ): Promise<PublicAssignment> {
     let config: Record<string, unknown> = {};
     try {
       config = JSON.parse(row.config_json || "{}");
@@ -1291,11 +1106,7 @@ export class AssignmentService {
       config = {};
     }
     const questionCount = (
-      this.db
-        .prepare(
-          `SELECT COUNT(*) AS c FROM assignment_questions WHERE assignment_id = ?`,
-        )
-        .get(row.id) as { c: number }
+      await this.db.get(`SELECT COUNT(*) AS c FROM assignment_questions WHERE assignment_id = ?`, row.id) as { c: number }
     ).c;
 
     let knowledgePoints:
@@ -1334,27 +1145,21 @@ export class AssignmentService {
     };
   }
 
-  private toPublicSubmission(
+  private async toPublicSubmission(
     row: SubmissionRow,
     nickname?: string | null,
     includeAnswers = false,
-  ): PublicSubmission {
+  ): Promise<PublicSubmission> {
     const photos = (
-      this.db
-        .prepare(
-          `SELECT id, url, sort_order FROM photo_assets
-           WHERE submission_id = ? ORDER BY sort_order ASC`,
-        )
-        .all(row.id) as Array<{ id: string; url: string; sort_order: number }>
+      await this.db.all(`SELECT id, url, sort_order FROM photo_assets
+           WHERE submission_id = ? ORDER BY sort_order ASC`, row.id) as Array<{ id: string; url: string; sort_order: number }>
     ).map((p) => ({
       id: p.id,
       url: p.url,
       sortOrder: p.sort_order,
     }));
 
-    const g = this.db
-      .prepare(`SELECT * FROM photo_grades WHERE submission_id = ?`)
-      .get(row.id) as
+    const g = await this.db.get(`SELECT * FROM photo_grades WHERE submission_id = ?`, row.id) as
       | {
           result: GradeResult;
           score: number | null;
@@ -1369,14 +1174,12 @@ export class AssignmentService {
 
     if (includeAnswers) {
       const asgType = (
-        this.db
-          .prepare(`SELECT type FROM assignments WHERE id = ?`)
-          .get(row.assignment_id) as { type: string } | undefined
+        await this.db.get(`SELECT type FROM assignments WHERE id = ?`, row.assignment_id) as { type: string } | undefined
       )?.type;
 
       if (asgType && asgType !== "photo_homework") {
-        const qMap = this.loadQuestionMap(row.assignment_id);
-        const items = this.loadAnswerRows(row.id);
+        const qMap = await this.loadQuestionMap(row.assignment_id);
+        const items = await this.loadAnswerRows(row.id);
         const showKey =
           row.status === "pending_correction" ||
           row.status === "completed" ||
@@ -1446,13 +1249,11 @@ export class AssignmentService {
     let timeLimitSec: number | null = null;
     let timeRemainingSec: number | null = null;
     try {
-      const asg = this.db
-        .prepare(`SELECT config_json, type FROM assignments WHERE id = ?`)
-        .get(row.assignment_id) as
+      const asg = await this.db.get(`SELECT config_json, type FROM assignments WHERE id = ?`, row.assignment_id) as
         | { config_json: string; type: string }
         | undefined;
       if (asg && asg.type !== "photo_homework") {
-        timeLimitSec = this.readTimeLimitSec(asg.config_json);
+        timeLimitSec = await this.readTimeLimitSec(asg.config_json);
         if (
           timeLimitSec &&
           row.timer_started_at &&

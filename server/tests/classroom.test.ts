@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createApp } from "../src/presentation/http/app.js";
 import { openDatabase } from "../src/infrastructure/persistence/db.js";
 
-function testApp() {
-  const db = openDatabase(":memory:");
+async function testApp() {
+  const db = await openDatabase(":memory:");
   return createApp(db, { appId: "", appSecret: "", mock: true });
 }
 
@@ -37,8 +37,8 @@ function auth(token: string) {
 describe("ClassRoom", () => {
   let app: ReturnType<typeof testApp>;
 
-  beforeEach(() => {
-    app = testApp();
+  beforeEach(async () => {
+    app = await testApp();
   });
 
   it("teacher creates class with invite code", async () => {

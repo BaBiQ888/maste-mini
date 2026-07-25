@@ -59,9 +59,9 @@ describe("drill generator unit", () => {
   });
 });
 
-function testApp() {
+async function testApp() {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "math-mini-d-"));
-  const db = openDatabase(":memory:");
+  const db = await openDatabase(":memory:");
   return createApp(db, {
     wechat: { appId: "", appSecret: "", mock: true },
     dataDir,
@@ -102,8 +102,8 @@ function auth(token: string) {
 describe("drill API + student loop", () => {
   let app: ReturnType<typeof testApp>;
 
-  beforeEach(() => {
-    app = testApp();
+  beforeEach(async () => {
+    app = await testApp();
   });
 
   it("preview generate, publish with snapshots, student completes", async () => {
