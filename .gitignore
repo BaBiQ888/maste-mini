@@ -5,8 +5,13 @@ dist/
 server/data/
 .env
 .env.local
-miniprogram/project.private.config.json
 *.sqlite
 *.sqlite-journal
 .idea/
 .vscode/
+
+# 微信开发者工具本机配置（勿提交）
+**/project.private.config.json
+project.private.config.json
+# 根目录误开工程时生成；正式工程配置在 miniprogram/project.config.json
+/project.config.json
