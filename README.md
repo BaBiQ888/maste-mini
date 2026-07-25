@@ -33,7 +33,7 @@ math-mini/
 ```bash
 npm install
 # 若 better-sqlite3 未编译：npm approve-scripts better-sqlite3 && npm rebuild better-sqlite3
-npm run dev          # 后端 http://127.0.0.1:3000
+npm run dev          # 后端 http://127.0.0.1:3001
 npm test             # 54+ 域/主路径测试
 ```
 

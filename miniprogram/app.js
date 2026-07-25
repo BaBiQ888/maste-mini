@@ -4,7 +4,7 @@ const { request } = require("./utils/request");
 App({
   globalData: {
     user: null,
-    apiBase: "http://127.0.0.1:3000",
+    apiBase: "http://127.0.0.1:3001",
   },
 
   onLaunch() {

@@ -5,7 +5,7 @@ import { createApp } from "../presentation/http/app.js";
 import { openDatabase } from "../infrastructure/persistence/db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const port = Number(process.env.PORT || 3000);
+const port = Number(process.env.PORT || 3001);
 // server/src/main → server/data
 const dataDir =
   process.env.DATA_DIR || path.join(__dirname, "../../data");
