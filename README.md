@@ -33,11 +33,41 @@ math-mini/
 ```bash
 npm install
 # 若 better-sqlite3 未编译：npm approve-scripts better-sqlite3 && npm rebuild better-sqlite3
-npm run dev          # 后端 http://127.0.0.1:3001
+npm run dev          # 后端 http://127.0.0.1:3001（默认 SQLite）
 npm test             # 54+ 域/主路径测试
 ```
 
-微信开发者工具打开目录：`miniprogram/`（关闭域名校验）。
+微信开发者工具打开目录：`miniprogram/`。
+
+- **本地调试**：`miniprogram/app.js` 里设 `useCloud: false`，并关闭域名校验。
+- **云托管**：`useCloud: true`（默认），走 `wx.cloud.callContainer`。
+
+## 微信云托管 + MySQL
+
+库名：`math_mini`。在云托管服务环境变量中配置：
+
+```bash
+MYSQL_HOST=10.17.104.40
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=<服务通知中的密码>
+MYSQL_DATABASE=math_mini
+PORT=80
+```
+
+也可用 `DATABASE_URL=mysql://root:密码@10.17.104.40:3306/math_mini`。
+
+当前环境 / 服务（示例）：
+
+| 项 | 值 |
+|----|-----|
+| env | `prod-d3gbci34xbe09e370` |
+| service | `express-gy84` |
+| 公网域名 | `https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com` |
+
+部署：将本仓库用 Dockerfile（`server/Dockerfile`）部署到服务 `express-gy84`，覆盖模板 Express。启动后会自动建表。
+
+**先在 MySQL 控制台创建空库 `math_mini`（若尚未创建）。**
 
 ## 文档
 

@@ -79,6 +79,18 @@ function guessMime(p) {
 function fullUrl(path) {
   if (!path) return "";
   if (path.startsWith("http")) return path;
+  try {
+    const app = getApp();
+    if (app && app.globalData && app.globalData.useCloud) {
+      const base =
+        app.globalData.cloudPublicBase ||
+        app.globalData.apiBase ||
+        "";
+      return base.replace(/\/$/, "") + path;
+    }
+  } catch (_) {
+    /* ignore */
+  }
   return getBase() + path;
 }
 
