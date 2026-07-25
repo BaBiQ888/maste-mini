@@ -202,6 +202,7 @@ function openMysqlAsSqliteCompat(cfg: MysqlConfig): AppDb {
     password: cfg.password,
     database: cfg.database,
     waitForConnections: true,
+    connectTimeout: 15_000,
     connectionLimit: 10,
     decimalNumbers: true,
   });

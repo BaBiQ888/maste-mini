@@ -1,6 +1,6 @@
 {
   "containerPort": 80,
-  "dockerfilePath": "server/Dockerfile",
+  "dockerfilePath": "Dockerfile",
   "buildDir": "",
   "minNum": 0,
   "maxNum": 5,
@@ -10,5 +10,5 @@
   "policyThreshold": 60,
   "envParams": {},
   "customLogs": "stdout",
-  "initialDelaySeconds": 5
+  "initialDelaySeconds": 45
 }

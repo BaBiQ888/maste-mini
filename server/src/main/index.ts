@@ -32,15 +32,28 @@ const mysqlEnvProbe = {
 };
 console.log(`[math-mini] codeVersion=${codeVersion}`);
 console.log(`[math-mini] mysqlEnv=${JSON.stringify(mysqlEnvProbe)}`);
+console.log(`[math-mini] PORT=${port} binding 0.0.0.0`);
 
 if (dbOpts.driver !== "mysql") {
   console.warn(
     "[math-mini] WARNING: MySQL env not found — using SQLite. " +
       "Need MYSQL_ADDRESS (or MYSQL_HOST) + MYSQL_PASSWORD + MYSQL_DATABASE in the *running service* env, then rebuild & redeploy.",
   );
+} else {
+  console.log(
+    `[math-mini] opening MySQL ${dbOpts.mysql.host}:${dbOpts.mysql.port}/${dbOpts.mysql.database} ...`,
+  );
 }
 
-const db = openDatabase(dbOpts);
+let db;
+try {
+  db = openDatabase(dbOpts);
+  console.log("[math-mini] database ready");
+} catch (err) {
+  console.error("[math-mini] FATAL: database open failed", err);
+  process.exit(1);
+}
+
 const dbLabel =
   dbOpts.driver === "mysql"
     ? `mysql://${dbOpts.mysql.host}:${dbOpts.mysql.port}/${dbOpts.mysql.database}`
@@ -54,7 +67,12 @@ const app = createApp(db, {
   codeVersion,
 });
 
-console.log(
-  `[math-mini] listening on http://0.0.0.0:${port} (wechat mock=${mock}) db=${dbLabel}`,
-);
-serve({ fetch: app.fetch, port, hostname: "0.0.0.0" });
+try {
+  serve({ fetch: app.fetch, port, hostname: "0.0.0.0" });
+  console.log(
+    `[math-mini] listening on http://0.0.0.0:${port} (wechat mock=${mock}) db=${dbLabel}`,
+  );
+} catch (err) {
+  console.error("[math-mini] FATAL: failed to bind port", port, err);
+  process.exit(1);
+}
