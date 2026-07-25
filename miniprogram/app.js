@@ -5,7 +5,7 @@ App({
   globalData: {
     user: null,
     /** 本地调试后端 */
-    apiBase: "http://127.0.0.1:3001",
+    apiBase: "https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com",
     /**
      * 云托管：true 走 callContainer；false 强制 wx.request + apiBase
      * 开发者工具可先 false + 关域名校验；体验版/真机建议 true

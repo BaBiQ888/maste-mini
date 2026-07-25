@@ -18,7 +18,7 @@ function getBase() {
   const app = getAppSafe();
   return (
     (app && app.globalData && app.globalData.apiBase) ||
-    "http://127.0.0.1:3001"
+    "https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com"
   );
 }
 

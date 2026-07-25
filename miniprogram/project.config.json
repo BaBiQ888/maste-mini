@@ -47,7 +47,7 @@
     "disableSWC": true
   },
   "compileType": "miniprogram",
-  "libVersion": "3.5.5",
+  "libVersion": "3.15.2",
   "appid": "wx91379358498ad2f6",
   "projectname": "suanben",
   "condition": {},

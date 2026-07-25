@@ -19,6 +19,14 @@ const appSecret = process.env.WECHAT_SECRET || "";
 const mock = process.env.WECHAT_MOCK === "1" || !appId || !appSecret;
 
 const dbOpts = resolveDbOptionsFromEnv(sqliteFallback);
+
+if (dbOpts.driver !== "mysql") {
+  console.warn(
+    "[math-mini] WARNING: MYSQL_HOST not set — using SQLite inside container. " +
+      "Cloud MySQL tables will stay empty. Set MYSQL_HOST/MYSQL_DATABASE=math_mini etc.",
+  );
+}
+
 const db = openDatabase(dbOpts);
 const app = createApp(db, {
   wechat: { appId, appSecret, mock },
