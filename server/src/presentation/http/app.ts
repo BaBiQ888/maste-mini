@@ -407,7 +407,12 @@ export function createApp(
   authed.post("/assignments", async (c) => {
     try {
       const body = createAssignmentBody.parse(await c.req.json());
-      const assignment = assignments.create(c.get("user").id, body);
+      const assignment = assignments.create(c.get("user").id, {
+        ...body,
+        generatedSnapshots: body.generatedSnapshots as
+          | import("../../domain/question/types.js").QuestionSnapshot[]
+          | undefined,
+      });
       return c.json({ assignment }, 201);
     } catch (e) {
       return handleError(c, e);
@@ -754,11 +759,12 @@ const generatedSnapSchema = z.object({
   options: z
     .array(z.object({ id: z.string(), text: z.string() }))
     .nullable()
-    .optional(),
+    .optional()
+    .default(null),
   answer: z.union([z.string(), z.boolean()]),
-  explanation: z.string().nullable().optional(),
-  knowledgeNodeId: z.string().nullable().optional(),
-  source: z.literal("generated").optional(),
+  explanation: z.string().nullable().optional().default(null),
+  knowledgeNodeId: z.string().nullable().optional().default(null),
+  source: z.literal("generated").optional().default("generated"),
 });
 
 const createAssignmentBody = z.object({

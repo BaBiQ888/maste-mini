@@ -1075,19 +1075,18 @@ export class AssignmentService {
     if (asg.type !== "photo_homework") {
       throw new AppError("INVALID_TYPE", "仅拍照作业支持此批改");
     }
-    if (sub.status !== "submitted" && sub.status !== "resubmit_required") {
-      // allow grade when submitted; if resubmit_required shouldn't re-grade without new submit
-      if (sub.status === "not_started") {
+    // Allow grade/re-grade when submitted, completed, or awaiting resubmit
+    const status = sub.status as SubmissionStatus;
+    const gradable: SubmissionStatus[] = [
+      "submitted",
+      "completed",
+      "resubmit_required",
+    ];
+    if (!gradable.includes(status)) {
+      if (status === "not_started" || status === "in_progress") {
         throw new AppError("INVALID_STATUS", "学生尚未提交");
       }
-      if (sub.status === "completed") {
-        // allow re-grade
-      } else if (sub.status !== "submitted") {
-        throw new AppError("INVALID_STATUS", "当前状态不可批改");
-      }
-    }
-    if (sub.status === "not_started") {
-      throw new AppError("INVALID_STATUS", "学生尚未提交");
+      throw new AppError("INVALID_STATUS", "当前状态不可批改");
     }
     // Must have photos
     const photoCount = (
@@ -1114,7 +1113,7 @@ export class AssignmentService {
     }
 
     const requireResubmit = input.requireResubmit === true;
-    const newStatus: PhotoSubmissionStatus = requireResubmit
+    const newStatus: SubmissionStatus = requireResubmit
       ? "resubmit_required"
       : "completed";
     const ts = nowIso();

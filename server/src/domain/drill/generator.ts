@@ -395,7 +395,11 @@ function genDecimalDiv(
   const places =
     typeof placesSpec === "number"
       ? placesSpec
-      : randInt(rng, placesSpec.min, placesSpec.max);
+      : randInt(
+          rng,
+          (placesSpec as { min: number; max: number }).min,
+          (placesSpec as { min: number; max: number }).max,
+        );
   const divR = mergeRange(
     gen.divisor || { min: 2, max: 9 },
     diff.divisor as { min?: number; max?: number },
