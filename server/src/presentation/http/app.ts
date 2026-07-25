@@ -36,6 +36,10 @@ export interface AppOptions {
   wechat: WechatConfig;
   /** Absolute path to server data dir (sqlite parent / uploads) */
   dataDir: string;
+  /** Runtime diagnostics for /health */
+  dbDriver?: "sqlite" | "mysql";
+  dbLabel?: string;
+  codeVersion?: string;
 }
 
 export function createApp(
@@ -48,6 +52,14 @@ export function createApp(
     "dataDir" in options && options.dataDir
       ? options.dataDir
       : path.join(process.cwd(), "data");
+  const dbDriver =
+    "dbDriver" in options && options.dbDriver ? options.dbDriver : "sqlite";
+  const dbLabel =
+    "dbLabel" in options && options.dbLabel ? options.dbLabel : "";
+  const codeVersion =
+    "codeVersion" in options && options.codeVersion
+      ? options.codeVersion
+      : process.env.CODE_VERSION || "unknown";
 
   const identity = new IdentityService(db, wechat);
   const classroom = new ClassRoomService(db);
@@ -67,7 +79,24 @@ export function createApp(
     }),
   );
 
-  app.get("/health", (c) => c.json({ ok: true, service: "math-mini" }));
+  app.get("/health", (c) =>
+    c.json({
+      ok: true,
+      service: "math-mini",
+      codeVersion,
+      dbDriver,
+      dbLabel,
+      /** Presence only — never expose secrets */
+      mysqlEnv: {
+        MYSQL_ADDRESS: Boolean(process.env.MYSQL_ADDRESS),
+        MYSQL_HOST: Boolean(process.env.MYSQL_HOST),
+        MYSQL_USERNAME: Boolean(process.env.MYSQL_USERNAME),
+        MYSQL_USER: Boolean(process.env.MYSQL_USER),
+        MYSQL_PASSWORD: Boolean(process.env.MYSQL_PASSWORD),
+        MYSQL_DATABASE: process.env.MYSQL_DATABASE || null,
+      },
+    }),
+  );
 
   app.use(
     "/uploads/*",

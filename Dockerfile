@@ -46,6 +46,8 @@ WORKDIR /app/server
 
 ENV NODE_ENV=production
 ENV PORT=80
+# Bump when shipping env-parsing fixes so /health proves new image
+ENV CODE_VERSION=mysql-env-v2
 EXPOSE 80
 
 CMD ["node", "dist/main/index.js"]

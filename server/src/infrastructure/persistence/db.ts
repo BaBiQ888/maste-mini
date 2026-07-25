@@ -69,27 +69,48 @@ export function resolveDbOptionsFromEnv(
    * Local / docs use:
    *   MYSQL_HOST  MYSQL_PORT  MYSQL_USER  MYSQL_PASSWORD  MYSQL_DATABASE
    */
-  const address = process.env.MYSQL_ADDRESS || "";
-  let host = process.env.MYSQL_HOST || "";
-  let port = Number(process.env.MYSQL_PORT || 3306);
+  // Trim — cloud consoles sometimes inject trailing spaces/newlines
+  const address = (process.env.MYSQL_ADDRESS || "").trim();
+  let host = (process.env.MYSQL_HOST || "").trim();
+  let port = Number((process.env.MYSQL_PORT || "3306").trim() || 3306);
   if (!host && address) {
-    const [h, p] = address.split(":");
-    host = h || "";
-    if (p) port = Number(p) || 3306;
+    // "10.17.104.40:3306" or "10.17.104.40"
+    const idx = address.lastIndexOf(":");
+    if (idx > 0 && /^\d+$/.test(address.slice(idx + 1))) {
+      host = address.slice(0, idx).trim();
+      port = Number(address.slice(idx + 1)) || 3306;
+    } else {
+      host = address;
+    }
   }
 
+  const password = (
+    process.env.MYSQL_PASSWORD ||
+    process.env.MYSQL_PASS ||
+    ""
+  ).trim();
+  const database = (
+    process.env.MYSQL_DATABASE ||
+    process.env.MYSQL_DB ||
+    "math_mini"
+  ).trim();
+  const user = (
+    process.env.MYSQL_USER ||
+    process.env.MYSQL_USERNAME ||
+    process.env.MYSQL_USER_NAME ||
+    "root"
+  ).trim();
+
+  // If cloud only set ADDRESS+PASSWORD, still try MySQL (user defaults root)
   if (host) {
     return {
       driver: "mysql",
       mysql: {
         host,
         port,
-        user:
-          process.env.MYSQL_USER ||
-          process.env.MYSQL_USERNAME ||
-          "root",
-        password: process.env.MYSQL_PASSWORD || "",
-        database: process.env.MYSQL_DATABASE || "math_mini",
+        user,
+        password,
+        database,
       },
     };
   }
