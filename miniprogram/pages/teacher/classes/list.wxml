@@ -44,20 +44,20 @@
 
   <view class="tabbar">
     <view class="tab" bindtap="goHome">
-      <view class="ico"></view>
+      <view class="ico ico-home"></view>
       <text>工作台</text>
     </view>
     <view class="tab on">
-      <view class="ico"></view>
+      <view class="ico ico-class"></view>
       <text>班级</text>
     </view>
     <view class="tab" bindtap="goAssignments">
-      <view class="ico"></view>
+      <view class="ico ico-asg"></view>
       <text>作业</text>
     </view>
-    <view class="tab" bindtap="goProfile">
-      <view class="ico"></view>
-      <text>我的</text>
+    <view class="tab" bindtap="goQuestions">
+      <view class="ico ico-bank"></view>
+      <text>题库</text>
     </view>
   </view>
 </view>

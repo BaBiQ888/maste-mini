@@ -92,6 +92,10 @@ Page({
     wx.reLaunch({ url: "/pages/teacher/assignments/list" });
   },
 
+  goQuestions() {
+    wx.reLaunch({ url: "/pages/teacher/questions/list" });
+  },
+
   goProfile() {
     wx.navigateTo({ url: "/pages/profile/profile" });
   },

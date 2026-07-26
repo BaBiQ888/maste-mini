@@ -140,8 +140,12 @@
   width: 36rpx;
   height: 36rpx;
   border: 2rpx solid currentColor;
-  border-radius: 8rpx;
+  box-sizing: border-box;
 }
+.tab .ico-home { border-radius: 50%; }
+.tab .ico-class { border-radius: 6rpx; }
+.tab .ico-asg { border-radius: 4rpx; border-top-width: 6rpx; }
+.tab .ico-bank { border-radius: 4rpx 4rpx 10rpx 10rpx; }
 
 .tab.on .ico {
   background: var(--accent-soft);

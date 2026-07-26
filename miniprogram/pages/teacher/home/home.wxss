@@ -3,7 +3,14 @@
   padding: 24rpx 32rpx 140rpx;
   box-sizing: border-box;
 }
+.greet-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16rpx;
+}
 .greet { font-size: 40rpx; font-weight: 600; }
+.profile-link { font-size: 26rpx; flex-shrink: 0; }
 .sub { margin: 8rpx 0 28rpx; }
 .stats { display: flex; gap: 20rpx; margin-bottom: 28rpx; }
 .stat {
@@ -85,7 +92,18 @@
 .tab.on { color: var(--accent); font-weight: 600; }
 .tab .ico {
   width: 36rpx; height: 36rpx;
-  border: 2rpx solid currentColor; border-radius: 8rpx;
+  border: 2rpx solid currentColor;
+  box-sizing: border-box;
+}
+.tab .ico-home { border-radius: 50%; }
+.tab .ico-class { border-radius: 6rpx; }
+.tab .ico-asg {
+  border-radius: 4rpx;
+  border-top-width: 6rpx;
+}
+.tab .ico-bank {
+  border-radius: 4rpx 4rpx 10rpx 10rpx;
+  position: relative;
 }
 .tab.on .ico { background: var(--accent-soft); }
 .ico-wrap { position: relative; }
