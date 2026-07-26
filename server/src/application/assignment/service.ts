@@ -130,7 +130,7 @@ export class AssignmentService {
        */
       generatedSnapshots?: QuestionSnapshot[];
     },
-  ): PublicAssignment {
+  ): Promise<PublicAssignment> {
     await this.assertTeacherOwnsActiveClass(teacherId, input.classId);
     const onlineTypes: AssignmentType[] = ["daily_drill", "knowledge_checkin"];
     if (
@@ -208,7 +208,7 @@ export class AssignmentService {
       }
     });
 
-    return await this.getAssignment(id, teacherId)!;
+    const __v = await this.getAssignment(id, teacherId); if (!__v) throw new Error("not found"); return __v;
   }
 
   /** Replace question set on a draft assignment */
@@ -309,7 +309,7 @@ export class AssignmentService {
 
     const ts = nowIso();
     await this.db.run(`UPDATE assignments SET status = 'published', published_at = ?, updated_at = ? WHERE id = ?`, ts, ts, assignmentId);
-    return await this.getAssignment(assignmentId, teacherId)!;
+    const __v = await this.getAssignment(assignmentId, teacherId); if (!__v) throw new Error("not found"); return __v;
   }
 
   private async attachQuestionsInternal(
@@ -359,7 +359,7 @@ export class AssignmentService {
     await this.getAssignmentRowOwned(assignmentId, teacherId);
     const ts = nowIso();
     await this.db.run(`UPDATE assignments SET status = 'revoked', updated_at = ? WHERE id = ?`, ts, assignmentId);
-    return await this.getAssignment(assignmentId, teacherId)!;
+    const __v = await this.getAssignment(assignmentId, teacherId); if (!__v) throw new Error("not found"); return __v;
   }
 
   async listForTeacher(
@@ -443,7 +443,7 @@ export class AssignmentService {
       await this.db.run(`INSERT INTO submissions
            (id, assignment_id, student_id, status, overdue, score, created_at, updated_at, submitted_at, timer_started_at)
            VALUES (?, ?, ?, 'not_started', 0, NULL, ?, ?, NULL, ?)`, id, assignmentId, studentId, ts, ts, timerStart);
-      sub = await this.findSubmission(assignmentId, studentId)!;
+      sub = await this.findSubmission(assignmentId, studentId); if (!sub) throw new Error("not found");
     } else {
       // start timer on first open for timed online work
       const asg = await this.db.get(`SELECT type, config_json FROM assignments WHERE id = ?`, assignmentId) as { type: string; config_json: string };
@@ -456,7 +456,7 @@ export class AssignmentService {
       ) {
         const ts = nowIso();
         await this.db.run(`UPDATE submissions SET timer_started_at = ?, updated_at = ? WHERE id = ?`, ts, ts, sub.id);
-        sub = await this.findSubmission(assignmentId, studentId)!;
+        sub = await this.findSubmission(assignmentId, studentId); if (!sub) throw new Error("not found");
       }
     }
     return await this.toPublicSubmission(sub, undefined, true);
@@ -506,7 +506,7 @@ export class AssignmentService {
         );
       }
     });
-    return await this.getAssignment(newId, teacherId)!;
+    const __v = await this.getAssignment(newId, teacherId); if (!__v) throw new Error("not found"); return __v;
   }
 
   /**

@@ -62,7 +62,7 @@ export class ClassRoomService {
            VALUES (?, ?, 'teacher', ?)`, id, teacherId, ts);
     });
 
-    return await this.getClassForUser(id, teacherId)!;
+    const __v = await this.getClassForUser(id, teacherId); if (!__v) throw new Error("not found"); return __v;
   }
 
   async listClassesForUser(userId: string, opts?: { includeArchived?: boolean }): Promise<PublicClass[]> {
@@ -163,7 +163,7 @@ export class ClassRoomService {
     const inviteCode = await this.generateUniqueCode();
     const ts = nowIso();
     await this.db.run(`UPDATE classes SET invite_code = ?, updated_at = ? WHERE id = ?`, inviteCode, ts, classId);
-    return await this.getClassForUser(classId, teacherId)!;
+    const __v = await this.getClassForUser(classId, teacherId); if (!__v) throw new Error("not found"); return __v;
   }
 
   /**
@@ -208,7 +208,7 @@ export class ClassRoomService {
     await this.assertOwnsClass(classId, teacherId);
     const ts = nowIso();
     await this.db.run(`UPDATE classes SET archived = 0, updated_at = ? WHERE id = ?`, ts, classId);
-    return await this.getClassForUser(classId, teacherId)!;
+    const __v = await this.getClassForUser(classId, teacherId); if (!__v) throw new Error("not found"); return __v;
   }
 
   private async assertTeacher(userId: string): Promise<void> {

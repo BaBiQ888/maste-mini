@@ -165,7 +165,7 @@ export class QuestionBankService {
     return ids.map((id) => map.get(id)!);
   }
 
-  private async normalizeInput(input: {
+  private normalizeInput(input: {
     type: QuestionType;
     stem: string;
     options?: ChoiceOption[] | null;
@@ -253,7 +253,7 @@ export class QuestionBankService {
     return row;
   }
 
-  private async toSnapshot(row: QuestionRow): Promise<QuestionSnapshot> {
+  private toSnapshot(row: QuestionRow): QuestionSnapshot {
     return {
       id: row.id,
       type: row.type as QuestionType,
@@ -266,8 +266,8 @@ export class QuestionBankService {
     };
   }
 
-  private async toPublic(row: QuestionRow): Promise<PublicQuestion> {
-    const snap = await this.toSnapshot(row);
+  private toPublic(row: QuestionRow): PublicQuestion {
+    const snap = this.toSnapshot(row);
     return {
       ...snap,
       id: row.id,

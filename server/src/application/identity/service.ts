@@ -118,7 +118,7 @@ export class IdentityService {
 
     await this.db.run(`UPDATE users SET role = ?, nickname = ?, avatar_url = ?, updated_at = ? WHERE id = ?`, role, nickname, avatarUrl, ts, userId);
 
-    return await this.getUserById(userId)!;
+    const __v = await this.getUserById(userId); if (!__v) throw new Error("not found"); return __v;
   }
 
   async logout(token: string): Promise<void> {

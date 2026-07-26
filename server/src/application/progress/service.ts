@@ -342,7 +342,7 @@ export class ProgressService {
   async getQuestionStats(
     assignmentId: string,
     teacherId: string,
-  ): { assignmentId: string; type: string; questions: QuestionStat[] } {
+  ): Promise<{ assignmentId: string; type: string; questions: QuestionStat[] }> {
     const asg = await this.db.get(`
         SELECT a.id, a.type, c.teacher_id
         FROM assignments a
@@ -531,7 +531,7 @@ export class ProgressService {
     studentId: string,
     year: number,
     month: number,
-  ): { year: number; month: number; days: CalendarDay[] } {
+  ): Promise<{ year: number; month: number; days: CalendarDay[] }> {
     if (month < 1 || month > 12 || year < 2000 || year > 2100) {
       throw new AppError("INVALID_DATE", "年月无效");
     }
