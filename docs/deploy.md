@@ -29,7 +29,8 @@ npm run predeploy
 3. **`return await this.xxx()!` 不可靠**（`null` 与 `Promise` 类型冲突），改成显式判空
 4. **不要用 `deasync` + `mysql2`**：会阻塞事件循环，MySQL 查询永远超时
 5. 云上若出现 **`ECONNRESET` / Connection lost**：已对瞬时断连做查询重试；仍失败时检查 MySQL 是否与服务同环境、密码是否正确
-6. 改完后看版本：`/health` 的 `codeVersion` 应与 `Dockerfile` 里 `CODE_VERSION` 一致
+6. **索引已存在（ER_DUP_KEYNAME）**：启动迁移会静默跳过，不算失败（表可先用 SQL 建好）
+7. 改完后看版本：`/health` 的 `codeVersion` 应与 `Dockerfile` 里 `CODE_VERSION` 一致
 
 ### 云托管环境变量（运行时，不是构建参数）
 

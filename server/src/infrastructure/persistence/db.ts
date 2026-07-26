@@ -125,8 +125,8 @@ export async function openDatabase(
       : opts ?? resolveDbOptionsFromEnv();
 
   if (options.driver === "mysql") {
-    const db = await openMysqlDatabase(options.mysql);
-    await migrateMysql(db);
+    const { db, pool } = await openMysqlDatabase(options.mysql);
+    await migrateMysql(db, pool);
     return db;
   }
 
@@ -216,6 +216,19 @@ function isTransientMysqlError(err: unknown): boolean {
   return /ECONNRESET|Connection lost|server has gone away/i.test(msg);
 }
 
+/** Idempotent DDL: index/table already exists — not an error. */
+function isIgnorableSchemaError(err: unknown): boolean {
+  const e = err as { code?: string; errno?: number };
+  const code = e?.code || "";
+  // 1061 ER_DUP_KEYNAME, 1050 ER_TABLE_EXISTS_ERROR, 1062 duplicate entry (rare on DDL)
+  return (
+    code === "ER_DUP_KEYNAME" ||
+    code === "ER_TABLE_EXISTS_ERROR" ||
+    e?.errno === 1061 ||
+    e?.errno === 1050
+  );
+}
+
 async function withMysqlRetry<T>(
   label: string,
   fn: () => Promise<T>,
@@ -227,6 +240,10 @@ async function withMysqlRetry<T>(
       return await fn();
     } catch (err) {
       last = err;
+      if (isIgnorableSchemaError(err)) {
+        // CREATE INDEX already exists, etc.
+        throw err;
+      }
       const code = (err as { code?: string })?.code || "ERR";
       if (!isTransientMysqlError(err) || i === attempts - 1) {
         console.error(`[math-mini] mysql ${label} failed (${code}):`, err);
@@ -242,7 +259,9 @@ async function withMysqlRetry<T>(
   throw last;
 }
 
-async function openMysqlDatabase(cfg: MysqlConfig): Promise<AppDatabase> {
+async function openMysqlDatabase(
+  cfg: MysqlConfig,
+): Promise<{ db: AppDatabase; pool: Pool }> {
   console.log(
     `[math-mini] mysql pool → ${cfg.host}:${cfg.port}/${cfg.database} user=${cfg.user}`,
   );
@@ -273,7 +292,7 @@ async function openMysqlDatabase(cfg: MysqlConfig): Promise<AppDatabase> {
     throw e;
   }
 
-  return createMysqlAppDatabase(pool);
+  return { db: createMysqlAppDatabase(pool), pool };
 }
 
 function createMysqlAppDatabase(pool: Pool): AppDatabase {
@@ -344,15 +363,44 @@ function createMysqlAppDatabase(pool: Pool): AppDatabase {
   };
 }
 
-async function migrateMysql(db: AppDatabase): Promise<void> {
-  await db.exec(SCHEMA_SQL);
-  for (const sql of INDEX_SQL) {
-    try {
-      await db.exec(sql);
-    } catch {
-      /* exists */
+/**
+ * Run one DDL statement; skip quietly if object already exists.
+ * Avoids withMysqlRetry error spam for ER_DUP_KEYNAME.
+ */
+async function execSchemaStatement(
+  pool: Pool,
+  sql: string,
+): Promise<void> {
+  try {
+    await pool.query(sql);
+  } catch (err) {
+    if (isIgnorableSchemaError(err)) {
+      return;
     }
+    throw err;
   }
+}
+
+async function migrateMysql(db: AppDatabase, pool?: Pool): Promise<void> {
+  // Tables (IF NOT EXISTS)
+  await db.exec(SCHEMA_SQL);
+
+  // Indexes: may already exist from manual SQL or prior boots — skip duplicates
+  const indexRunner = pool
+    ? (sql: string) => execSchemaStatement(pool, sql)
+    : async (sql: string) => {
+        try {
+          await db.exec(sql);
+        } catch (err) {
+          if (isIgnorableSchemaError(err)) return;
+          throw err;
+        }
+      };
+
+  for (const sql of INDEX_SQL) {
+    await indexRunner(sql);
+  }
+
   try {
     const cols = await db.all<{ Field: string }>(
       `SHOW COLUMNS FROM submissions`,
@@ -365,6 +413,7 @@ async function migrateMysql(db: AppDatabase): Promise<void> {
   } catch {
     /* ok */
   }
+  console.log("[math-mini] mysql schema migrate done (indexes skipped if exist)");
 }
 
 const SCHEMA_SQL = `
