@@ -526,6 +526,7 @@ export class ProgressService {
 
   /**
    * Calendar of days with at least one completed submission (Asia/Shanghai date).
+   * Date math is done in JS so both SQLite and MySQL work (updated_at is ISO text).
    */
   async getStudentCalendar(
     studentId: string,
@@ -536,93 +537,112 @@ export class ProgressService {
       throw new AppError("INVALID_DATE", "年月无效");
     }
 
-    const start = `${year}-${String(month).padStart(2, "0")}-01`;
-    const endMonth = month === 12 ? 1 : month + 1;
-    const endYear = month === 12 ? year + 1 : year;
-    const end = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
+    // ISO bounds covering Shanghai month (UTC strings still sort correctly)
+    const { startIso, endIso } = shanghaiMonthIsoBounds(year, month);
 
-    // SQLite: store ISO; convert roughly by +8h for date key
-    const rows = await this.db.all(`
-        SELECT
-          date(datetime(s.updated_at, '+8 hours')) AS d,
-          COUNT(*) AS c
+    const rows = (await this.db.all(
+      `
+        SELECT s.updated_at
         FROM submissions s
-        JOIN assignments a ON a.id = s.assignment_id
         WHERE s.student_id = ?
           AND s.status = 'completed'
-          AND date(datetime(s.updated_at, '+8 hours')) >= date(?)
-          AND date(datetime(s.updated_at, '+8 hours')) < date(?)
-        GROUP BY d
-        ORDER BY d ASC
-        `, studentId, start, end) as Array<{ d: string; c: number }>;
+          AND s.updated_at >= ?
+          AND s.updated_at < ?
+        `,
+      studentId,
+      startIso,
+      endIso,
+    )) as Array<{ updated_at: string }>;
 
-    return {
-      year,
-      month,
-      days: rows.map((r) => ({
-        date: r.d,
-        completedCount: r.c,
-      })),
-    };
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      if (!r.updated_at) continue;
+      const d = toShanghaiYmd(r.updated_at);
+      // only days in the requested calendar month
+      if (!d.startsWith(`${year}-${String(month).padStart(2, "0")}`)) continue;
+      counts.set(d, (counts.get(d) || 0) + 1);
+    }
+
+    const days: CalendarDay[] = [...counts.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, completedCount]) => ({ date, completedCount }));
+
+    return { year, month, days };
   }
 
   /**
    * Knowledge points the student has completed via check-in (or any online item tagged).
+   * JSON fields are parsed in JS for SQLite/MySQL portability.
    */
   async getStudentKnowledgeDone(studentId: string): Promise<KnowledgeDoneItem[]> {
-    const rows = await this.db.all(`
-        SELECT
-          json_extract(aq.question_snapshot, '$.knowledgeNodeId') AS kid,
-          MAX(s.updated_at) AS last_at,
-          COUNT(DISTINCT a.id) AS cnt
+    const onlineRows = (await this.db.all(
+      `
+        SELECT a.id AS assignment_id, aq.question_snapshot, s.updated_at
         FROM submissions s
         JOIN assignments a ON a.id = s.assignment_id
         JOIN assignment_questions aq ON aq.assignment_id = a.id
         WHERE s.student_id = ?
           AND s.status = 'completed'
-          AND json_extract(aq.question_snapshot, '$.knowledgeNodeId') IS NOT NULL
-          AND json_extract(aq.question_snapshot, '$.knowledgeNodeId') != ''
-        GROUP BY kid
-        ORDER BY last_at DESC
-        `, studentId) as Array<{
-      kid: string;
-      last_at: string;
-      cnt: number;
+        `,
+      studentId,
+    )) as Array<{
+      assignment_id: string;
+      question_snapshot: string;
+      updated_at: string;
     }>;
 
-    // Also include assignment-level knowledgeNodeIds from config for check-in
-    const checkinRows = await this.db.all(`
+    const checkinRows = (await this.db.all(
+      `
         SELECT a.config_json, s.updated_at
         FROM submissions s
         JOIN assignments a ON a.id = s.assignment_id
         WHERE s.student_id = ?
           AND s.status = 'completed'
           AND a.type = 'knowledge_checkin'
-        `, studentId) as Array<{ config_json: string; updated_at: string }>;
+        `,
+      studentId,
+    )) as Array<{ config_json: string; updated_at: string }>;
 
     const map = new Map<
       string,
-      { count: number; last: string | null }
+      { count: number; last: string | null; asg: Set<string> }
     >();
 
-    for (const r of rows) {
-      if (!r.kid) continue;
-      map.set(r.kid, { count: r.cnt, last: r.last_at });
+    const touch = (id: string, at: string, assignmentId?: string) => {
+      if (!id) return;
+      const prev = map.get(id) || {
+        count: 0,
+        last: null as string | null,
+        asg: new Set<string>(),
+      };
+      if (assignmentId) prev.asg.add(assignmentId);
+      else prev.count += 1;
+      map.set(id, {
+        count: assignmentId ? prev.asg.size : prev.count,
+        last: !prev.last || at > prev.last ? at : prev.last,
+        asg: prev.asg,
+      });
+    };
+
+    for (const r of onlineRows) {
+      try {
+        const snap = JSON.parse(r.question_snapshot || "{}") as {
+          knowledgeNodeId?: string | null;
+        };
+        const kid = (snap.knowledgeNodeId || "").trim();
+        if (kid) touch(kid, r.updated_at, r.assignment_id);
+      } catch {
+        /* ignore bad snapshot */
+      }
     }
+
     for (const r of checkinRows) {
       try {
         const cfg = JSON.parse(r.config_json || "{}") as {
           knowledgeNodeIds?: string[];
         };
         for (const id of cfg.knowledgeNodeIds || []) {
-          const prev = map.get(id) || { count: 0, last: null };
-          map.set(id, {
-            count: prev.count + 1,
-            last:
-              !prev.last || r.updated_at > prev.last
-                ? r.updated_at
-                : prev.last,
-          });
+          touch(id, r.updated_at);
         }
       } catch {
         /* ignore */
@@ -646,4 +666,31 @@ export class ProgressService {
     );
     return items;
   }
+}
+
+/** YYYY-MM-DD in Asia/Shanghai */
+function toShanghaiYmd(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-CA", {
+      timeZone: "Asia/Shanghai",
+    });
+  } catch {
+    return (iso || "").slice(0, 10);
+  }
+}
+
+/** ISO bounds that cover the full Shanghai calendar month */
+function shanghaiMonthIsoBounds(
+  year: number,
+  month: number,
+): { startIso: string; endIso: string } {
+  // Shanghai local midnight of month start / next month start → UTC ISO
+  const startLocal = `${year}-${String(month).padStart(2, "0")}-01T00:00:00+08:00`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const endLocal = `${endYear}-${String(endMonth).padStart(2, "0")}-01T00:00:00+08:00`;
+  return {
+    startIso: new Date(startLocal).toISOString(),
+    endIso: new Date(endLocal).toISOString(),
+  };
 }

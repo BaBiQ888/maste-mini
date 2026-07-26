@@ -33,6 +33,6 @@ COPY . .
 RUN npm rebuild better-sqlite3 || true
 ENV NODE_ENV=production
 ENV PORT=80
-ENV CODE_VERSION=async-mysql-v8
+ENV CODE_VERSION=async-mysql-v9
 EXPOSE 80
 CMD ["node", "dist/main/index.js"]

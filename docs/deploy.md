@@ -30,7 +30,8 @@ npm run predeploy
 4. **不要用 `deasync` + `mysql2`**：会阻塞事件循环，MySQL 查询永远超时
 5. 云上若出现 **`ECONNRESET` / Connection lost**：已对瞬时断连做查询重试；仍失败时检查 MySQL 是否与服务同环境、密码是否正确
 6. **索引已存在（ER_DUP_KEYNAME）**：启动迁移会静默跳过，不算失败（表可先用 SQL 建好）
-7. 改完后看版本：`/health` 的 `codeVersion` 应与 `Dockerfile` 里 `CODE_VERSION` 一致
+7. **SQL 要兼容 MySQL**：禁止 SQLite 专用函数（`datetime(x,'+8 hours')`、`json_extract` 等）；日期/JSON 优先在 JS 处理
+8. 改完后看版本：`/health` 的 `codeVersion` 应与 `Dockerfile` 里 `CODE_VERSION` 一致
 
 ### 云托管环境变量（运行时，不是构建参数）
 
