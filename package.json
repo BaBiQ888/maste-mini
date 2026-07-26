@@ -10,6 +10,8 @@
     "dev": "npm run dev -w server",
     "test": "npm run test -w server",
     "build": "npm run build -w server",
+    "typecheck": "npm run typecheck -w server",
+    "predeploy": "npm run predeploy -w server",
     "start": "npm run start -w server"
   },
   "engines": {

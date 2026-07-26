@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "declaration": true,
     "resolveJsonModule": true,
-    "noEmitOnError": false
+    "noEmitOnError": true
   },
   "include": [
     "src/**/*"

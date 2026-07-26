@@ -37,6 +37,14 @@ npm run dev          # 后端 http://127.0.0.1:3001（默认 SQLite）
 npm test             # 54+ 域/主路径测试
 ```
 
+### 推送到云托管前（必跑）
+
+```bash
+npm run predeploy    # test + tsc，与 Docker 构建一致；tsc 失败则云端必挂
+```
+
+详见 [docs/deploy.md](docs/deploy.md)（含 TypeScript / MySQL / 探针 踩坑记录）。
+
 微信开发者工具打开目录：`miniprogram/`。
 
 - **本地调试**：`miniprogram/app.js` 里设 `useCloud: false`，并关闭域名校验。
