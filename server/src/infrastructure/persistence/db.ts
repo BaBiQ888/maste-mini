@@ -195,6 +195,53 @@ async function migrateSqlite(db: AppDatabase): Promise<void> {
 
 const txStack: PoolConnection[] = [];
 
+/** Network / idle-drop errors common on cloud MySQL — safe to retry. */
+function isTransientMysqlError(err: unknown): boolean {
+  const e = err as { code?: string; errno?: number; message?: string };
+  const code = e?.code || "";
+  if (
+    code === "ECONNRESET" ||
+    code === "ECONNREFUSED" ||
+    code === "ETIMEDOUT" ||
+    code === "EPIPE" ||
+    code === "PROTOCOL_CONNECTION_LOST" ||
+    code === "PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR" ||
+    code === "PROTOCOL_ENQUEUE_AFTER_QUIT" ||
+    code === "ER_LOCK_DEADLOCK" ||
+    code === "ER_LOCK_WAIT_TIMEOUT"
+  ) {
+    return true;
+  }
+  const msg = String(e?.message || "");
+  return /ECONNRESET|Connection lost|server has gone away/i.test(msg);
+}
+
+async function withMysqlRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  attempts = 3,
+): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      last = err;
+      const code = (err as { code?: string })?.code || "ERR";
+      if (!isTransientMysqlError(err) || i === attempts - 1) {
+        console.error(`[math-mini] mysql ${label} failed (${code}):`, err);
+        throw err;
+      }
+      const delay = 80 * (i + 1) * (i + 1);
+      console.warn(
+        `[math-mini] mysql ${label} ${code}, retry ${i + 1}/${attempts - 1} in ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw last;
+}
+
 async function openMysqlDatabase(cfg: MysqlConfig): Promise<AppDatabase> {
   console.log(
     `[math-mini] mysql pool → ${cfg.host}:${cfg.port}/${cfg.database} user=${cfg.user}`,
@@ -206,15 +253,21 @@ async function openMysqlDatabase(cfg: MysqlConfig): Promise<AppDatabase> {
     password: cfg.password,
     database: cfg.database,
     waitForConnections: true,
-    connectionLimit: 10,
-    connectTimeout: 10_000,
+    connectionLimit: 5,
+    maxIdle: 5,
+    idleTimeout: 30_000,
+    queueLimit: 0,
+    connectTimeout: 15_000,
     decimalNumbers: true,
     enableKeepAlive: true,
+    keepAliveInitialDelay: 5_000,
   });
 
   try {
-    const [rows] = await pool.query("SELECT 1 AS ok");
-    console.log("[math-mini] mysql SELECT 1 ok", rows);
+    await withMysqlRetry("bootstrap SELECT 1", async () => {
+      const [rows] = await pool.query("SELECT 1 AS ok");
+      console.log("[math-mini] mysql SELECT 1 ok", rows);
+    });
   } catch (e) {
     await pool.end().catch(() => {});
     throw e;
@@ -228,48 +281,62 @@ function createMysqlAppDatabase(pool: Pool): AppDatabase {
 
   return {
     async get<T>(sql: string, ...params: unknown[]) {
-      const [rows] = await runner().query(sql, params as never[]);
-      const list = rows as RowDataPacket[];
-      return (list[0] as T) ?? undefined;
+      return withMysqlRetry("get", async () => {
+        const [rows] = await runner().query(sql, params as never[]);
+        const list = rows as RowDataPacket[];
+        return (list[0] as T) ?? undefined;
+      });
     },
     async all<T>(sql: string, ...params: unknown[]) {
-      const [rows] = await runner().query(sql, params as never[]);
-      return rows as T[];
+      return withMysqlRetry("all", async () => {
+        const [rows] = await runner().query(sql, params as never[]);
+        return rows as T[];
+      });
     },
     async run(sql: string, ...params: unknown[]) {
-      const [result] = await runner().execute(sql, params as never[]);
-      const header = result as ResultSetHeader;
-      return { changes: header.affectedRows ?? 0 };
+      return withMysqlRetry("run", async () => {
+        const [result] = await runner().execute(sql, params as never[]);
+        const header = result as ResultSetHeader;
+        return { changes: header.affectedRows ?? 0 };
+      });
     },
     async exec(sql: string) {
-      const r = runner();
-      const statements = sql
-        .split(/;\s*\n/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0 && !s.startsWith("--"));
-      for (const stmt of statements) {
-        await r.query(stmt);
-      }
+      return withMysqlRetry("exec", async () => {
+        const r = runner();
+        const statements = sql
+          .split(/;\s*\n/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0 && !s.startsWith("--"));
+        for (const stmt of statements) {
+          await r.query(stmt);
+        }
+      });
     },
     async transaction<T>(fn: () => Promise<T>) {
       if (txStack.length > 0) return fn();
-      const connection = await pool.getConnection();
-      try {
-        await connection.beginTransaction();
-        txStack.push(connection);
+      return withMysqlRetry("transaction", async () => {
+        const connection = await pool.getConnection();
         try {
-          const result = await fn();
-          await connection.commit();
-          return result;
-        } catch (e) {
-          await connection.rollback();
-          throw e;
+          await connection.beginTransaction();
+          txStack.push(connection);
+          try {
+            const result = await fn();
+            await connection.commit();
+            return result;
+          } catch (e) {
+            try {
+              await connection.rollback();
+            } catch {
+              /* ignore rollback errors on dead connection */
+            }
+            throw e;
+          } finally {
+            txStack.pop();
+          }
         } finally {
-          txStack.pop();
+          connection.release();
         }
-      } finally {
-        connection.release();
-      }
+      });
     },
     async close() {
       await pool.end();
