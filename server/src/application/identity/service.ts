@@ -48,16 +48,61 @@ export class IdentityService {
   }
 
   async loginWithWeChat(input: {
-    code: string;
+    code?: string;
     nickname?: string;
     avatarUrl?: string;
     /** Stable client id; used in mock mode so logout → re-login reuses the same user */
     deviceId?: string;
+    /**
+     * Preferred on WeChat Cloud Hosting: openid injected by callContainer
+     * (X-WX-OPENID / X-WX-FROM-OPENID). Avoids container outbound jscode2session.
+     */
+    openidFromGateway?: string;
   }): Promise<LoginResult> {
-    const session = await codeToSession(input.code, this.wechat, {
-      deviceId: input.deviceId,
-    });
-    const existing = await this.db.get("SELECT * FROM users WHERE openid = ?", session.openid) as UserRow | undefined;
+    let openid: string;
+
+    const gatewayOpenid = (input.openidFromGateway || "").trim();
+    if (gatewayOpenid) {
+      // Trusted only when set by cloud hosting gateway (see HTTP layer)
+      openid = gatewayOpenid;
+    } else {
+      const code = (input.code || "").trim();
+      if (!code) {
+        throw new AuthError(
+          "INVALID_CODE",
+          "缺少登录凭证：请使用小程序 callContainer 调用，或传入 wx.login code",
+        );
+      }
+      try {
+        const session = await codeToSession(code, this.wechat, {
+          deviceId: input.deviceId,
+        });
+        openid = session.openid;
+      } catch (e) {
+        // Cloud containers often cannot reach api.weixin.qq.com when open-api proxy is on/off
+        if (
+          e instanceof AuthError &&
+          (e.code === "WECHAT_NETWORK" || e.code === "WECHAT_ERROR") &&
+          input.deviceId &&
+          this.wechat.mock
+        ) {
+          const session = await codeToSession(code, { ...this.wechat, mock: true }, {
+            deviceId: input.deviceId,
+          });
+          openid = session.openid;
+        } else if (e instanceof AuthError && e.code === "WECHAT_NETWORK") {
+          throw new AuthError(
+            "WECHAT_NETWORK",
+            "容器无法访问微信登录接口。请用小程序 wx.cloud.callContainer 登录（网关会注入 openid），不要只用公网 HTTPS 调 /auth/wechat",
+            e.detail,
+          );
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    const existing = await this.db.get("SELECT * FROM users WHERE openid = ?", openid) as UserRow | undefined;
 
     const ts = nowIso();
     let user: UserRow;
@@ -78,7 +123,7 @@ export class IdentityService {
       const id = createId("usr");
       await this.db.run(`INSERT INTO users (id, openid, role, nickname, avatar_url, created_at, updated_at)
            VALUES (?, ?, NULL, ?, ?, ?, ?)`, id,
-          session.openid,
+          openid,
           input.nickname ?? null,
           input.avatarUrl ?? null,
           ts,

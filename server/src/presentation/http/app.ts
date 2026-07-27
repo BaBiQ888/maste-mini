@@ -124,7 +124,17 @@ export function createApp(
   app.post("/api/v1/auth/wechat", async (c) => {
     try {
       const body = loginBody.parse(await c.req.json());
-      const result = await identity.loginWithWeChat(body);
+      // callContainer injects these; Hono lowercases header names
+      const openidFromGateway =
+        c.req.header("x-wx-openid") ||
+        c.req.header("X-WX-OPENID") ||
+        c.req.header("x-wx-from-openid") ||
+        c.req.header("X-WX-FROM-OPENID") ||
+        undefined;
+      const result = await identity.loginWithWeChat({
+        ...body,
+        openidFromGateway: openidFromGateway || undefined,
+      });
       return c.json(result);
     } catch (e) {
       return handleError(c, e);
@@ -761,7 +771,8 @@ export function createApp(
 }
 
 const loginBody = z.object({
-  code: z.string().min(1),
+  /** wx.login code; optional when gateway already injects X-WX-OPENID */
+  code: z.string().min(1).optional(),
   nickname: z.string().max(64).optional(),
   avatarUrl: z.string().max(512).optional(),
   /** Client-stable id; mock login uses it so re-login reuses the same account */

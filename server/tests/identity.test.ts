@@ -49,6 +49,33 @@ describe("Identity", () => {
     expect(b.json.user.id).toBe(a.json.user.id);
   });
 
+  it("logs in via gateway X-WX-OPENID without jscode2session (cloud hosting path)", async () => {
+    const res = await app.request("/api/v1/auth/wechat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-wx-openid": "oREAL_OPENID_from_gateway",
+      },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(200);
+    const a = await res.json();
+    expect(a.isNewUser).toBe(true);
+    expect(a.token).toMatch(/^tok_/);
+
+    const again = await app.request("/api/v1/auth/wechat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-wx-openid": "oREAL_OPENID_from_gateway",
+      },
+      body: JSON.stringify({ code: "ignored-when-header-present" }),
+    });
+    const b = await again.json();
+    expect(b.isNewUser).toBe(false);
+    expect(b.user.id).toBe(a.user.id);
+  });
+
   it("reuses account by deviceId even when wx code changes (logout → re-login)", async () => {
     const a = await login(app, "wx_code_once_1", { deviceId: "phone-A" });
     expect(a.json.isNewUser).toBe(true);

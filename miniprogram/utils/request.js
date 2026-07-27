@@ -42,7 +42,6 @@ function cloudConfig() {
 function handleResponse(res, resolve, reject) {
   const status = res.statusCode;
   const data = res.data;
-  // callContainer sometimes returns statusCode as string
   const code = Number(status);
   if (code === 401) {
     clearAuth();
@@ -58,7 +57,6 @@ function handleResponse(res, resolve, reject) {
     resolve(data);
     return;
   }
-  // 服务还在启动 / DB 未就绪
   if (
     code === 503 &&
     data &&
@@ -91,20 +89,16 @@ function formatNetError(err, via) {
   const text = String(detail);
   if (text.includes("url not in domain") || text.includes("not in domain list")) {
     return via === "http"
-      ? "公网域名未加入小程序 request 合法域名（正式环境请优先修复 callContainer）"
+      ? "公网域名未加入 request 合法域名。正式请用 callContainer，不要依赖公网"
       : "云调用失败且公网域名未配置";
   }
-  if (text.includes("cloud init") || text.includes("Cloud API isn't enabled")) {
-    return "云能力未启用：请确认小程序已开通云托管且环境 ID 正确";
+  if (text.includes("Cloud API isn't enabled")) {
+    return "云能力未就绪，请稍后重试或检查环境 ID";
   }
   if (text.includes("env") && (text.includes("not found") || text.includes("invalid"))) {
     return "云环境 ID 无效，请核对 app.js 的 cloudEnv";
   }
-  if (text.includes("SERVICE") || text.includes("service")) {
-    return "云托管服务名无效，请核对 cloudService（express-gy84）";
-  }
-  // 截断过长 errMsg，便于 toast
-  const short = text.replace(/^request:fail\s*/i, "").slice(0, 80);
+  const short = text.replace(/^request:fail\s*/i, "").slice(0, 120);
   return short || (via === "cloud" ? "云调用失败" : "网络错误");
 }
 
@@ -139,7 +133,6 @@ function httpRequest({ url, method, data, token, resolve, reject, retry, isRetry
         );
         return;
       }
-      // Prefer showing cloud error root cause when both failed
       const httpMsg = formatNetError(err, "http");
       const msg = cloudFailMsg
         ? `云调用失败：${cloudFailMsg}；回退公网：${httpMsg}`
@@ -149,9 +142,45 @@ function httpRequest({ url, method, data, token, resolve, reject, retry, isRetry
   });
 }
 
+function callContainerOnce({ path, method, data, token, env, service, cloudApi }) {
+  return new Promise((resolve, reject) => {
+    const header = {
+      "Content-Type": "application/json",
+      "X-WX-SERVICE": service,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const payload = {
+      config: { env },
+      path,
+      method,
+      header,
+      timeout: 15000,
+      success: resolve,
+      fail: reject,
+    };
+    if (method !== "GET" && data !== undefined) {
+      payload.data = data;
+    } else if (method === "GET" && data && Object.keys(data).length) {
+      payload.data = data;
+    } else if (method !== "GET") {
+      payload.data = data || {};
+    }
+
+    const api = cloudApi || wx.cloud;
+    if (!api || typeof api.callContainer !== "function") {
+      reject(new Error("callContainer 不可用"));
+      return;
+    }
+    try {
+      api.callContainer(payload);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
 /**
- * Prefer callContainer; on fail fall back to public HTTPS (apiBase).
- * @param {{ url: string, method?: string, data?: any, retry?: boolean }} opts
+ * Prefer callContainer (injects X-WX-OPENID for login); fall back to public HTTPS.
  */
 function request({ url, method = "GET", data, retry = true }) {
   const token = getToken();
@@ -171,34 +200,41 @@ function request({ url, method = "GET", data, retry = true }) {
         cloudFailMsg,
       });
 
-    if (!(useCloudCall() && wx.cloud && typeof wx.cloud.callContainer === "function")) {
-      console.warn(
-        "[request] callContainer unavailable",
-        "wx.cloud=",
-        !!wx.cloud,
-        "useCloud=",
-        useCloudCall(),
-      );
-      doHttp(false, "当前环境不支持 callContainer");
+    if (!useCloudCall()) {
+      doHttp(false);
       return;
     }
 
-    const { env, service } = cloudConfig();
-    const payload = {
-      config: { env },
-      path,
-      method,
-      header: {
-        "Content-Type": "application/json",
-        "X-WX-SERVICE": service,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      timeout: 20000,
-      success(res) {
-        // callContainer may return non-2xx in success callback
+    const runCloud = async () => {
+      const app = getAppSafe();
+      if (app && typeof app.ensureCloud === "function") {
+        try {
+          await app.ensureCloud();
+        } catch (_) {
+          /* continue with wx.cloud */
+        }
+      }
+      const { env, service } = cloudConfig();
+      const cloudApi =
+        (app && app.globalData && app.globalData.cloud) || wx.cloud;
+
+      if (!cloudApi || typeof cloudApi.callContainer !== "function") {
+        doHttp(false, "当前环境不支持 callContainer");
+        return;
+      }
+
+      try {
+        const res = await callContainerOnce({
+          path,
+          method,
+          data,
+          token,
+          env,
+          service,
+          cloudApi,
+        });
         handleResponse(res, resolve, reject);
-      },
-      fail(err) {
+      } catch (err) {
         const cloudMsg = formatNetError(err, "cloud");
         console.warn("[request] callContainer fail → HTTPS fallback", {
           env,
@@ -206,25 +242,23 @@ function request({ url, method = "GET", data, retry = true }) {
           path,
           err,
         });
+        // Auth path: HTTPS cannot get X-WX-OPENID and container may not reach jscode2session
+        if (path.indexOf("/api/v1/auth/wechat") !== -1) {
+          reject(
+            Object.assign(
+              new Error(
+                `云调用失败（${cloudMsg}）。登录必须走 callContainer 才能带 openid；请检查环境 ID / 服务名，并在真机体验版重试`,
+              ),
+              { code: "CLOUD_CALL_FAIL", err },
+            ),
+          );
+          return;
+        }
         doHttp(false, cloudMsg);
-      },
+      }
     };
-    // GET 可不传 data，部分基础库对空对象敏感
-    if (method !== "GET" && data !== undefined) {
-      payload.data = data;
-    } else if (method === "GET" && data && Object.keys(data).length) {
-      payload.data = data;
-    } else if (method !== "GET") {
-      payload.data = data || {};
-    }
 
-    try {
-      wx.cloud.callContainer(payload);
-    } catch (e) {
-      const cloudMsg = formatNetError(e, "cloud");
-      console.warn("[request] callContainer throw → HTTPS fallback", e);
-      doHttp(false, cloudMsg);
-    }
+    runCloud();
   });
 }
 

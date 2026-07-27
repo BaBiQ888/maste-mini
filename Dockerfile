@@ -47,7 +47,7 @@ WORKDIR /app/server
 ENV NODE_ENV=production
 ENV PORT=80
 # Bump when shipping env-parsing fixes so /health proves new image
-ENV CODE_VERSION=login-err-v13
+ENV CODE_VERSION=openid-header-v14
 EXPOSE 80
 
 CMD ["node", "dist/main/index.js"]
