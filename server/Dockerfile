@@ -33,6 +33,6 @@ COPY . .
 RUN npm rebuild better-sqlite3 || true
 ENV NODE_ENV=production
 ENV PORT=80
-ENV CODE_VERSION=teacher-gate-v10
+ENV CODE_VERSION=wechat-real-v11
 EXPOSE 80
 CMD ["node", "dist/main/index.js"]

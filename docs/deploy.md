@@ -43,12 +43,15 @@ npm run predeploy
 | `MYSQL_DATABASE` | `math_mini` |
 | `PORT` | **80**（HTTP 服务端口，不是 MySQL 端口） |
 | `TEACHER_ACCESS_CODE` | 首次选「我是老师」时的开通码（默认 `SUANBEN-TEACHER`，生产务必改掉） |
-| `WECHAT_APPID` / `WECHAT_SECRET` | 正式微信登录；未配置时走 mock，靠小程序本地 `deviceId` 复用账号 |
+| `WECHAT_APPID` | 小程序 AppID（也认 `WX_APPID`） |
+| `WECHAT_SECRET` | 小程序 AppSecret（也认 `WECHAT_APPSECRET` / `WX_SECRET`） |
+| `WECHAT_MOCK` | 仅当设为 `1` 时强制 mock；有 AppID+Secret 时**不要**设此项 |
 
 - MySQL 端口在 **ADDRESS 的 3306**，`PORT=80` 是 **Node 监听端口**
 - 探针连的是 **容器 IP:80**，不是数据库 IP
 - **老师门槛**：身份页选老师须填开通码；学生无需
-- **账号复用**：已注册老师/学生退出后再登录应回到同一账号（正式环境靠 openid；mock 靠客户端 `deviceId`，退出登录不会清掉）
+- **账号复用（正式）**：配置 AppID+Secret 后，`wx.login` → `jscode2session` 得到稳定 **openid**，同一微信用户退出再登必回同一账号
+- **验收**：`GET /health` 应见 `"wechat": { "mode": "real", "mock": false, "appIdConfigured": true, "secretConfigured": true }`
 
 ### 部署方式
 

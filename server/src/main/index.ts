@@ -22,8 +22,14 @@ const dataDir =
 const sqliteFallback =
   process.env.DATABASE_PATH || path.join(dataDir, "math-mini.sqlite");
 
-const appId = process.env.WECHAT_APPID || "";
-const appSecret = process.env.WECHAT_SECRET || "";
+const appId =
+  process.env.WECHAT_APPID || process.env.WX_APPID || "";
+const appSecret =
+  process.env.WECHAT_SECRET ||
+  process.env.WECHAT_APPSECRET ||
+  process.env.WX_SECRET ||
+  "";
+/** Force mock only when WECHAT_MOCK=1; otherwise real login if AppId+Secret present */
 const mock = process.env.WECHAT_MOCK === "1" || !appId || !appSecret;
 const codeVersion = process.env.CODE_VERSION || "dev";
 
@@ -61,6 +67,13 @@ function healthPayload() {
     dbDriver: boot.dbDriver,
     dbLabel: boot.dbLabel,
     dbError: boot.dbError,
+    /** Real login reuses account by WeChat openid when mock=false */
+    wechat: {
+      appIdConfigured: Boolean(appId),
+      secretConfigured: Boolean(appSecret),
+      mock,
+      mode: mock ? "mock" : "real",
+    },
     mysqlEnv: {
       MYSQL_ADDRESS: Boolean(process.env.MYSQL_ADDRESS),
       MYSQL_HOST: Boolean(process.env.MYSQL_HOST),
