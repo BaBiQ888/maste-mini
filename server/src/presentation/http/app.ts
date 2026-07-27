@@ -8,7 +8,10 @@ import {
   IdentityService,
   type PublicUser,
 } from "../../application/identity/service.js";
-import type { WechatConfig } from "../../infrastructure/wechat/code2session.js";
+import {
+  isAuthError,
+  type WechatConfig,
+} from "../../infrastructure/wechat/code2session.js";
 import { ClassRoomService } from "../../application/classroom/service.js";
 import { AssignmentService } from "../../application/assignment/service.js";
 import { ProgressService } from "../../application/progress/service.js";
@@ -888,14 +891,22 @@ function handleError(
   if (e instanceof AppError) {
     return c.json({ code: e.code, message: e.message }, e.status);
   }
-  if (e instanceof AuthError) {
+  if (e instanceof AuthError || isAuthError(e)) {
+    const err = e as AuthError;
     const status =
-      e.code === "NOT_FOUND"
+      err.code === "NOT_FOUND"
         ? 404
-        : e.code === "UNAUTHORIZED"
+        : err.code === "UNAUTHORIZED"
           ? 401
           : 400;
-    return c.json({ code: e.code, message: e.message }, status);
+    return c.json(
+      {
+        code: err.code,
+        message: err.message,
+        detail: err.detail ?? undefined,
+      },
+      status,
+    );
   }
   if (e instanceof z.ZodError) {
     return c.json(
@@ -903,6 +914,13 @@ function handleError(
       400,
     );
   }
-  console.error(e);
-  return c.json({ code: "INTERNAL", message: "服务器错误" }, 500);
+  console.error("[INTERNAL]", e);
+  const msg = e instanceof Error ? e.message : "服务器错误";
+  return c.json(
+    {
+      code: "INTERNAL",
+      message: msg || "服务器错误",
+    },
+    500,
+  );
 }

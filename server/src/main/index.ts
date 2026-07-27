@@ -22,13 +22,17 @@ const dataDir =
 const sqliteFallback =
   process.env.DATABASE_PATH || path.join(dataDir, "math-mini.sqlite");
 
-const appId =
-  process.env.WECHAT_APPID || process.env.WX_APPID || "";
-const appSecret =
+const appId = (
+  process.env.WECHAT_APPID ||
+  process.env.WX_APPID ||
+  ""
+).trim();
+const appSecret = (
   process.env.WECHAT_SECRET ||
   process.env.WECHAT_APPSECRET ||
   process.env.WX_SECRET ||
-  "";
+  ""
+).trim();
 /** Force mock only when WECHAT_MOCK=1; otherwise real login if AppId+Secret present */
 const mock = process.env.WECHAT_MOCK === "1" || !appId || !appSecret;
 const codeVersion = process.env.CODE_VERSION || "dev";

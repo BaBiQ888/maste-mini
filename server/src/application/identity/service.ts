@@ -84,12 +84,26 @@ export class IdentityService {
           ts,
           ts,);
       user = await this.db.get("SELECT * FROM users WHERE id = ?", id) as UserRow;
+      if (!user) {
+        throw new AuthError("INTERNAL", "创建用户失败，请检查数据库表 users 是否已建");
+      }
     }
 
     const token = createId("tok");
     const expires = new Date();
     expires.setDate(expires.getDate() + SESSION_DAYS);
-    await this.db.run(`INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`, token, user.id, ts, expires.toISOString());
+    try {
+      await this.db.run(
+        `INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`,
+        token,
+        user.id,
+        ts,
+        expires.toISOString(),
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new AuthError("INTERNAL", `创建会话失败：${msg}`);
+    }
 
     return { token, user: toPublic(user), isNewUser };
   }

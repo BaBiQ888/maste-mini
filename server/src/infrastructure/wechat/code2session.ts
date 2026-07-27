@@ -26,7 +26,11 @@ export async function codeToSession(
     throw new AuthError("INVALID_CODE", "登录 code 不能为空");
   }
 
-  if (config.mock || !config.appId || !config.appSecret) {
+  const appId = (config.appId || "").trim();
+  const appSecret = (config.appSecret || "").trim();
+  const useMock = config.mock || !appId || !appSecret;
+
+  if (useMock) {
     const seed =
       options?.deviceId && options.deviceId.trim()
         ? `device:${options.deviceId.trim()}`
@@ -35,14 +39,21 @@ export async function codeToSession(
     return { openid, sessionKey: "mock_session_key" };
   }
 
+  // Real WeChat login — reject obvious non-wx codes early
+  if (code.startsWith("dev_fallback_") || code.startsWith("dev_")) {
+    throw new AuthError(
+      "INVALID_CODE",
+      "未获取到有效微信登录 code，请用已关联 AppID 的真机/体验版重试",
+    );
+  }
+
   const url = new URL("https://api.weixin.qq.com/sns/jscode2session");
-  url.searchParams.set("appid", config.appId);
-  url.searchParams.set("secret", config.appSecret);
-  url.searchParams.set("js_code", code);
+  url.searchParams.set("appid", appId);
+  url.searchParams.set("secret", appSecret);
+  url.searchParams.set("js_code", code.trim());
   url.searchParams.set("grant_type", "authorization_code");
 
-  const res = await fetch(url);
-  const data = (await res.json()) as {
+  let data: {
     openid?: string;
     session_key?: string;
     unionid?: string;
@@ -50,10 +61,42 @@ export async function codeToSession(
     errmsg?: string;
   };
 
+  try {
+    const res = await fetch(url.toString());
+    const text = await res.text();
+    try {
+      data = JSON.parse(text) as typeof data;
+    } catch {
+      throw new AuthError(
+        "WECHAT_ERROR",
+        `微信接口返回非 JSON（HTTP ${res.status}）`,
+        text.slice(0, 200),
+      );
+    }
+  } catch (e) {
+    if (e instanceof AuthError) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new AuthError(
+      "WECHAT_NETWORK",
+      `无法连接微信登录接口：${msg}`,
+      e,
+    );
+  }
+
   if (data.errcode || !data.openid) {
+    const hint =
+      data.errcode === 40029
+        ? "（code 无效或已使用，请重试登录）"
+        : data.errcode === 40163
+          ? "（code 已被使用）"
+          : data.errcode === 40125
+            ? "（AppSecret 错误，请检查云托管 WECHAT_SECRET）"
+            : data.errcode === 40013
+              ? "（AppID 无效，请检查 WECHAT_APPID）"
+              : "";
     throw new AuthError(
       "WECHAT_ERROR",
-      data.errmsg || "微信登录失败",
+      `${data.errmsg || "微信登录失败"}${hint}`,
       data.errcode,
     );
   }
@@ -84,4 +127,15 @@ export class AuthError extends Error {
     super(message);
     this.name = "AuthError";
   }
+}
+
+export function isAuthError(e: unknown): e is AuthError {
+  return (
+    e instanceof AuthError ||
+    (typeof e === "object" &&
+      e !== null &&
+      (e as { name?: string }).name === "AuthError" &&
+      typeof (e as { code?: unknown }).code === "string" &&
+      typeof (e as { message?: unknown }).message === "string")
+  );
 }

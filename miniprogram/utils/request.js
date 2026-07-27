@@ -74,10 +74,14 @@ function handleResponse(res, resolve, reject) {
     );
     return;
   }
+  const msg =
+    (data && (data.message || data.errmsg || data.error)) ||
+    (code === 500 ? "服务器错误" : "请求失败");
   reject(
-    Object.assign(new Error((data && data.message) || "请求失败"), {
+    Object.assign(new Error(msg), {
       code: data && data.code,
       statusCode: code,
+      body: data,
     }),
   );
 }

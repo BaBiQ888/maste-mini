@@ -39,12 +39,18 @@ Page({
       routeByUser(data.user);
     } catch (e) {
       const title = (e && e.message) || "登录失败";
+      const code = e && e.code ? String(e.code) : "";
       console.error("[login]", e);
-      wx.showToast({
-        title: title.length > 40 ? `${title.slice(0, 40)}…` : title,
-        icon: "none",
-        duration: 3500,
-      });
+      // 长错误用弹窗，避免 toast 截断（如微信 errmsg / 500 详情）
+      if (title.length > 20 || code) {
+        wx.showModal({
+          title: "登录失败",
+          content: code ? `[${code}] ${title}` : title,
+          showCancel: false,
+        });
+      } else {
+        wx.showToast({ title, icon: "none", duration: 3500 });
+      }
     } finally {
       this.setData({ loading: false });
     }
