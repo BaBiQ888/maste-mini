@@ -3,7 +3,8 @@ const { request } = require("../../utils/request");
 
 Page({
   data: {
-    role: "teacher",
+    role: "student",
+    teacherCode: "",
     loading: false,
   },
 
@@ -26,9 +27,17 @@ Page({
     this.setData({ role: "student" });
   },
 
+  onTeacherCodeInput(e) {
+    this.setData({ teacherCode: (e.detail.value || "").trim() });
+  },
+
   onConfirm() {
     if (this.data.loading) return;
     const isTeacher = this.data.role === "teacher";
+    if (isTeacher && !this.data.teacherCode) {
+      wx.showToast({ title: "请填写教师开通码", icon: "none" });
+      return;
+    }
     wx.showModal({
       title: "确认身份",
       content: isTeacher
@@ -45,14 +54,19 @@ Page({
     if (this.data.loading) return;
     this.setData({ loading: true });
     try {
-      const nickname = this.data.role === "teacher" ? "老师" : "同学";
+      const isTeacher = this.data.role === "teacher";
+      const nickname = isTeacher ? "老师" : "同学";
+      const payload = {
+        role: this.data.role,
+        nickname,
+      };
+      if (isTeacher) {
+        payload.teacherCode = this.data.teacherCode;
+      }
       const data = await request({
         url: "/api/v1/me",
         method: "PATCH",
-        data: {
-          role: this.data.role,
-          nickname,
-        },
+        data: payload,
       });
       setUser(data.user);
       getApp().setUser(data.user);

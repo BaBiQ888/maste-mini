@@ -7,6 +7,20 @@
     <view class="desc">建班、布置练习、看完成情况</view>
   </view>
 
+  <view class="gate" wx:if="{{role === 'teacher'}}">
+    <view class="gate-label">教师开通码</view>
+    <input
+      class="gate-input"
+      type="text"
+      password
+      maxlength="64"
+      placeholder="请输入学校/管理员下发的开通码"
+      value="{{teacherCode}}"
+      bindinput="onTeacherCodeInput"
+    />
+    <view class="gate-hint muted">防止随意注册老师账号。没有开通码请联系管理员。</view>
+  </view>
+
   <view class="role-card {{role === 'student' ? 'on' : ''}}" bindtap="pickStudent">
     <view class="badge faint-badge">学生</view>
     <view class="title">我是学生</view>

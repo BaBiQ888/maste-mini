@@ -47,6 +47,34 @@
   color: var(--ink-muted);
 }
 
+.gate {
+  background: var(--white);
+  border: 1rpx solid var(--line);
+  border-radius: 20rpx;
+  padding: 28rpx 28rpx 24rpx;
+  margin: -8rpx 0 24rpx;
+}
+
+.gate-label {
+  font-size: 26rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.gate-input {
+  background: var(--bg, #f7f3eb);
+  border: 1rpx solid var(--line);
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
+}
+
+.gate-hint {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  line-height: 1.45;
+}
+
 .spacer {
   flex: 1;
   min-height: 40rpx;

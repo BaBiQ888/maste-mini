@@ -7,24 +7,31 @@ export interface WechatSession {
 export interface WechatConfig {
   appId: string;
   appSecret: string;
-  /** When true (default in dev without credentials), map code → stable mock openid */
+  /** When true (default in dev without credentials), map identity → stable mock openid */
   mock: boolean;
 }
 
 /**
  * Resolve WeChat login code to openid.
- * Real path: jscode2session. Mock path: stable openid from code (same code → same user).
+ * Real path: jscode2session (openid stable per WeChat user).
+ * Mock path: prefer deviceId for stable identity across logout/re-login
+ * (wx.login codes change every time and would mint a new account).
  */
 export async function codeToSession(
   code: string,
   config: WechatConfig,
+  options?: { deviceId?: string },
 ): Promise<WechatSession> {
   if (!code || !code.trim()) {
     throw new AuthError("INVALID_CODE", "登录 code 不能为空");
   }
 
   if (config.mock || !config.appId || !config.appSecret) {
-    const openid = `mock_${hashCode(code.trim())}`;
+    const seed =
+      options?.deviceId && options.deviceId.trim()
+        ? `device:${options.deviceId.trim()}`
+        : `code:${code.trim()}`;
+    const openid = `mock_${hashCode(seed)}`;
     return { openid, sessionKey: "mock_session_key" };
   }
 

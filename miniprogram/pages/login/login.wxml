@@ -9,6 +9,6 @@
     <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="onLogin">
       微信一键登录
     </button>
-    <view class="legal">登录即表示同意使用协议 · 同一微信对应同一账号</view>
+    <view class="legal">登录即表示同意使用协议 · 退出后再登录会回到同一账号</view>
   </view>
 </view>

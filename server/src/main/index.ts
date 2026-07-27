@@ -140,12 +140,16 @@ async function bootDatabase(): Promise<void> {
     const db = await openDatabase(dbOpts);
     console.log("[math-mini] database ready");
 
+    const teacherAccessCode =
+      process.env.TEACHER_ACCESS_CODE || undefined;
+
     const app = createApp(db, {
       wechat: { appId, appSecret, mock },
       dataDir,
       dbDriver: dbOpts.driver,
       dbLabel: boot.dbLabel,
       codeVersion,
+      teacherAccessCode,
     });
 
     activeFetch = (req) => app.fetch(req);

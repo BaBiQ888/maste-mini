@@ -10,6 +10,9 @@ import { AuthError, codeToSession, type WechatConfig } from "../../infrastructur
 
 const SESSION_DAYS = 30;
 
+/** Default teacher gate code when TEACHER_ACCESS_CODE is unset (change in production). */
+export const DEFAULT_TEACHER_ACCESS_CODE = "SUANBEN-TEACHER";
+
 export interface PublicUser {
   id: string;
   role: UserRole | null;
@@ -24,18 +27,36 @@ export interface LoginResult {
   isNewUser: boolean;
 }
 
+export interface IdentityOptions {
+  /** Shared code required the first time a user chooses role=teacher */
+  teacherAccessCode?: string;
+}
+
 export class IdentityService {
+  private teacherAccessCode: string;
+
   constructor(
     private db: AppDatabase,
     private wechat: WechatConfig,
-  ) {}
+    options?: IdentityOptions,
+  ) {
+    this.teacherAccessCode = (
+      options?.teacherAccessCode ||
+      process.env.TEACHER_ACCESS_CODE ||
+      DEFAULT_TEACHER_ACCESS_CODE
+    ).trim();
+  }
 
   async loginWithWeChat(input: {
     code: string;
     nickname?: string;
     avatarUrl?: string;
+    /** Stable client id; used in mock mode so logout → re-login reuses the same user */
+    deviceId?: string;
   }): Promise<LoginResult> {
-    const session = await codeToSession(input.code, this.wechat);
+    const session = await codeToSession(input.code, this.wechat, {
+      deviceId: input.deviceId,
+    });
     const existing = await this.db.get("SELECT * FROM users WHERE openid = ?", session.openid) as UserRow | undefined;
 
     const ts = nowIso();
@@ -92,6 +113,8 @@ export class IdentityService {
       nickname?: string;
       avatarUrl?: string;
       role?: UserRole;
+      /** Required when first selecting role=teacher */
+      teacherCode?: string;
     },
   ): Promise<PublicUser> {
     const current = await this.db.get("SELECT * FROM users WHERE id = ?", userId) as UserRow | undefined;
@@ -107,6 +130,24 @@ export class IdentityService {
       if (patch.role !== "teacher" && patch.role !== "student") {
         throw new AuthError("INVALID_ROLE", "身份只能是 teacher 或 student");
       }
+
+      // First-time teacher selection requires access code
+      if (patch.role === "teacher" && !current.role) {
+        const provided = (patch.teacherCode || "").trim();
+        if (!provided) {
+          throw new AuthError(
+            "TEACHER_CODE_REQUIRED",
+            "选择老师身份需要填写教师开通码",
+          );
+        }
+        if (provided !== this.teacherAccessCode) {
+          throw new AuthError(
+            "TEACHER_CODE_INVALID",
+            "教师开通码不正确",
+          );
+        }
+      }
+
       role = patch.role;
     }
 

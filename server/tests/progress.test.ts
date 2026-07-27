@@ -35,7 +35,11 @@ async function loginAs(
       Authorization: `Bearer ${login.token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ role, nickname }),
+    body: JSON.stringify({
+      role,
+      nickname,
+      ...(role === "teacher" ? { teacherCode: "SUANBEN-TEACHER" } : {}),
+    }),
   });
   return { token: login.token as string, userId: login.user.id as string };
 }

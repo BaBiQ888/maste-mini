@@ -40,6 +40,8 @@ export interface AppOptions {
   dbDriver?: "sqlite" | "mysql";
   dbLabel?: string;
   codeVersion?: string;
+  /** Shared code required the first time a user chooses role=teacher */
+  teacherAccessCode?: string;
 }
 
 export function createApp(
@@ -60,8 +62,12 @@ export function createApp(
     "codeVersion" in options && options.codeVersion
       ? options.codeVersion
       : process.env.CODE_VERSION || "unknown";
+  const teacherAccessCode =
+    "teacherAccessCode" in options && options.teacherAccessCode
+      ? options.teacherAccessCode
+      : undefined;
 
-  const identity = new IdentityService(db, wechat);
+  const identity = new IdentityService(db, wechat, { teacherAccessCode });
   const classroom = new ClassRoomService(db);
   const questionBank = new QuestionBankService(db);
   const assignments = new AssignmentService(db, questionBank);
@@ -146,6 +152,7 @@ export function createApp(
         nickname: body.nickname,
         avatarUrl: body.avatarUrl ?? undefined,
         role: body.role,
+        teacherCode: body.teacherCode,
       });
       return c.json({ user });
     } catch (e) {
@@ -748,12 +755,16 @@ const loginBody = z.object({
   code: z.string().min(1),
   nickname: z.string().max(64).optional(),
   avatarUrl: z.string().max(512).optional(),
+  /** Client-stable id; mock login uses it so re-login reuses the same account */
+  deviceId: z.string().min(1).max(128).optional(),
 });
 
 const patchBody = z.object({
   nickname: z.string().min(1).max(64).optional(),
   avatarUrl: z.string().max(512).optional().nullable(),
   role: z.enum(["teacher", "student"]).optional(),
+  /** Required when first selecting role=teacher */
+  teacherCode: z.string().min(1).max(64).optional(),
 });
 
 const createClassBody = z.object({
