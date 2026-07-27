@@ -1,0 +1,20 @@
+<view class="tabbar">
+  <view
+    class="tab {{active === item.key ? 'on' : ''}}"
+    wx:for="{{tabs}}"
+    wx:key="key"
+    data-key="{{item.key}}"
+    bindtap="onTap"
+  >
+    <view class="ico-wrap">
+      <view class="ico ico-{{item.key}}"></view>
+      <view class="badge" wx:if="{{item.badgeKey === 'pending' && badge > 0}}">
+        {{badge > 99 ? '99+' : badge}}
+      </view>
+      <view class="badge" wx:if="{{item.badgeKey === 'incomplete' && badge > 0}}">
+        {{badge > 99 ? '99+' : badge}}
+      </view>
+    </view>
+    <text>{{item.label}}</text>
+  </view>
+</view>

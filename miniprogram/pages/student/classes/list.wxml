@@ -19,18 +19,5 @@
     <button class="btn btn-primary mt" bindtap="goJoin">输入邀请码</button>
   </view>
 
-  <view class="tabbar">
-    <view class="tab" bindtap="goHome">
-      <view class="ico"></view>
-      <text>今日</text>
-    </view>
-    <view class="tab on">
-      <view class="ico"></view>
-      <text>班级</text>
-    </view>
-    <view class="tab" bindtap="goProfile">
-      <view class="ico"></view>
-      <text>我的</text>
-    </view>
-  </view>
+  <app-tabbar role="student" active="classes" />
 </view>

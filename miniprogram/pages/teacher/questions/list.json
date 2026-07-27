@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "题库"
+  "navigationBarTitleText": "题库",
+  "usingComponents": {
+    "app-tabbar": "/components/app-tabbar/app-tabbar"
+  }
 }

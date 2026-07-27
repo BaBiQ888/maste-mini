@@ -15,6 +15,8 @@ Page({
     scoreText: "",
     timerText: "",
     timeRemainingSec: null,
+    answeredCount: 0,
+    progressPct: 0,
   },
 
   _timer: null,
@@ -132,15 +134,45 @@ Page({
       };
     });
 
+    const answeredCount = this.countAnswered(items, mode);
+    const progressPct =
+      items.length > 0
+        ? Math.round((answeredCount / items.length) * 100)
+        : 0;
+
     this.setData({
       assignment,
       submission,
       items,
       mode,
+      answeredCount,
+      progressPct,
       scoreText:
         submission.score != null ? `正确率 ${submission.score}%` : "",
       loading: false,
     });
+  },
+
+  countAnswered(items, mode) {
+    let n = 0;
+    for (const it of items || []) {
+      if (mode === "correct" && it.isCorrect !== false) {
+        n += 1;
+        continue;
+      }
+      const t = it.responseText;
+      if (t !== undefined && t !== null && String(t).trim() !== "") n += 1;
+      else if (it.response === true || it.response === false) n += 1;
+    }
+    return n;
+  },
+
+  refreshProgress(items) {
+    const list = items || this.data.items;
+    const answeredCount = this.countAnswered(list, this.data.mode);
+    const progressPct =
+      list.length > 0 ? Math.round((answeredCount / list.length) * 100) : 0;
+    this.setData({ items: list, answeredCount, progressPct });
   },
 
   onFill(e) {
@@ -148,7 +180,7 @@ Page({
     const items = this.data.items.slice();
     items[idx].responseText = e.detail.value;
     items[idx].response = e.detail.value;
-    this.setData({ items });
+    this.refreshProgress(items);
   },
 
   pickChoice(e) {
@@ -160,7 +192,7 @@ Page({
     const items = this.data.items.slice();
     items[idx].responseText = oid;
     items[idx].response = oid;
-    this.setData({ items });
+    this.refreshProgress(items);
   },
 
   pickTf(e) {
@@ -172,7 +204,7 @@ Page({
     const items = this.data.items.slice();
     items[idx].response = v;
     items[idx].responseText = v ? "true" : "false";
-    this.setData({ items });
+    this.refreshProgress(items);
   },
 
   collectAnswers(onlyWrong) {
@@ -204,7 +236,7 @@ Page({
         data: { answers: this.collectAnswers(false) },
       });
       this.applySubmission(this.data.assignment, data.submission);
-      wx.showToast({ title: "已保存进度", icon: "success" });
+      wx.showToast({ title: "草稿已保存", icon: "success" });
     } catch (e) {
       wx.showToast({ title: e.message || "保存失败", icon: "none" });
     } finally {
@@ -212,7 +244,26 @@ Page({
     }
   },
 
-  async submitAll() {
+  submitAll() {
+    if (this.data.busy || this.data.mode !== "answer") return;
+    const total = this.data.items.length;
+    const answered = this.countAnswered(this.data.items, "answer");
+    const blank = total - answered;
+    const content =
+      blank > 0
+        ? `还有 ${blank} 题未作答，确定交卷吗？`
+        : "交卷后将自动批改，确定提交吗？";
+    wx.showModal({
+      title: "确认交卷",
+      content,
+      confirmText: "交卷",
+      success: (res) => {
+        if (res.confirm) this.doSubmitAll();
+      },
+    });
+  },
+
+  async doSubmitAll() {
     if (this.data.busy) return;
     this.setData({ busy: true });
     try {
@@ -225,7 +276,9 @@ Page({
       this.applySubmission(this.data.assignment, data.submission);
       wx.showToast({
         title:
-          data.submission.status === "completed" ? "全部正确" : "请订正错题",
+          data.submission.status === "completed"
+            ? "全部正确，真棒"
+            : "请订正标错的题",
         icon: "none",
       });
     } catch (e) {

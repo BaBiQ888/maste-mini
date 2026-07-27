@@ -28,10 +28,5 @@
     <button class="btn btn-primary mt" bindtap="goCreate">录入题目</button>
   </view>
 
-  <view class="tabbar">
-    <view class="tab" bindtap="goHome"><view class="ico ico-home"></view><text>工作台</text></view>
-    <view class="tab" bindtap="goClasses"><view class="ico ico-class"></view><text>班级</text></view>
-    <view class="tab" bindtap="goAssignments"><view class="ico ico-asg"></view><text>作业</text></view>
-    <view class="tab on"><view class="ico ico-bank"></view><text>题库</text></view>
-  </view>
+  <app-tabbar role="teacher" active="questions" />
 </view>

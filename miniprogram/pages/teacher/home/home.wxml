@@ -12,15 +12,11 @@
     </view>
     <view class="stat" bindtap="goCreateAssignment">
       <view class="n plus">+</view>
-      <view class="l">布置拍照</view>
+      <view class="l">布置作业</view>
     </view>
   </view>
   <view class="quick muted">
-    <text bindtap="goCreateDrill">每日计算</text>
-    <text class="sep">·</text>
-    <text bindtap="goCreateCheckin">知识点打卡</text>
-    <text class="sep">·</text>
-    <text bindtap="goQuestions">题库</text>
+    点「布置作业」选类型：拍照 · 每日计算 · 知识打卡 · 在线题
   </view>
 
   <view class="label muted">当前班级</view>
@@ -62,20 +58,9 @@
 
   <view wx:elif="{{!loading}}" class="empty-box">
     <view class="title">还没有班级</view>
-    <view class="desc">先建班，再布置拍照作业</view>
+    <view class="desc">先建班，再布置练习</view>
     <button class="btn btn-primary mt" bindtap="goCreateClass">创建班级</button>
   </view>
 
-  <view class="tabbar">
-    <view class="tab on"><view class="ico ico-home"></view><text>工作台</text></view>
-    <view class="tab" bindtap="goClasses"><view class="ico ico-class"></view><text>班级</text></view>
-    <view class="tab" bindtap="goAssignments">
-      <view class="ico-wrap">
-        <view class="ico ico-asg"></view>
-        <view class="badge" wx:if="{{pendingGrade}}">{{pendingGrade > 99 ? '99+' : pendingGrade}}</view>
-      </view>
-      <text>作业</text>
-    </view>
-    <view class="tab" bindtap="goQuestions"><view class="ico ico-bank"></view><text>题库</text></view>
-  </view>
+  <app-tabbar role="teacher" active="home" badge="{{pendingGrade}}" />
 </view>

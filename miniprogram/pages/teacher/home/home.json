@@ -1,5 +1,7 @@
 {
   "navigationBarTitleText": "工作台",
   "enablePullDownRefresh": true,
-  "backgroundTextStyle": "dark"
+  "usingComponents": {
+    "app-tabbar": "/components/app-tabbar/app-tabbar"
+  }
 }

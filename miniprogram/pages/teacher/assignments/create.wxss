@@ -1,38 +1,51 @@
 .page {
   min-height: 100vh;
-  padding: 24rpx 40rpx 48rpx;
+  padding: 24rpx 32rpx 48rpx;
   box-sizing: border-box;
 }
-.field { margin-bottom: 28rpx; }
-.label {
-  font-size: 24rpx;
-  color: var(--ink-muted);
+
+.intro {
+  margin-bottom: 28rpx;
+  line-height: 1.5;
+  font-size: 26rpx;
+}
+
+.type-card {
+  background: var(--white);
+  border: 1rpx solid var(--line);
+  border-radius: 24rpx;
+  padding: 32rpx;
+  margin-bottom: 20rpx;
+}
+
+.type-card:active {
+  background: var(--paper-deep);
+}
+
+.type-badge {
+  display: inline-block;
+  font-size: 22rpx;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
   margin-bottom: 12rpx;
 }
-.input {
-  height: 88rpx;
-  border-radius: 20rpx;
-  border: 1rpx solid var(--line);
-  background: var(--white);
-  padding: 0 24rpx;
-  font-size: 30rpx;
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
+
+.type-badge.faint {
+  color: var(--ink-muted);
+  background: var(--paper-deep);
 }
-.picker { color: var(--ink); }
-.area {
-  width: 100%;
-  min-height: 180rpx;
-  border-radius: 20rpx;
-  border: 1rpx solid var(--line);
-  background: var(--white);
-  padding: 20rpx 24rpx;
-  font-size: 28rpx;
-  box-sizing: border-box;
+
+.type-title {
+  font-size: 34rpx;
+  font-weight: 600;
 }
-.hint {
-  font-size: 24rpx;
-  line-height: 1.5;
-  margin-bottom: 32rpx;
+
+.type-desc {
+  margin-top: 10rpx;
+  font-size: 26rpx;
+  color: var(--ink-muted);
+  line-height: 1.45;
 }

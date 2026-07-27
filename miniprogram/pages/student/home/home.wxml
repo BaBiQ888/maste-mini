@@ -7,15 +7,17 @@
 
   <view class="label muted">待完成 / 进行中</view>
 
-  <view wx:if="{{!loading && !classes.length}}" class="empty-box lined">
+  <view wx:if="{{loading}}" class="muted tip">加载中…</view>
+
+  <view wx:elif="{{!classes.length}}" class="empty-box lined">
     <view class="title">还没有加入班级</view>
     <view class="desc">请先向老师索取邀请码并加入班级</view>
     <button class="btn btn-primary mt" bindtap="goJoin">输入邀请码加入</button>
   </view>
 
-  <block wx:elif="{{!loading && tasks.length}}">
+  <block wx:elif="{{tasks.length}}">
     <view
-      class="card task"
+      class="card task {{item.done ? '' : ''}} {{item.isWrong ? 'task-wrong' : ''}}"
       wx:for="{{tasks}}"
       wx:key="id"
       bindtap="goTask"
@@ -34,21 +36,10 @@
     </view>
   </block>
 
-  <view wx:elif="{{!loading}}" class="empty-box lined">
+  <view wx:else class="empty-box lined">
     <view class="title">今日暂无任务</view>
     <view class="desc">已加入 {{classes.length}} 个班级 · 老师布置后会出现在这里</view>
   </view>
 
-  <view class="tabbar">
-    <view class="tab on">
-      <view class="ico-wrap">
-        <view class="ico"></view>
-        <view class="badge" wx:if="{{incompleteCount}}">{{incompleteCount > 99 ? '99+' : incompleteCount}}</view>
-      </view>
-      <text>今日</text>
-    </view>
-    <view class="tab" bindtap="goCalendar"><view class="ico"></view><text>日历</text></view>
-    <view class="tab" bindtap="goClasses"><view class="ico"></view><text>班级</text></view>
-    <view class="tab" bindtap="goProfile"><view class="ico"></view><text>我的</text></view>
-  </view>
+  <app-tabbar role="student" active="today" badge="{{incompleteCount}}" />
 </view>

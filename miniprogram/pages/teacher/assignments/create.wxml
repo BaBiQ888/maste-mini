@@ -1,17 +1,27 @@
 <view class="page">
-  <view class="field">
-    <view class="label">班级</view>
-    <view class="input picker" bindtap="pickClass">{{className}}</view>
+  <view class="intro muted">先选类型，再填写详情。都可先存草稿再发布。</view>
+
+  <view class="type-card" bindtap="goPhoto">
+    <view class="type-badge">拍照</view>
+    <view class="type-title">拍照作业</view>
+    <view class="type-desc">学生拍练习册 / 纸质作业，老师批改</view>
   </view>
-  <view class="field">
-    <view class="label">标题</view>
-    <input class="input" placeholder="如：练习册第 12 页" maxlength="80" value="{{title}}" bindinput="onTitle" />
+
+  <view class="type-card" bindtap="goDrill">
+    <view class="type-badge">计算</view>
+    <view class="type-title">每日计算</view>
+    <view class="type-desc">按运算规则生成口算题，限时可交卷</view>
   </view>
-  <view class="field">
-    <view class="label">说明（可选）</view>
-    <textarea class="area" placeholder="拍照要求、页码等" maxlength="500" value="{{description}}" bindinput="onDesc" />
+
+  <view class="type-card" bindtap="goCheckin">
+    <view class="type-badge">打卡</view>
+    <view class="type-title">知识点打卡</view>
+    <view class="type-desc">选定知识点与题目，巩固当日要点</view>
   </view>
-  <view class="hint muted">当前仅支持拍照作业。学生上传后可在详情批改。</view>
-  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="publishNow">发布</button>
-  <button class="btn btn-ghost" disabled="{{loading}}" bindtap="saveDraft">存为草稿</button>
+
+  <view class="type-card" bindtap="goOnline">
+    <view class="type-badge faint">在线</view>
+    <view class="type-title">在线选题</view>
+    <view class="type-desc">从题库选题布置，自动批改与订正</view>
+  </view>
 </view>

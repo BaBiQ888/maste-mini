@@ -5,6 +5,25 @@
 }
 .hero { margin-bottom: 20rpx; }
 .title { font-size: 36rpx; font-weight: 600; }
+.progress-row { margin-top: 16rpx; }
+.progress-text {
+  font-size: 24rpx;
+  color: var(--ink-muted);
+  margin-bottom: 8rpx;
+  font-variant-numeric: tabular-nums;
+}
+.progress-bar {
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: var(--paper-deep);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
 .timer {
   margin-top: 12rpx;
   font-size: 30rpx;
@@ -12,6 +31,7 @@
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
+.timer.urgent { color: #a63d3d; }
 .meta { margin-top: 8rpx; font-size: 24rpx; }
 .kp-line {
   margin-top: 10rpx;
@@ -24,6 +44,13 @@
   color: var(--accent);
 }
 .q { margin-bottom: 16rpx; }
+.q-wrong {
+  border-color: #e8b4b4;
+  background: #fdf6f6;
+}
+.q-ok {
+  border-color: #b8d4c2;
+}
 .q-head {
   display: flex;
   justify-content: space-between;
@@ -31,7 +58,7 @@
   margin-bottom: 16rpx;
 }
 .q-stem {
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 500;
   line-height: 1.45;
   flex: 1;
@@ -44,12 +71,13 @@
 .mark.ok { color: var(--success); }
 .mark.bad { color: #a63d3d; }
 .input {
-  height: 88rpx;
+  height: 96rpx;
   border-radius: 16rpx;
   border: 1rpx solid var(--line);
   background: var(--paper);
   padding: 0 20rpx;
-  font-size: 30rpx;
+  font-size: 36rpx;
+  font-variant-numeric: tabular-nums;
 }
 .opt {
   padding: 18rpx 20rpx;
@@ -91,9 +119,28 @@
   font-size: 24rpx;
   line-height: 1.45;
 }
-.done {
+.actions {
+  margin-top: 12rpx;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.done-banner {
+  margin-top: 28rpx;
   text-align: center;
-  margin-top: 24rpx;
-  font-size: 28rpx;
+  padding: 36rpx 24rpx;
+  background: var(--white);
+  border: 1rpx solid var(--line);
+  border-radius: 24rpx;
+}
+.done-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--success);
+}
+.done-score {
+  margin-top: 12rpx;
+  font-size: 40rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
 }
 .tip { padding: 32rpx; text-align: center; }

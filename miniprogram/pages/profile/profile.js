@@ -13,6 +13,7 @@ Page({
     avatarUrl: "",
     roleLabel: "",
     loading: false,
+    showStudentTab: false,
   },
 
   onShow() {
@@ -28,7 +29,13 @@ Page({
     this.setData({
       nickname: user.nickname || "",
       avatarUrl: user.avatarUrl || "",
-      roleLabel: user.role === "teacher" ? "老师" : user.role === "student" ? "学生" : "未选择",
+      roleLabel:
+        user.role === "teacher"
+          ? "老师"
+          : user.role === "student"
+            ? "学生"
+            : "未选择",
+      showStudentTab: user.role === "student",
     });
   },
 
@@ -62,14 +69,23 @@ Page({
     }
   },
 
-  async onLogout() {
-    try {
-      await request({ url: "/api/v1/auth/logout", method: "POST" });
-    } catch (_) {
-      /* ignore */
-    }
-    clearAuth();
-    getApp().setUser(null);
-    wx.reLaunch({ url: "/pages/login/login" });
+  onLogout() {
+    wx.showModal({
+      title: "退出登录",
+      content: "确定退出当前账号吗？",
+      confirmText: "退出",
+      confirmColor: "#a63d3d",
+      success: async (res) => {
+        if (!res.confirm) return;
+        try {
+          await request({ url: "/api/v1/auth/logout", method: "POST" });
+        } catch (_) {
+          /* ignore */
+        }
+        clearAuth();
+        getApp().setUser(null);
+        wx.reLaunch({ url: "/pages/login/login" });
+      },
+    });
   },
 });

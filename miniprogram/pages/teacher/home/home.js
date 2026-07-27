@@ -86,29 +86,14 @@ Page({
     }
   },
 
-  goClasses() {
-    wx.reLaunch({ url: "/pages/teacher/classes/list" });
-  },
-  goAssignments() {
-    wx.reLaunch({ url: "/pages/teacher/assignments/list" });
-  },
   goCreateClass() {
     wx.navigateTo({ url: "/pages/teacher/classes/create" });
   },
   goCreateAssignment() {
     wx.navigateTo({ url: "/pages/teacher/assignments/create" });
   },
-  goCreateOnline() {
-    wx.navigateTo({ url: "/pages/teacher/assignments/create-online" });
-  },
-  goCreateDrill() {
-    wx.navigateTo({ url: "/pages/teacher/assignments/create-drill" });
-  },
-  goCreateCheckin() {
-    wx.navigateTo({ url: "/pages/teacher/assignments/create-checkin" });
-  },
-  goQuestions() {
-    wx.reLaunch({ url: "/pages/teacher/questions/list" });
+  goAssignments() {
+    wx.reLaunch({ url: "/pages/teacher/assignments/list" });
   },
   goClassDetail() {
     if (!this.data.current) return;

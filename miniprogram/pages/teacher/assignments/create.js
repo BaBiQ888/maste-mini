@@ -1,19 +1,18 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
-const { request } = require("../../../utils/request");
 const { getCurrentClassId } = require("../../../utils/class-context");
 
+/**
+ * 布置作业统一入口：选类型 → 跳转对应创建页
+ * 拍照表单见 create-photo
+ */
 Page({
   data: {
-    classes: [],
     classId: "",
-    className: "请选择班级",
-    title: "",
-    description: "",
-    loading: false,
   },
 
   onLoad(q) {
-    if (q.classId) this.setData({ classId: q.classId });
+    const classId = q.classId || getCurrentClassId() || "";
+    this.setData({ classId });
   },
 
   onShow() {
@@ -24,93 +23,32 @@ Page({
     const user = getUser();
     if (!user || user.role !== "teacher") {
       routeByUser(user);
-      return;
-    }
-    this.loadClasses();
-  },
-
-  async loadClasses() {
-    try {
-      const data = await request({ url: "/api/v1/classes", method: "GET" });
-      const classes = data.classes || [];
-      let classId = this.data.classId || getCurrentClassId() || "";
-      if (classId && !classes.find((c) => c.id === classId)) classId = "";
-      const found = classes.find((c) => c.id === classId);
-      this.setData({
-        classes,
-        classId: found ? found.id : "",
-        className: found ? found.name : "请选择班级",
-      });
-    } catch (e) {
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
     }
   },
 
-  pickClass() {
-    if (!this.data.classes.length) {
-      wx.showToast({ title: "请先创建班级", icon: "none" });
-      return;
-    }
-    wx.showActionSheet({
-      itemList: this.data.classes.map((c) => c.name),
-      success: (res) => {
-        const c = this.data.classes[res.tapIndex];
-        this.setData({ classId: c.id, className: c.name });
-      },
+  qs() {
+    const id = this.data.classId;
+    return id ? `?classId=${id}` : "";
+  },
+
+  goPhoto() {
+    wx.navigateTo({
+      url: `/pages/teacher/assignments/create-photo${this.qs()}`,
     });
   },
-
-  onTitle(e) {
-    this.setData({ title: e.detail.value });
+  goDrill() {
+    wx.navigateTo({
+      url: `/pages/teacher/assignments/create-drill${this.qs()}`,
+    });
   },
-  onDesc(e) {
-    this.setData({ description: e.detail.value });
+  goCheckin() {
+    wx.navigateTo({
+      url: `/pages/teacher/assignments/create-checkin${this.qs()}`,
+    });
   },
-
-  async submit(publish) {
-    if (this.data.loading) return;
-    if (!this.data.classId) {
-      wx.showToast({ title: "请选择班级", icon: "none" });
-      return;
-    }
-    const title = (this.data.title || "").trim();
-    if (!title) {
-      wx.showToast({ title: "请填写标题", icon: "none" });
-      return;
-    }
-    this.setData({ loading: true });
-    try {
-      const data = await request({
-        url: "/api/v1/assignments",
-        method: "POST",
-        data: {
-          classId: this.data.classId,
-          type: "photo_homework",
-          title,
-          description: (this.data.description || "").trim() || undefined,
-          publish,
-        },
-      });
-      wx.showToast({
-        title: publish ? "已发布" : "草稿已存",
-        icon: "success",
-      });
-      setTimeout(() => {
-        wx.redirectTo({
-          url: `/pages/teacher/assignments/detail?id=${data.assignment.id}`,
-        });
-      }, 400);
-    } catch (e) {
-      wx.showToast({ title: e.message || "失败", icon: "none" });
-    } finally {
-      this.setData({ loading: false });
-    }
-  },
-
-  saveDraft() {
-    this.submit(false);
-  },
-  publishNow() {
-    this.submit(true);
+  goOnline() {
+    wx.navigateTo({
+      url: `/pages/teacher/assignments/create-online${this.qs()}`,
+    });
   },
 });

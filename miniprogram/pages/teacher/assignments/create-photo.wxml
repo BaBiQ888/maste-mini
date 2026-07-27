@@ -1,0 +1,17 @@
+<view class="page">
+  <view class="field">
+    <view class="label">班级</view>
+    <view class="input picker" bindtap="pickClass">{{className}}</view>
+  </view>
+  <view class="field">
+    <view class="label">标题</view>
+    <input class="input" placeholder="如：练习册第 12 页" maxlength="80" value="{{title}}" bindinput="onTitle" />
+  </view>
+  <view class="field">
+    <view class="label">说明（可选）</view>
+    <textarea class="area" placeholder="拍照要求、页码等" maxlength="500" value="{{description}}" bindinput="onDesc" />
+  </view>
+  <view class="hint muted">学生拍照上传后，可在作业详情中批改。</view>
+  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="publishNow">发布</button>
+  <button class="btn btn-ghost" disabled="{{loading}}" bindtap="saveDraft">存为草稿</button>
+</view>

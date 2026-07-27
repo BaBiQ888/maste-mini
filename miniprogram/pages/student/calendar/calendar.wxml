@@ -22,10 +22,5 @@
     <view class="link" bindtap="goKnowledge">已掌握知识点 →</view>
   </view>
 
-  <view class="tabbar">
-    <view class="tab" bindtap="goHome"><view class="ico"></view><text>今日</text></view>
-    <view class="tab on"><view class="ico"></view><text>日历</text></view>
-    <view class="tab" bindtap="goClasses"><view class="ico"></view><text>班级</text></view>
-    <view class="tab" bindtap="goProfile"><view class="ico"></view><text>我的</text></view>
-  </view>
+  <app-tabbar role="student" active="calendar" />
 </view>

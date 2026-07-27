@@ -1,7 +1,13 @@
 <view class="page" wx:if="{{assignment}}">
   <view class="card hero">
     <view class="title">{{assignment.title}}</view>
-    <view class="timer" wx:if="{{timerText}}">{{timerText}}</view>
+    <view class="progress-row" wx:if="{{mode === 'answer' || mode === 'correct'}}">
+      <view class="progress-text">进度 {{answeredCount}}/{{items.length}}</view>
+      <view class="progress-bar">
+        <view class="progress-fill" style="width: {{progressPct}}%;"></view>
+      </view>
+    </view>
+    <view class="timer {{timeRemainingSec != null && timeRemainingSec < 60 ? 'urgent' : ''}}" wx:if="{{timerText}}">{{timerText}}</view>
     <view class="meta muted">
       {{assignment.className}} · {{statusLabels[submission.status]}}
       <text wx:if="{{scoreText}}"> · {{scoreText}}</text>
@@ -12,14 +18,17 @@
     </view>
   </view>
 
-  <view class="card q" wx:for="{{items}}" wx:key="assignmentQuestionId">
+  <view
+    class="card q {{item.isCorrect === false ? 'q-wrong' : ''}} {{item.isCorrect === true ? 'q-ok' : ''}}"
+    wx:for="{{items}}"
+    wx:key="assignmentQuestionId"
+  >
     <view class="kp-tag muted" wx:if="{{item.knowledgeLabel}}">{{item.knowledgeLabel}}</view>
     <view class="q-head">
       <view class="q-stem">{{index + 1}}. {{item.stem}}</view>
       <view class="mark {{item.isCorrect === true ? 'ok' : (item.isCorrect === false ? 'bad' : '')}}" wx:if="{{item.mark}}">{{item.mark}}</view>
     </view>
 
-    <!-- fill -->
     <block wx:if="{{item.isFill}}">
       <input
         class="input"
@@ -31,7 +40,6 @@
       />
     </block>
 
-    <!-- choice -->
     <block wx:if="{{item.isChoice}}">
       <view
         class="opt {{item.responseText === o.id ? 'on' : ''}} {{mode === 'result' || (mode === 'correct' && item.isCorrect !== false) ? 'disabled' : ''}}"
@@ -44,7 +52,6 @@
       >{{o.id}}. {{o.text}}</view>
     </block>
 
-    <!-- true false -->
     <block wx:if="{{item.isTf}}">
       <view class="chips">
         <view
@@ -71,17 +78,20 @@
     </view>
   </view>
 
-  <block wx:if="{{mode === 'answer'}}">
-    <button class="btn btn-ghost" loading="{{busy}}" disabled="{{busy}}" bindtap="saveDraft">保存进度</button>
-    <button class="btn btn-primary" loading="{{busy}}" disabled="{{busy}}" bindtap="submitAll">提交批改</button>
-  </block>
+  <view class="actions" wx:if="{{mode === 'answer'}}">
+    <button class="btn btn-ghost" loading="{{busy}}" disabled="{{busy}}" bindtap="saveDraft">保存草稿</button>
+    <button class="btn btn-primary" loading="{{busy}}" disabled="{{busy}}" bindtap="submitAll">交卷</button>
+  </view>
 
   <block wx:if="{{mode === 'correct'}}">
     <view class="hint muted">请订正标「错」的题目，全部正确后才算完成</view>
     <button class="btn btn-primary" loading="{{busy}}" disabled="{{busy}}" bindtap="submitCorrect">提交订正</button>
   </block>
 
-  <view class="done muted" wx:if="{{mode === 'result'}}">已完成 · 正确率 {{submission.score}}%</view>
+  <view class="done-banner" wx:if="{{mode === 'result'}}">
+    <view class="done-title">本卷已完成</view>
+    <view class="done-score">正确率 {{submission.score}}%</view>
+  </view>
 </view>
 
 <view class="page" wx:elif="{{loading}}"><view class="muted tip">加载中…</view></view>

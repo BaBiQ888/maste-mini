@@ -3,7 +3,7 @@
     <view class="avatar">{{nickname ? nickname[0] : "算"}}</view>
     <view class="meta">
       <view class="name">{{nickname || "未命名"}}</view>
-      <view class="role muted">身份 · {{roleLabel}}</view>
+      <view class="role muted">身份 · {{roleLabel}}（选定后不可更改）</view>
     </view>
   </view>
 
@@ -14,9 +14,11 @@
 
   <view class="field">
     <view class="label">头像</view>
-    <view class="input placeholder">使用昵称首字 · 自定义头像稍后支持</view>
+    <view class="input placeholder">暂用昵称首字</view>
   </view>
 
   <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="onSave">保存</button>
   <button class="btn btn-ghost" bindtap="onLogout">退出登录</button>
+
+  <app-tabbar wx:if="{{showStudentTab}}" role="student" active="profile" />
 </view>

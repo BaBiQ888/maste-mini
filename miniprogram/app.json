@@ -8,6 +8,7 @@
     "pages/teacher/classes/detail",
     "pages/teacher/assignments/list",
     "pages/teacher/assignments/create",
+    "pages/teacher/assignments/create-photo",
     "pages/teacher/assignments/create-online",
     "pages/teacher/assignments/create-drill",
     "pages/teacher/assignments/create-checkin",

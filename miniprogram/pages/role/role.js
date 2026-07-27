@@ -26,12 +26,26 @@ Page({
     this.setData({ role: "student" });
   },
 
-  async onConfirm() {
+  onConfirm() {
+    if (this.data.loading) return;
+    const isTeacher = this.data.role === "teacher";
+    wx.showModal({
+      title: "确认身份",
+      content: isTeacher
+        ? "将以「老师」进入。选定后不可更改，确定吗？"
+        : "将以「学生」进入。选定后不可更改，确定吗？",
+      confirmText: "确定进入",
+      success: (res) => {
+        if (res.confirm) this.doConfirm();
+      },
+    });
+  },
+
+  async doConfirm() {
     if (this.data.loading) return;
     this.setData({ loading: true });
     try {
-      const nickname =
-        this.data.role === "teacher" ? "老师" : "同学";
+      const nickname = this.data.role === "teacher" ? "老师" : "同学";
       const data = await request({
         url: "/api/v1/me",
         method: "PATCH",

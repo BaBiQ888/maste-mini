@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "打卡日历"
+  "navigationBarTitleText": "打卡日历",
+  "usingComponents": {
+    "app-tabbar": "/components/app-tabbar/app-tabbar"
+  }
 }

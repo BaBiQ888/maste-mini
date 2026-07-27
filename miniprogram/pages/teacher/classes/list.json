@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "班级"
+  "navigationBarTitleText": "班级",
+  "usingComponents": {
+    "app-tabbar": "/components/app-tabbar/app-tabbar"
+  }
 }
