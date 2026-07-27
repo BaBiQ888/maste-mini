@@ -92,7 +92,13 @@ export function createApp(
       codeVersion,
       dbDriver,
       dbLabel,
-      /** Presence only — never expose secrets */
+      /** Presence only — never expose secrets or secret values */
+      wechat: {
+        appIdConfigured: Boolean(wechat.appId),
+        secretConfigured: Boolean(wechat.appSecret),
+        mock: Boolean(wechat.mock),
+        mode: wechat.mock || !wechat.appId || !wechat.appSecret ? "mock" : "real",
+      },
       mysqlEnv: {
         MYSQL_ADDRESS: Boolean(process.env.MYSQL_ADDRESS),
         MYSQL_HOST: Boolean(process.env.MYSQL_HOST),
