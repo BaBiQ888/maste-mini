@@ -19,15 +19,24 @@ App({
   },
 
   onLaunch() {
-    if (wx.cloud) {
+    // 云托管 callContainer 依赖 init；失败时请求会回退公网域名（需配置合法域名）
+    if (wx.cloud && typeof wx.cloud.init === "function") {
       try {
         wx.cloud.init({
           env: this.globalData.cloudEnv,
           traceUser: true,
         });
+        console.log(
+          "[cloud] init ok env=",
+          this.globalData.cloudEnv,
+          "service=",
+          this.globalData.cloudService,
+        );
       } catch (e) {
-        console.warn("wx.cloud.init failed", e);
+        console.warn("[cloud] init failed", e);
       }
+    } else {
+      console.warn("[cloud] wx.cloud 不可用，将走公网 HTTPS（需 request 合法域名）");
     }
 
     const user = getUser();

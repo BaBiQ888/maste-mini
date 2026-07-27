@@ -38,9 +38,12 @@ Page({
       app.setUser(data.user);
       routeByUser(data.user);
     } catch (e) {
+      const title = (e && e.message) || "登录失败";
+      console.error("[login]", e);
       wx.showToast({
-        title: e.message || "登录失败",
+        title: title.length > 40 ? `${title.slice(0, 40)}…` : title,
         icon: "none",
+        duration: 3500,
       });
     } finally {
       this.setData({ loading: false });

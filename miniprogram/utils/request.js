@@ -59,7 +59,13 @@ function handleResponse(res, resolve, reject) {
     return;
   }
   // 服务还在启动 / DB 未就绪
-  if (code === 503 && data && (data.phase === "starting" || data.phase === "connecting_db" || data.code === "STARTING")) {
+  if (
+    code === 503 &&
+    data &&
+    (data.phase === "starting" ||
+      data.phase === "connecting_db" ||
+      data.code === "STARTING")
+  ) {
     reject(
       Object.assign(new Error("服务启动中，请几秒后再试"), {
         code: "STARTING",
@@ -76,7 +82,29 @@ function handleResponse(res, resolve, reject) {
   );
 }
 
-function httpRequest({ url, method, data, token, resolve, reject, retry, isRetry }) {
+function formatNetError(err, via) {
+  const detail = (err && (err.errMsg || err.message || err.errCode)) || "";
+  const text = String(detail);
+  if (text.includes("url not in domain") || text.includes("not in domain list")) {
+    return via === "http"
+      ? "公网域名未加入小程序 request 合法域名（正式环境请优先修复 callContainer）"
+      : "云调用失败且公网域名未配置";
+  }
+  if (text.includes("cloud init") || text.includes("Cloud API isn't enabled")) {
+    return "云能力未启用：请确认小程序已开通云托管且环境 ID 正确";
+  }
+  if (text.includes("env") && (text.includes("not found") || text.includes("invalid"))) {
+    return "云环境 ID 无效，请核对 app.js 的 cloudEnv";
+  }
+  if (text.includes("SERVICE") || text.includes("service")) {
+    return "云托管服务名无效，请核对 cloudService（express-gy84）";
+  }
+  // 截断过长 errMsg，便于 toast
+  const short = text.replace(/^request:fail\s*/i, "").slice(0, 80);
+  return short || (via === "cloud" ? "云调用失败" : "网络错误");
+}
+
+function httpRequest({ url, method, data, token, resolve, reject, retry, isRetry, cloudFailMsg }) {
   wx.request({
     url: getBase() + url,
     method,
@@ -101,22 +129,18 @@ function httpRequest({ url, method, data, token, resolve, reject, retry, isRetry
               reject,
               retry,
               isRetry: true,
+              cloudFailMsg,
             }),
           400,
         );
         return;
       }
-      const detail = (err && (err.errMsg || err.message)) || "";
-      reject(
-        Object.assign(
-          new Error(
-            detail.includes("url not in domain")
-              ? "域名未配置：请在小程序后台添加 request 合法域名，或开发者工具关闭域名校验"
-              : "网络错误，请检查后端地址与域名配置",
-          ),
-          err,
-        ),
-      );
+      // Prefer showing cloud error root cause when both failed
+      const httpMsg = formatNetError(err, "http");
+      const msg = cloudFailMsg
+        ? `云调用失败：${cloudFailMsg}；回退公网：${httpMsg}`
+        : httpMsg;
+      reject(Object.assign(new Error(msg), err));
     },
   });
 }
@@ -130,7 +154,7 @@ function request({ url, method = "GET", data, retry = true }) {
   const path = url.startsWith("/") ? url : `/${url}`;
 
   return new Promise((resolve, reject) => {
-    const doHttp = (isRetry) =>
+    const doHttp = (isRetry, cloudFailMsg) =>
       httpRequest({
         url: path,
         method,
@@ -140,10 +164,18 @@ function request({ url, method = "GET", data, retry = true }) {
         reject,
         retry,
         isRetry,
+        cloudFailMsg,
       });
 
     if (!(useCloudCall() && wx.cloud && typeof wx.cloud.callContainer === "function")) {
-      doHttp(false);
+      console.warn(
+        "[request] callContainer unavailable",
+        "wx.cloud=",
+        !!wx.cloud,
+        "useCloud=",
+        useCloudCall(),
+      );
+      doHttp(false, "当前环境不支持 callContainer");
       return;
     }
 
@@ -157,13 +189,20 @@ function request({ url, method = "GET", data, retry = true }) {
         "X-WX-SERVICE": service,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
+      timeout: 20000,
       success(res) {
+        // callContainer may return non-2xx in success callback
         handleResponse(res, resolve, reject);
       },
       fail(err) {
-        console.warn("[request] callContainer fail, fallback to HTTPS", err);
-        // 云调用失败时改走公网域名（开发者工具 / 未开通云调用权限时很常见）
-        doHttp(false);
+        const cloudMsg = formatNetError(err, "cloud");
+        console.warn("[request] callContainer fail → HTTPS fallback", {
+          env,
+          service,
+          path,
+          err,
+        });
+        doHttp(false, cloudMsg);
       },
     };
     // GET 可不传 data，部分基础库对空对象敏感
@@ -178,8 +217,9 @@ function request({ url, method = "GET", data, retry = true }) {
     try {
       wx.cloud.callContainer(payload);
     } catch (e) {
-      console.warn("[request] callContainer throw, fallback to HTTPS", e);
-      doHttp(false);
+      const cloudMsg = formatNetError(e, "cloud");
+      console.warn("[request] callContainer throw → HTTPS fallback", e);
+      doHttp(false, cloudMsg);
     }
   });
 }
