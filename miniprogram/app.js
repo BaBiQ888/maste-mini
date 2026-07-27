@@ -8,9 +8,10 @@ App({
     apiBase: "https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com",
     /**
      * 云托管：true 优先 callContainer，失败自动回退 HTTPS(apiBase)
-     * false 则始终 wx.request + apiBase
+     * false 则始终 wx.request + apiBase（未开通云调用 / mock 调试时用 false 更稳）
+     * mock 登录：云托管设 WECHAT_MOCK=1，并保证公网域名可访问（合法域名或开发工具关校验）
      */
-    useCloud: true,
+    useCloud: false,
     cloudEnv: "prod-d3gbci34xbe09e370",
     cloudService: "express-gy84",
     cloudPublicBase:

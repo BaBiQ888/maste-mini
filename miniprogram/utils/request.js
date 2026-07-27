@@ -242,18 +242,9 @@ function request({ url, method = "GET", data, retry = true }) {
           path,
           err,
         });
-        // Auth path: HTTPS cannot get X-WX-OPENID and container may not reach jscode2session
-        if (path.indexOf("/api/v1/auth/wechat") !== -1) {
-          reject(
-            Object.assign(
-              new Error(
-                `云调用失败（${cloudMsg}）。登录必须走 callContainer 才能带 openid；请检查环境 ID / 服务名，并在真机体验版重试`,
-              ),
-              { code: "CLOUD_CALL_FAIL", err },
-            ),
-          );
-          return;
-        }
+        // HTTPS fallback: works with WECHAT_MOCK=1 (deviceId openid).
+        // Real WeChat needs either callContainer (X-WX-OPENID) or container
+        // outbound jscode2session + request 合法域名.
         doHttp(false, cloudMsg);
       }
     };
