@@ -1,4 +1,5 @@
 const { getToken, clearAuth } = require("./auth");
+const mockApi = require("./mock-api");
 
 /** Cloud hosting defaults (override via app.globalData). */
 const CLOUD_DEFAULTS = {
@@ -22,7 +23,21 @@ function getBase() {
   );
 }
 
+function useMockData() {
+  const app = getAppSafe();
+  if (app && app.globalData && app.globalData.useMockData === true) return true;
+  // Also allow compile-time default when globalData not ready
+  try {
+    const g = getApp();
+    if (g && g.globalData && g.globalData.useMockData) return true;
+  } catch (_) {
+    /* ignore */
+  }
+  return false;
+}
+
 function useCloudCall() {
+  if (useMockData()) return false;
   const app = getAppSafe();
   if (!app || !app.globalData) return false;
   if (app.globalData.useCloud === false) return false;
@@ -180,11 +195,19 @@ function callContainerOnce({ path, method, data, token, env, service, cloudApi }
 }
 
 /**
- * Prefer callContainer (injects X-WX-OPENID for login); fall back to public HTTPS.
+ * Prefer local mock (no network), else callContainer, else public HTTPS.
  */
 function request({ url, method = "GET", data, retry = true }) {
   const token = getToken();
   const path = url.startsWith("/") ? url : `/${url}`;
+
+  // Offline UI demo — no domain / server required
+  if (useMockData()) {
+    return mockApi.handle(path, method, data).catch((e) => {
+      console.warn("[mock-api]", method, path, e);
+      return Promise.reject(e);
+    });
+  }
 
   return new Promise((resolve, reject) => {
     const doHttp = (isRetry, cloudFailMsg) =>
@@ -253,4 +276,4 @@ function request({ url, method = "GET", data, retry = true }) {
   });
 }
 
-module.exports = { request, getBase, useCloudCall, cloudConfig };
+module.exports = { request, getBase, useCloudCall, useMockData, cloudConfig };
