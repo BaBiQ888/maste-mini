@@ -1,13 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 64" fill="none" role="img" aria-label="算本">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 64" fill="none" role="img" aria-label="算本">
   <g transform="translate(0,0)">
-    <rect x="10" y="8" width="36" height="48" rx="3" fill="#FFFcf7" stroke="#FFFcf7" stroke-width="2"/>
-    <path d="M18 8v48" stroke="#E0D8CC" stroke-width="1.5"/>
-    <path d="M24 22h16M24 30h16M24 38h12" stroke="#E0D8CC" stroke-width="1.25" stroke-linecap="round"/>
-    <path d="M38 8l8 8V14a2 2 0 0 0-2-2h-6V8z" fill="#EDE6D9" stroke="#FFFcf7" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M50 14l4 4-22 22-5 1 1-5 22-22z" fill="#C45C26"/>
-    <path d="M50 14l4 4-3 3-4-4 3-3z" fill="#2C2825"/>
-    <path d="M26 46l3.5 3.5L36 42" stroke="#3D6B4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="13" y="11" width="34" height="46" rx="4" fill="#3A342F"/>
+    <rect x="10" y="8" width="34" height="46" rx="4" fill="#FFFcf7" stroke="#FFFcf7" stroke-width="2"/>
+    <path d="M18 8.5v45" stroke="#E0D8CC" stroke-width="1.5"/>
+    <circle cx="18" cy="18" r="1.1" fill="#C45C26"/>
+    <circle cx="18" cy="31" r="1.1" fill="#C45C26"/>
+    <circle cx="18" cy="44" r="1.1" fill="#C45C26"/>
+    <path d="M24 22h14M24 29h14M24 36h10" stroke="#E0D8CC" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M36 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#EDE6D9" stroke="#FFFcf7" stroke-width="2" stroke-linejoin="round"/>
+    <g stroke="#2C2825" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M25 19h10"/>
+      <path d="M30 19v3"/>
+      <rect x="25.5" y="22.5" width="9" height="7" rx="0.6"/>
+      <path d="M30 22.5v7"/>
+      <path d="M25.5 26h9"/>
+      <path d="M27 32.5v4.5"/>
+      <path d="M33 32.5v4.5"/>
+      <path d="M25.5 37h9"/>
+    </g>
+    <path d="M24 47l3.2 3.2L34.5 42" stroke="#3D6B4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(46,12) rotate(38)">
+      <rect x="0" y="0" width="4.2" height="22" rx="1" fill="#C45C26"/>
+      <path d="M0 22h4.2L2.1 27z" fill="#2C2825"/>
+      <rect x="0.4" y="0" width="3.4" height="3" rx="0.6" fill="#EDE6D9"/>
+    </g>
   </g>
-  <text x="72" y="42" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif" font-size="32" font-weight="600" fill="#FFFcf7" letter-spacing="4">算本</text>
-  <text x="72" y="56" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif" font-size="10" font-weight="400" fill="#C8C0B4" letter-spacing="1.5">每日计算 · 知识打卡</text>
+  <text x="72" y="38" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="30" font-weight="600" fill="#FFFcf7" letter-spacing="6">算本</text>
+  <text x="72" y="54" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="11" font-weight="400" fill="#C8C0B4" letter-spacing="2">每日计算 · 知识打卡</text>
 </svg>

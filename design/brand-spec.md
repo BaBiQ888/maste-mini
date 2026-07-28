@@ -28,7 +28,15 @@
 | 仅图形 mark | `design/assets/logo-mark.svg` |
 | 反白（深底用） | `design/assets/logo-on-dark.svg` |
 
-**概念**：一本微开的练习册 + 页角折痕；封面上一个手写感的「算」字点题；右侧一竖铅笔细线（锈橙）。不画卡通小孩、不画复杂公式。
+**概念**：一本微开的练习册 + 页角折痕 + 装订点；封面上**几何化「算」字**点题；右上锈橙铅笔；底部墨绿完成勾。不画卡通小孩、不画复杂公式。
+
+**变体**
+| 用途 | 文件 |
+|------|------|
+| App 图标 / 登录 mark | `logo-mark.svg` · `miniprogram/assets/logo-mark.png` |
+| 横版主标 | `logo.svg` |
+| 深色底 | `logo-on-dark.svg` |
+| 预览页 | `design/logo-preview.html` |
 
 **安全区**：mark 四周 ≥ 0.2× 高度空白。  
 **最小尺寸**：mark ≥ 24px；横版 wordmark ≥ 72px 宽。  

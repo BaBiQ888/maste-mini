@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>算本 · Logo Preview</title>
+  <style>
+    :root {
+      --paper: #f7f3eb;
+      --paper-deep: #ede6d9;
+      --ink: #2c2825;
+      --ink-muted: #6b645c;
+      --line: #e0d8cc;
+      --accent: #c45c26;
+      --white: #fffcf7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      padding: 40px 24px 80px;
+    }
+    h1 { font-size: 22px; font-weight: 600; margin: 0 0 8px; }
+    .sub { color: var(--ink-muted); font-size: 14px; margin-bottom: 32px; line-height: 1.5; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+      max-width: 960px;
+    }
+    .card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 28px;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    .card.dark {
+      background: #2c2825;
+      border-color: #3a342f;
+    }
+    .card.paper-deep { background: var(--paper-deep); }
+    .label {
+      font-size: 12px;
+      color: var(--ink-muted);
+      letter-spacing: 0.04em;
+    }
+    .card.dark .label { color: #c8c0b4; }
+    img, object, svg { max-width: 100%; height: auto; }
+    .mark { width: 72px; height: 72px; }
+    .word { width: 220px; height: 64px; }
+    .sizes {
+      display: flex;
+      align-items: flex-end;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .size-item { text-align: center; }
+    .size-item img { display: block; margin: 0 auto 6px; }
+    .rules {
+      max-width: 960px;
+      margin-top: 36px;
+      padding: 24px;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      background: var(--white);
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--ink-muted);
+    }
+    .rules strong { color: var(--ink); }
+    .swatches { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .sw { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); }
+  </style>
+</head>
+<body>
+  <h1>算本 · Logo</h1>
+  <p class="sub">
+    方向 B · 纸本练习本 · 练习册 + 几何「算」 + 锈橙铅笔 + 完成勾选<br />
+    温和、低压力、适龄 · 非游戏厅 / 非 SaaS 渐变
+  </p>
+
+  <div class="grid">
+    <div class="card">
+      <object class="mark" type="image/svg+xml" data="assets/logo-mark.svg"></object>
+      <div class="label">Mark · 白底</div>
+    </div>
+    <div class="card paper-deep">
+      <object class="mark" type="image/svg+xml" data="assets/logo-mark.svg"></object>
+      <div class="label">Mark · 纸感底</div>
+    </div>
+    <div class="card">
+      <object class="word" type="image/svg+xml" data="assets/logo.svg"></object>
+      <div class="label">主标 · Wordmark</div>
+    </div>
+    <div class="card dark">
+      <object class="word" type="image/svg+xml" data="assets/logo-on-dark.svg"></object>
+      <div class="label">反白 · 深底</div>
+    </div>
+    <div class="card" style="grid-column: 1 / -1;">
+      <div class="sizes">
+        <div class="size-item">
+          <img src="assets/logo-mark.svg" width="64" height="64" alt="64" />
+          <div class="label">64px</div>
+        </div>
+        <div class="size-item">
+          <img src="assets/logo-mark.svg" width="48" height="48" alt="48" />
+          <div class="label">48px</div>
+        </div>
+        <div class="size-item">
+          <img src="assets/logo-mark.svg" width="32" height="32" alt="32" />
+          <div class="label">32px</div>
+        </div>
+        <div class="size-item">
+          <img src="assets/logo-mark.svg" width="24" height="24" alt="24" />
+          <div class="label">24px 最小</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules">
+    <strong>用法</strong>：四周安全区 ≥ 0.2× 高度；mark ≥ 24px；横版 ≥ 72px 宽。<br />
+    <strong>禁忌</strong>：拉扁、紫渐变描边、立体拟物、加金币/霓虹。<br />
+    <strong>色板</strong>
+    <div class="swatches">
+      <div class="sw" style="background:#F7F3EB" title="paper"></div>
+      <div class="sw" style="background:#FFFcf7" title="white"></div>
+      <div class="sw" style="background:#2C2825" title="ink"></div>
+      <div class="sw" style="background:#C45C26" title="accent"></div>
+      <div class="sw" style="background:#3D6B4F" title="success"></div>
+    </div>
+  </div>
+</body>
+</html>
