@@ -9,8 +9,8 @@ const {
 
 /** Cloud hosting defaults (override via app.globalData). */
 const CLOUD_DEFAULTS = {
-  env: "prod-d3gbci34xbe09e370",
-  service: "express-gy84",
+  env: "prod-d7glqi3icbdfab67d",
+  service: "express-4x8b",
 };
 
 function getAppSafe() {
@@ -25,7 +25,7 @@ function getBase() {
   const app = getAppSafe();
   return (
     (app && app.globalData && app.globalData.apiBase) ||
-    "https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com"
+    "https://express-4x8b-287111-10-1458458765.sh.run.tcloudbase.com"
   );
 }
 
@@ -218,8 +218,19 @@ function callContainerOnce({ path, method, data, token, env, service, cloudApi }
       "X-WX-SERVICE": service,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
+    /**
+     * Official: new wx.cloud.Cloud({ resourceEnv }).callContainer({ path, header })
+     * Do NOT pass config.env on a Cloud instance (can cause INVALID_HOST).
+     * Only bare wx.cloud after wx.cloud.init({ env }) needs config.env.
+     */
+    const api = cloudApi || wx.cloud;
+    const isCloudInstance =
+      api &&
+      typeof wx !== "undefined" &&
+      wx.cloud &&
+      api !== wx.cloud;
+
     const payload = {
-      config: { env },
       path,
       method,
       header,
@@ -227,6 +238,9 @@ function callContainerOnce({ path, method, data, token, env, service, cloudApi }
       success: resolve,
       fail: reject,
     };
+    if (!isCloudInstance && env) {
+      payload.config = { env };
+    }
     if (method !== "GET" && data !== undefined) {
       payload.data = data;
     } else if (method === "GET" && data && Object.keys(data).length) {
@@ -235,7 +249,6 @@ function callContainerOnce({ path, method, data, token, env, service, cloudApi }
       payload.data = data || {};
     }
 
-    const api = cloudApi || wx.cloud;
     if (!api || typeof api.callContainer !== "function") {
       reject(
         toUserError(null, {

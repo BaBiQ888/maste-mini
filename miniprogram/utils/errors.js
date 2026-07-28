@@ -228,6 +228,13 @@ function mapNetworkFailure(err, via) {
   ) {
     code = "NETWORK";
     fallback = "网络配置未就绪，请稍后重试或联系老师";
+  } else if (
+    detail.indexOf("INVALID_HOST") >= 0 ||
+    detail.indexOf("-501000") >= 0
+  ) {
+    code = "CLOUD";
+    fallback =
+      "云环境或服务名不正确，请在控制台核对环境 ID 与服务名后改 app.js";
   } else if (detail.indexOf("Cloud API isn't enabled") >= 0) {
     code = "CLOUD";
     fallback = "云服务未就绪，请稍后重试";

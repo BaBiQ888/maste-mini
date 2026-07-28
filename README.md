@@ -69,11 +69,11 @@ PORT=80
 
 | 项 | 值 |
 |----|-----|
-| env | `prod-d3gbci34xbe09e370` |
-| service | `express-gy84` |
-| 公网域名 | `https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com` |
+| env | `prod-d7glqi3icbdfab67d` |
+| service | `express-4x8b` |
+| 公网域名 | 以云托管控制台「服务设置 → 域名」为准（示例见 `miniprogram/app.js` 的 `apiBase`） |
 
-部署：将本仓库用 Dockerfile（`server/Dockerfile`）部署到服务 `express-gy84`，覆盖模板 Express。启动后会自动建表。
+部署：将本仓库用 Dockerfile（`server/Dockerfile`）部署到服务 `express-4x8b`，覆盖模板 Express。启动后会自动建表。
 
 **先在 MySQL 控制台创建空库 `math_mini`（若尚未创建）。**
 

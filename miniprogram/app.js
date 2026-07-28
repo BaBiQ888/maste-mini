@@ -10,8 +10,11 @@ App({
      * 临时演示可在开发者工具 Console: getApp().globalData.useMockData = true
      */
     useMockData: false,
-    /** 本地调试 / callContainer 失败时的公网回退 */
-    apiBase: "https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com",
+    /**
+     * 公网回退（callContainer 失败时 wx.request）
+     * 在云托管服务「服务设置 → 域名」复制；服务名变更后域名也会变
+     */
+    apiBase: "https://express-4x8b-287111-10-1458458765.sh.run.tcloudbase.com",
     /**
      * 云托管：true 优先 callContainer（网关注入 X-WX-OPENID，登录才稳）
      * 失败再回退 HTTPS(apiBase)。false = 永远公网，容器常因访问不了
@@ -19,10 +22,14 @@ App({
      * useMockData=true 时不会走网络
      */
     useCloud: true,
-    cloudEnv: "prod-d3gbci34xbe09e370",
-    cloudService: "express-gy84",
+    /**
+     * 必须与「微信云托管控制台」一致，否则 callContainer → INVALID_HOST (-501000)
+     * 环境 ID / 服务名：与控制台「云调用」示例一致
+     */
+    cloudEnv: "prod-d7glqi3icbdfab67d",
+    cloudService: "express-4x8b",
     cloudPublicBase:
-      "https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com",
+      "https://express-4x8b-287111-10-1458458765.sh.run.tcloudbase.com",
     /** wx.cloud.Cloud instance after async init */
     cloud: null,
     cloudReady: false,
