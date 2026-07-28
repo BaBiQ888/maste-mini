@@ -13,11 +13,12 @@ App({
     /** 本地调试 / callContainer 失败时的公网回退 */
     apiBase: "https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com",
     /**
-     * 云托管：true 优先 callContainer，失败自动回退 HTTPS(apiBase)
-     * false 则始终 wx.request + apiBase
+     * 云托管：true 优先 callContainer（网关注入 X-WX-OPENID，登录才稳）
+     * 失败再回退 HTTPS(apiBase)。false = 永远公网，容器常因访问不了
+     * api.weixin.qq.com 而报 WECHAT_NETWORK。
      * useMockData=true 时不会走网络
      */
-    useCloud: false,
+    useCloud: true,
     cloudEnv: "prod-d3gbci34xbe09e370",
     cloudService: "express-gy84",
     cloudPublicBase:
