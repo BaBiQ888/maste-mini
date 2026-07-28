@@ -1,9 +1,8 @@
 <view class="page">
   <view class="greet-row">
     <view class="greet">你好，{{nickname}}</view>
-    <view class="profile-link muted" bindtap="goProfile">我的 ›</view>
   </view>
-  <view class="sub muted">工作台 · 完成情况与待批改</view>
+  <view class="sub muted">工作台 · 完成情况与待批改 · 底栏「我的」可改资料</view>
 
   <view class="stats">
     <view class="stat" bindtap="goAssignments">
@@ -21,7 +20,9 @@
 
   <view class="label muted">当前班级</view>
 
-  <block wx:if="{{current}}">
+  <view wx:if="{{loading}}" class="muted tip">加载中…</view>
+
+  <block wx:elif="{{current}}">
     <view class="card current" bindtap="goClassDetail">
       <view class="cname">{{current.name}}</view>
       <view class="cmeta muted">{{current.grade}} 年级 · 学生 {{current.studentCount}} 人

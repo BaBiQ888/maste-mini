@@ -25,17 +25,6 @@
     >{{item}} 题</view>
   </view>
 
-  <view class="label">难度</view>
-  <view class="chips">
-    <view
-      class="chip {{difficulty === item.id ? 'on' : ''}}"
-      wx:for="{{difficulties}}"
-      wx:key="id"
-      data-id="{{item.id}}"
-      bindtap="pickDiff"
-    >{{item.label}}</view>
-  </view>
-
   <view class="label">整卷限时</view>
   <view class="chips">
     <view
@@ -47,7 +36,36 @@
     >{{item.label}}</view>
   </view>
 
-  <button class="btn btn-primary gen" loading="{{genBusy}}" disabled="{{genBusy}}" bindtap="regenerate">
+  <view class="adv-toggle muted" bindtap="toggleAdvanced">
+    {{showAdvanced ? '收起更多选项' : '更多选项 · 难度 / 混入手工题'}}
+  </view>
+
+  <block wx:if="{{showAdvanced}}">
+    <view class="label">难度</view>
+    <view class="chips">
+      <view
+        class="chip {{difficulty === item.id ? 'on' : ''}}"
+        wx:for="{{difficulties}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        bindtap="pickDiff"
+      >{{item.label}}</view>
+    </view>
+
+    <view class="label" wx:if="{{manuals.length}}">混入手工题（可选 · 已选 {{selectedManualCount}}）</view>
+    <view
+      class="card man {{selectedManual[item.id] ? 'on' : ''}}"
+      wx:for="{{manuals}}"
+      wx:key="id"
+      wx:if="{{manuals.length}}"
+      data-id="{{item.id}}"
+      bindtap="toggleManual"
+    >
+      <view class="stem">{{item.stem}}</view>
+    </view>
+  </block>
+
+  <button class="btn btn-ghost gen" loading="{{genBusy}}" disabled="{{genBusy}}" bindtap="regenerate">
     {{preview.length ? '换一批' : '生成预览'}}
   </button>
 
@@ -57,20 +75,8 @@
     <view class="ans muted">答：{{item.answer}}</view>
   </view>
 
-  <view class="label" wx:if="{{manuals.length}}">混入手工题（可选 · 已选 {{selectedManualCount}}）</view>
-  <view
-    class="card man {{selectedManual[item.id] ? 'on' : ''}}"
-    wx:for="{{manuals}}"
-    wx:key="id"
-    wx:if="{{manuals.length}}"
-    data-id="{{item.id}}"
-    bindtap="toggleManual"
-  >
-    <view class="stem">{{item.stem}}</view>
-  </view>
+  <view class="hint muted">进入页面已自动出题；限时到点会服务端强制交卷。可先草稿再发布。</view>
 
-  <view class="hint muted">生成题会写入快照；发布后学生按 Phase 7 作答与订正。限时强制交卷见后续阶段，配置已保存。</view>
-
-  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading || !preview.length}}" bindtap="publishNow">发布每日计算</button>
-  <button class="btn btn-ghost" disabled="{{loading || !preview.length}}" bindtap="saveDraft">存为草稿</button>
+  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading || !preview.length || genBusy}}" bindtap="publishNow">发布每日计算</button>
+  <button class="btn btn-ghost" disabled="{{loading || !preview.length || genBusy}}" bindtap="saveDraft">存为草稿</button>
 </view>

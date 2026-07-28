@@ -1,4 +1,6 @@
 const { request, getBase } = require("./request");
+const { getToken } = require("./auth");
+const { toUserError, logError } = require("./errors");
 
 /**
  * Choose images and upload as base64 to API.
@@ -61,10 +63,20 @@ function uploadFilePath(filePath) {
           });
           resolve(data.url);
         } catch (e) {
+          logError("media.upload", e, { filePath });
           reject(e);
         }
       },
-      fail: () => reject(new Error("读取图片失败")),
+      fail: (err) => {
+        logError("media.readFile", err, { filePath });
+        reject(
+          toUserError(err, {
+            code: "INVALID_PHOTOS",
+            rawMessage: (err && err.errMsg) || "读取图片失败",
+            fallback: "读取图片失败，请换一张再试",
+          }),
+        );
+      },
     });
   });
 }
@@ -79,6 +91,7 @@ function guessMime(p) {
 function fullUrl(path) {
   if (!path) return "";
   if (path.startsWith("http")) return path;
+  let url = "";
   try {
     const app = getApp();
     if (app && app.globalData && app.globalData.useCloud) {
@@ -86,12 +99,31 @@ function fullUrl(path) {
         app.globalData.cloudPublicBase ||
         app.globalData.apiBase ||
         "";
-      return base.replace(/\/$/, "") + path;
+      url = base.replace(/\/$/, "") + path;
     }
   } catch (_) {
     /* ignore */
   }
-  return getBase() + path;
+  if (!url) url = getBase() + path;
+  // /uploads/* requires session; <image> cannot send Authorization header
+  if (path.indexOf("/uploads/") === 0) {
+    const token = getToken();
+    if (token && url.indexOf("access_token=") < 0) {
+      const sep = url.indexOf("?") >= 0 ? "&" : "?";
+      url = url + sep + "access_token=" + encodeURIComponent(token);
+    }
+  }
+  return url;
+}
+
+/** Human label for assignment type (lists / cards) */
+function assignmentTypeLabel(type) {
+  const map = {
+    photo_homework: "拍照",
+    knowledge_checkin: "打卡",
+    daily_drill: "每日计算",
+  };
+  return map[type] || "练习";
 }
 
 const STATUS_LABEL = {
@@ -115,6 +147,7 @@ const RESULT_LABEL = {
 module.exports = {
   chooseAndUpload,
   fullUrl,
+  assignmentTypeLabel,
   STATUS_LABEL,
   RESULT_LABEL,
 };

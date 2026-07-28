@@ -1,5 +1,6 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -67,7 +68,7 @@ Page({
       }
       this.setData(patch);
     } catch (e) {
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 
@@ -163,7 +164,7 @@ Page({
       wx.showToast({ title: "已保存", icon: "success" });
       setTimeout(() => wx.navigateBack(), 400);
     } catch (e) {
-      wx.showToast({ title: e.message || "保存失败", icon: "none" });
+      showError(e, { fallback: "保存失败" });
     } finally {
       this.setData({ loading: false });
     }

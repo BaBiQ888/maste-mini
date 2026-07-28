@@ -126,10 +126,79 @@ function matchRoute(path, pattern) {
   return params;
 }
 
+/** Align with server normalizeText + simple math equivalence */
 function normalizeAnswer(s) {
   return String(s == null ? "" : s)
     .trim()
+    .replace(/[\uFF10-\uFF19]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30),
+    )
+    .replace(/\uFF0E/g, ".")
+    .replace(/\u2212/g, "-")
+    .replace(/\uFF0D/g, "-")
+    .replace(/商/g, "")
+    .replace(/余/g, "...")
     .replace(/\s+/g, "");
+}
+
+function parseMathNumber(s) {
+  const t = normalizeAnswer(s);
+  if (!t) return null;
+  const frac = t.match(/^(-?\d+)\/(\d+)$/);
+  if (frac) {
+    const den = Number(frac[2]);
+    if (!den) return null;
+    return Number(frac[1]) / den;
+  }
+  if (!/^-?\d+(\.\d+)?$/.test(t)) return null;
+  const n = Number(t);
+  return isFinite(n) ? n : null;
+}
+
+function answersMatch(expected, actual) {
+  const a = normalizeAnswer(expected);
+  const b = normalizeAnswer(actual);
+  if (a === b) return true;
+  const na = parseMathNumber(a);
+  const nb = parseMathNumber(b);
+  if (na != null && nb != null) return Math.abs(na - nb) < 1e-9;
+  return false;
+}
+
+function mockError(message, code, statusCode) {
+  const err = new Error(message || "请求失败");
+  err.code = code || "NOT_FOUND";
+  err.statusCode = statusCode || 404;
+  return err;
+}
+
+function expandSubmissionAnswers(assignment, sub) {
+  const qs = (assignment && assignment.questions) || [];
+  const existing = sub.answers || [];
+  const byQ = {};
+  existing.forEach((a) => {
+    const key = a.assignmentQuestionId || a.questionId;
+    if (key) byQ[key] = a;
+  });
+  return qs.map((q) => {
+    const prev = byQ[q.id] || {};
+    return {
+      assignmentQuestionId: q.id,
+      questionId: q.id,
+      stem: q.stem,
+      type: q.type || "fill_blank",
+      options: q.options || null,
+      response: prev.response != null ? prev.response : null,
+      isCorrect:
+        prev.isCorrect === true || prev.isCorrect === false
+          ? prev.isCorrect
+          : null,
+      correctAnswer:
+        prev.isCorrect === true || prev.isCorrect === false
+          ? q.answer
+          : undefined,
+    };
+  });
 }
 
 async function handle(url, method = "GET", data) {
@@ -195,31 +264,34 @@ async function handle(url, method = "GET", data) {
   if (path === "/api/v1/me" && m === "PATCH") {
     const { db, user } = requireUser();
     if (data && data.role) {
-      if (user.role && user.role !== data.role) {
-        const err = new Error("身份已选定，不可更改");
-        err.code = "ROLE_LOCKED";
-        throw err;
+      if (data.role !== "teacher" && data.role !== "student") {
+        throw mockError("身份只能是 teacher 或 student", "INVALID_ROLE", 400);
       }
-      if (data.role === "teacher" && !user.role) {
-        // Soft gate in mock: accept any non-empty or default code
-        const code = (data.teacherCode || "").trim();
-        if (!code) {
-          const err = new Error("选择老师身份需要填写教师开通码");
-          err.code = "TEACHER_CODE_REQUIRED";
-          throw err;
+      // Align with server: allow switch; teacher always needs code
+      if (data.role !== user.role) {
+        if (data.role === "teacher") {
+          const code = (data.teacherCode || "").trim();
+          if (!code) {
+            throw mockError(
+              "选择老师身份需要填写教师开通码",
+              "TEACHER_CODE_REQUIRED",
+              400,
+            );
+          }
+          const ok =
+            code === "SUANBEN-TEACHER" ||
+            code === "DEMO" ||
+            code.length >= 4;
+          if (!ok) {
+            throw mockError(
+              "教师开通码不正确（体验可用 DEMO 或 SUANBEN-TEACHER）",
+              "TEACHER_CODE_INVALID",
+              400,
+            );
+          }
         }
-        // Accept demo codes
-        const ok =
-          code === "SUANBEN-TEACHER" ||
-          code === "DEMO" ||
-          code.length >= 4;
-        if (!ok) {
-          const err = new Error("教师开通码不正确（体验可用 DEMO 或 SUANBEN-TEACHER）");
-          err.code = "TEACHER_CODE_INVALID";
-          throw err;
-        }
+        user.role = data.role;
       }
-      user.role = data.role;
     }
     if (data && data.nickname) user.nickname = data.nickname;
     if (data && data.avatarUrl !== undefined) user.avatarUrl = data.avatarUrl;
@@ -646,6 +718,7 @@ async function handle(url, method = "GET", data) {
   p = matchRoute(path, "/api/v1/assignments/:id/my-submission");
   if (p && m === "GET") {
     const { db, user } = requireUser();
+    const a = db.assignments.find((x) => x.id === p.id);
     let sub = db.submissions.find(
       (s) => s.assignmentId === p.id && s.studentId === user.id,
     );
@@ -656,12 +729,137 @@ async function handle(url, method = "GET", data) {
         studentId: user.id,
         status: "not_started",
         answers: [],
+        photos: [],
         score: null,
         submittedAt: null,
       };
       db.submissions.push(sub);
       store.save(db);
     }
+    if (a && a.type !== "photo_homework") {
+      sub = {
+        ...sub,
+        answers: expandSubmissionAnswers(a, sub),
+      };
+    }
+    return { submission: sub };
+  }
+
+  p = matchRoute(path, "/api/v1/submissions/:id/draft");
+  if (p && m === "PUT") {
+    const { db, user } = requireUser();
+    const sub = db.submissions.find((s) => s.id === p.id);
+    if (!sub || sub.studentId !== user.id) throw mockError("提交不存在", "NOT_FOUND", 404);
+    if (sub.status === "completed") {
+      throw mockError("已完成，不能再改", "INVALID_STATUS", 400);
+    }
+    const a = db.assignments.find((x) => x.id === sub.assignmentId);
+    const incoming = (data && data.answers) || [];
+    const byQ = {};
+    (sub.answers || []).forEach((ans) => {
+      byQ[ans.assignmentQuestionId || ans.questionId] = ans;
+    });
+    incoming.forEach((ans) => {
+      const qid = ans.assignmentQuestionId || ans.questionId;
+      byQ[qid] = {
+        ...(byQ[qid] || {}),
+        assignmentQuestionId: qid,
+        questionId: qid,
+        response: ans.response,
+        isCorrect: null,
+      };
+    });
+    sub.answers = Object.keys(byQ).map((k) => byQ[k]);
+    if (sub.status === "not_started") sub.status = "in_progress";
+    store.save(db);
+    return {
+      submission: {
+        ...sub,
+        answers: a ? expandSubmissionAnswers(a, sub) : sub.answers,
+      },
+    };
+  }
+
+  p = matchRoute(path, "/api/v1/submissions/:id/answers");
+  if (p && m === "POST") {
+    const { db, user } = requireUser();
+    const sub = db.submissions.find((s) => s.id === p.id);
+    if (!sub || sub.studentId !== user.id) throw mockError("提交不存在", "NOT_FOUND", 404);
+    if (sub.status !== "not_started" && sub.status !== "in_progress") {
+      throw mockError("当前状态不可整卷提交", "INVALID_STATUS", 400);
+    }
+    const a = db.assignments.find((x) => x.id === sub.assignmentId);
+    const answers = (data && data.answers) || [];
+    const force = data && data.force === true;
+    const qs = (a && a.questions) || [];
+    const byIncoming = {};
+    answers.forEach((ans) => {
+      byIncoming[ans.assignmentQuestionId || ans.questionId] = ans.response;
+    });
+    (sub.answers || []).forEach((ans) => {
+      const qid = ans.assignmentQuestionId || ans.questionId;
+      if (byIncoming[qid] === undefined && ans.response != null) {
+        byIncoming[qid] = ans.response;
+      }
+    });
+    if (!force) {
+      for (let i = 0; i < qs.length; i++) {
+        const r = byIncoming[qs[i].id];
+        if (r === undefined || r === null || r === "") {
+          throw mockError("请答完所有题目再提交", "INCOMPLETE", 400);
+        }
+      }
+    }
+    let correctCount = 0;
+    const graded = qs.map((q) => {
+      const response = byIncoming[q.id];
+      const correct =
+        response != null &&
+        response !== "" &&
+        answersMatch(q.answer, response);
+      if (correct) correctCount += 1;
+      return {
+        assignmentQuestionId: q.id,
+        questionId: q.id,
+        stem: q.stem,
+        type: q.type || "fill_blank",
+        options: q.options || null,
+        response: response != null ? response : null,
+        isCorrect: correct,
+        correctAnswer: q.answer,
+      };
+    });
+    sub.answers = graded;
+    sub.score = qs.length
+      ? Math.round((correctCount / qs.length) * 100)
+      : 0;
+    sub.status =
+      correctCount === qs.length ? "completed" : "pending_correction";
+    sub.submittedAt = nowIso();
+    store.save(db);
+    return { submission: sub };
+  }
+
+  p = matchRoute(path, "/api/v1/submissions/:id/photos");
+  if (p && m === "POST") {
+    const { db, user } = requireUser();
+    const sub = db.submissions.find((s) => s.id === p.id);
+    if (!sub || sub.studentId !== user.id) throw mockError("提交不存在", "NOT_FOUND", 404);
+    if (sub.status === "submitted") {
+      throw mockError("已提交，等待老师批改，不能再修改", "INVALID_STATUS", 400);
+    }
+    if (sub.status === "completed") {
+      throw mockError("作业已批改完成，不能再提交", "INVALID_STATUS", 400);
+    }
+    if (sub.status !== "not_started" && sub.status !== "resubmit_required") {
+      throw mockError("当前状态不能提交照片", "INVALID_STATUS", 400);
+    }
+    const urls = ((data && data.photoUrls) || []).filter(Boolean);
+    if (!urls.length) throw mockError("请至少上传 1 张照片", "INVALID_PHOTOS", 400);
+    sub.photos = urls.map((url, i) => ({ url, sortOrder: i }));
+    sub.status = "submitted";
+    sub.submittedAt = nowIso();
+    store.save(db);
     return { submission: sub };
   }
 
@@ -688,13 +886,16 @@ async function handle(url, method = "GET", data) {
       const ans = answers[i] || answers.find((x) => x.questionId === q.id);
       const response =
         ans && (ans.response != null ? ans.response : ans.answer);
-      const correct =
-        normalizeAnswer(response) === normalizeAnswer(q.answer);
+      const correct = answersMatch(q.answer, response);
       if (!correct) allCorrect = false;
       return {
+        assignmentQuestionId: q.id,
         questionId: q.id,
+        stem: q.stem,
+        type: q.type || "fill_blank",
         response,
         isCorrect: correct,
+        correctAnswer: q.answer,
       };
     });
     sub.answers = graded;
@@ -716,47 +917,58 @@ async function handle(url, method = "GET", data) {
     const { db, user } = requireUser();
     const sub = db.submissions.find((s) => s.id === p.id);
     if (!sub || sub.studentId !== user.id) {
-      const err = new Error("提交不存在");
-      throw err;
+      throw mockError("提交不存在", "NOT_FOUND", 404);
     }
     const a = db.assignments.find((x) => x.id === sub.assignmentId);
     const fixes = (data && data.answers) || [];
     let allCorrect = true;
     sub.answers = (sub.answers || []).map((item) => {
       if (item.isCorrect) return item;
-      const fix = fixes.find((f) => f.questionId === item.questionId);
-      const q = (a && a.questions || []).find((x) => x.id === item.questionId);
+      const qid = item.assignmentQuestionId || item.questionId;
+      const fix = fixes.find(
+        (f) =>
+          f.questionId === qid ||
+          f.assignmentQuestionId === qid,
+      );
+      const q = (a && a.questions || []).find((x) => x.id === qid);
       const response = fix
         ? fix.response != null
           ? fix.response
           : fix.answer
         : item.response;
-      const correct =
-        q && normalizeAnswer(response) === normalizeAnswer(q.answer);
+      const correct = q && answersMatch(q.answer, response);
       if (!correct) allCorrect = false;
-      return { ...item, response, isCorrect: !!correct };
+      return {
+        ...item,
+        assignmentQuestionId: qid,
+        questionId: qid,
+        response,
+        isCorrect: !!correct,
+        correctAnswer: q ? q.answer : item.correctAnswer,
+      };
     });
     sub.status = allCorrect ? "completed" : "pending_correction";
+    if (allCorrect) sub.score = 100;
     store.save(db);
     return { submission: sub };
   }
 
+  // Legacy singular path kept for older demos
   p = matchRoute(path, "/api/v1/submissions/:id/photo");
   if (p && m === "POST") {
     const { db, user } = requireUser();
-    let sub = db.submissions.find((s) => s.id === p.id);
-    if (!sub) {
-      sub = {
-        id: p.id,
-        studentId: user.id,
-        status: "pending_grade",
-        photoUrl: (data && data.url) || "mock://photo",
-      };
-      db.submissions.push(sub);
-    } else {
-      sub.status = "pending_grade";
-      sub.photoUrl = (data && data.url) || sub.photoUrl;
+    const sub = db.submissions.find((s) => s.id === p.id);
+    if (!sub || sub.studentId !== user.id) {
+      throw mockError("提交不存在", "NOT_FOUND", 404);
     }
+    if (sub.status === "submitted" || sub.status === "completed") {
+      throw mockError("当前状态不能提交照片", "INVALID_STATUS", 400);
+    }
+    const url = (data && data.url) || "mock://photo";
+    sub.photos = [{ url, sortOrder: 0 }];
+    sub.photoUrl = url;
+    sub.status = "submitted";
+    sub.submittedAt = nowIso();
     store.save(db);
     return { submission: sub };
   }
@@ -784,10 +996,15 @@ async function handle(url, method = "GET", data) {
   }
 
   if (path === "/api/v1/me/knowledge-progress" && m === "GET") {
+    // Align with server ProgressService: { items: KnowledgeDoneItem[] }
     return {
-      nodes: [
-        { id: "n1", name: "四则运算", mastered: true, grade: 4 },
-        { id: "n2", name: "分数初步", mastered: false, grade: 4 },
+      items: [
+        {
+          knowledgeNodeId: "n1",
+          name: "四则运算",
+          pathLabel: "四则运算",
+          doneAt: nowIso(),
+        },
       ],
     };
   }
@@ -823,9 +1040,12 @@ async function handle(url, method = "GET", data) {
   }
 
   console.warn("[mock-api] unhandled", m, path, data);
-  // Soft empty success for unknown GET
-  if (m === "GET") return {};
-  return { ok: true };
+  // Fail loud — soft-success caused false-green demos
+  throw mockError(
+    `Mock 未实现: ${m} ${path}`,
+    "NOT_IMPLEMENTED",
+    501,
+  );
 }
 
 module.exports = { handle };

@@ -1,5 +1,5 @@
 <view class="page">
-  <view class="intro muted">选好后进入对应工作台。身份选定后不可更改。</view>
+  <view class="intro muted">{{intro}}</view>
 
   <view class="role-card {{role === 'teacher' ? 'on' : ''}}" bindtap="pickTeacher">
     <view class="badge">授课老师</view>
@@ -29,6 +29,6 @@
 
   <view class="spacer"></view>
   <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="onConfirm">
-    进入算本
+    {{changing ? '确认切换' : '进入算本'}}
   </button>
 </view>

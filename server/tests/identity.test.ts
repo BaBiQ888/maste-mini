@@ -194,7 +194,7 @@ describe("Identity", () => {
     expect((await set.json()).user.role).toBe("student");
   });
 
-  it("sets role once and locks it", async () => {
+  it("allows switching role; teacher always needs access code", async () => {
     const { json } = await login(app, "code-role");
     const set = await app.request("/api/v1/me", {
       method: "PATCH",
@@ -213,7 +213,8 @@ describe("Identity", () => {
     expect(u.role).toBe("teacher");
     expect(u.nickname).toBe("王老师");
 
-    const again = await app.request("/api/v1/me", {
+    // teacher → student
+    const asStudent = await app.request("/api/v1/me", {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${json.token}`,
@@ -221,9 +222,35 @@ describe("Identity", () => {
       },
       body: JSON.stringify({ role: "student" }),
     });
-    expect(again.status).toBe(400);
-    const err = await again.json();
-    expect(err.code).toBe("ROLE_LOCKED");
+    expect(asStudent.status).toBe(200);
+    expect((await asStudent.json()).user.role).toBe("student");
+
+    // student → teacher without code fails
+    const noCode = await app.request("/api/v1/me", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${json.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ role: "teacher" }),
+    });
+    expect(noCode.status).toBe(400);
+    expect((await noCode.json()).code).toBe("TEACHER_CODE_REQUIRED");
+
+    // student → teacher with code ok
+    const back = await app.request("/api/v1/me", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${json.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        role: "teacher",
+        teacherCode: DEFAULT_TEACHER_ACCESS_CODE,
+      }),
+    });
+    expect(back.status).toBe(200);
+    expect((await back.json()).user.role).toBe("teacher");
   });
 
   it("updates nickname and avatar", async () => {

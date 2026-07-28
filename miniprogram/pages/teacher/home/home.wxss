@@ -43,6 +43,7 @@
   font-weight: 400;
 }
 .label { margin: 8rpx 0 16rpx; font-size: 26rpx; }
+.tip { padding: 32rpx 0; text-align: center; font-size: 28rpx; }
 .current { margin-bottom: 8rpx; }
 .cname { font-size: 34rpx; font-weight: 600; }
 .cmeta { margin-top: 8rpx; font-size: 26rpx; }

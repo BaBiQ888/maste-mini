@@ -459,7 +459,34 @@ export class AssignmentService {
         sub = await this.findSubmission(assignmentId, studentId); if (!sub) throw new Error("not found");
       }
     }
+    // Server-side timer: if already expired, force-submit even without client interval
+    sub = await this.maybeAutoForceSubmitIfExpired(sub);
     return await this.toPublicSubmission(sub, undefined, true);
+  }
+
+  /**
+   * When time limit has elapsed and submission is still open, force-submit
+   * with whatever answers exist (unanswered count as wrong). Survives client
+   * kill / hide without relying on page interval.
+   */
+  private async maybeAutoForceSubmitIfExpired(
+    sub: SubmissionRow,
+  ): Promise<SubmissionRow> {
+    if (sub.status !== "not_started" && sub.status !== "in_progress") {
+      return sub;
+    }
+    const asg = (await this.db.get(
+      `SELECT type, config_json FROM assignments WHERE id = ?`,
+      sub.assignment_id,
+    )) as { type: string; config_json: string } | undefined;
+    if (!asg || asg.type === "photo_homework") return sub;
+    const limit = await this.readTimeLimitSec(asg.config_json);
+    if (!limit || !sub.timer_started_at) return sub;
+    const elapsed =
+      (Date.now() - new Date(sub.timer_started_at).getTime()) / 1000;
+    if (elapsed < limit) return sub;
+    await this.submitOnlineAnswers(sub.id, sub.student_id, [], { force: true });
+    return await this.getSubmissionRow(sub.id);
   }
 
   /** Duplicate assignment as a new draft (independent snapshots). */
@@ -517,7 +544,7 @@ export class AssignmentService {
     studentId: string,
     answers: Array<{ assignmentQuestionId: string; response: unknown }>,
   ): Promise<PublicSubmission> {
-    const sub = await this.getSubmissionRow(submissionId);
+    let sub = await this.getSubmissionRow(submissionId);
     if (sub.student_id !== studentId) {
       throw new AppError("FORBIDDEN", "只能保存自己的作答", 403);
     }
@@ -530,9 +557,15 @@ export class AssignmentService {
     if (sub.status === "pending_correction") {
       throw new AppError("INVALID_STATUS", "请使用订正接口提交错题");
     }
+    // Already closed (e.g. concurrent force-submit) — return as-is
+    if (sub.status !== "not_started" && sub.status !== "in_progress") {
+      return await this.toPublicSubmission(sub, undefined, true);
+    }
 
     const qMap = await this.loadQuestionMap(sub.assignment_id);
     const ts = nowIso();
+    // Persist draft answers FIRST, then force-submit if timer already expired.
+    // (Force-before-save would drop the answers in this request body.)
     await this.db.transaction(async () => {
       for (const a of answers) {
         if (!qMap.has(a.assignmentQuestionId)) {
@@ -551,11 +584,9 @@ export class AssignmentService {
         await this.db.run(`UPDATE submissions SET status = 'in_progress', updated_at = ? WHERE id = ?`, ts, submissionId);
       }
     });
-    return await this.toPublicSubmission(
-      await this.getSubmissionRow(submissionId),
-      undefined,
-      true,
-    );
+    sub = await this.getSubmissionRow(submissionId);
+    sub = await this.maybeAutoForceSubmitIfExpired(sub);
+    return await this.toPublicSubmission(sub, undefined, true);
   }
 
   /**
@@ -602,20 +633,6 @@ export class AssignmentService {
       responseMap.set(a.assignmentQuestionId, a.response);
     }
 
-    const force = opts?.force === true;
-    if (!force) {
-      for (const qid of qMap.keys()) {
-        if (
-          !responseMap.has(qid) ||
-          responseMap.get(qid) === "" ||
-          responseMap.get(qid) === null ||
-          responseMap.get(qid) === undefined
-        ) {
-          throw new AppError("INCOMPLETE", "请答完所有题目再提交");
-        }
-      }
-    }
-
     const assignment = await this.db.get(`SELECT due_at, status, config_json FROM assignments WHERE id = ?`, sub.assignment_id) as {
       due_at: string | null;
       status: string;
@@ -625,16 +642,29 @@ export class AssignmentService {
       throw new AppError("INVALID_STATUS", "作业未发布或已下架");
     }
 
-    // If timed and not force, still allow normal submit
-    // If force, verify timer actually expired (or allow for tests with force)
-    if (force) {
-      const limit = await this.readTimeLimitSec(assignment.config_json);
-      if (limit && sub.timer_started_at) {
-        const elapsed =
-          (Date.now() - new Date(sub.timer_started_at).getTime()) / 1000;
-        // allow 2s clock skew
-        if (elapsed < limit - 2) {
-          throw new AppError("TIMER_ACTIVE", "限时尚未结束");
+    const limit = await this.readTimeLimitSec(assignment.config_json);
+    let timedOut = false;
+    if (limit && sub.timer_started_at) {
+      const elapsed =
+        (Date.now() - new Date(sub.timer_started_at).getTime()) / 1000;
+      // allow 2s clock skew
+      timedOut = elapsed >= limit - 2;
+    }
+    // Client force or server-detected timeout both treat incomplete as wrong
+    const force = opts?.force === true || timedOut;
+    if (opts?.force === true && limit && sub.timer_started_at && !timedOut) {
+      throw new AppError("TIMER_ACTIVE", "限时尚未结束");
+    }
+
+    if (!force) {
+      for (const qid of qMap.keys()) {
+        if (
+          !responseMap.has(qid) ||
+          responseMap.get(qid) === "" ||
+          responseMap.get(qid) === null ||
+          responseMap.get(qid) === undefined
+        ) {
+          throw new AppError("INCOMPLETE", "请答完所有题目再提交");
         }
       }
     }
@@ -856,19 +886,21 @@ export class AssignmentService {
     }
     await this.assertStudentCanAccessPublished(sub.assignment_id, studentId);
 
+    // Freeze after submit: only first submit (not_started) or teacher-required resubmit
+    if (sub.status === "submitted") {
+      throw new AppError(
+        "INVALID_STATUS",
+        "已提交，等待老师批改，不能再修改",
+      );
+    }
+    if (sub.status === "completed") {
+      throw new AppError("INVALID_STATUS", "作业已批改完成，不能再提交");
+    }
     if (
       sub.status !== "not_started" &&
-      sub.status !== "resubmit_required" &&
-      sub.status !== "submitted"
+      sub.status !== "resubmit_required"
     ) {
-      // allow re-submit only when not_started, resubmit_required; also allow replace while still submitted (before grade)
-      if (sub.status === "completed") {
-        throw new AppError("INVALID_STATUS", "作业已批改完成，不能再提交");
-      }
-    }
-
-    if (sub.status === "completed") {
-      throw new AppError("INVALID_STATUS", "作业已完成");
+      throw new AppError("INVALID_STATUS", "当前状态不能提交照片");
     }
 
     const urls = photoUrls.map((u) => u.trim()).filter(Boolean);

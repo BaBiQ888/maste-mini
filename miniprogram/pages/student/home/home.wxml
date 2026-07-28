@@ -32,7 +32,7 @@
         </view>
         <view class="t-st">{{item.statusLabel}}</view>
       </view>
-      <view class="t-meta muted">{{item.className}} · {{item.type === 'photo_homework' ? '拍照' : (item.type === 'knowledge_checkin' ? '打卡' : '计算')}}{{item.knowledgeHint || ''}}</view>
+      <view class="t-meta muted">{{item.className}} · {{item.typeLabel}}{{item.knowledgeHint || ''}}</view>
     </view>
   </block>
 

@@ -1,6 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { getCurrentClassId } = require("../../../utils/class-context");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -42,7 +43,7 @@ Page({
         className: found ? found.name : "请选择班级",
       });
     } catch (e) {
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 
@@ -101,7 +102,7 @@ Page({
         });
       }, 400);
     } catch (e) {
-      wx.showToast({ title: e.message || "失败", icon: "none" });
+      showError(e, { fallback: "布置失败，请稍后重试" });
     } finally {
       this.setData({ loading: false });
     }

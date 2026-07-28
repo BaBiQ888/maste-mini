@@ -6,14 +6,18 @@ const {
   routeByUser,
 } = require("../../utils/auth");
 const { request } = require("../../utils/request");
+const { fullUrl } = require("../../utils/media");
+const { showError } = require("../../utils/errors");
 
 Page({
   data: {
     nickname: "",
     avatarUrl: "",
+    displayAvatar: "",
     roleLabel: "",
     loading: false,
-    showStudentTab: false,
+    tabRole: "",
+    badge: 0,
   },
 
   onShow() {
@@ -26,21 +30,92 @@ Page({
       routeByUser(null);
       return;
     }
+    this.applyUser(user);
+    this.loadBadge(user);
+  },
+
+  applyUser(user) {
+    const avatarUrl = user.avatarUrl || "";
     this.setData({
       nickname: user.nickname || "",
-      avatarUrl: user.avatarUrl || "",
+      avatarUrl,
+      displayAvatar: avatarUrl ? fullUrl(avatarUrl) : "",
       roleLabel:
         user.role === "teacher"
           ? "老师"
           : user.role === "student"
             ? "学生"
             : "未选择",
-      showStudentTab: user.role === "student",
+      tabRole: user.role === "teacher" || user.role === "student" ? user.role : "",
     });
   },
 
+  async loadBadge(user) {
+    if (user.role !== "teacher") {
+      this.setData({ badge: 0 });
+      return;
+    }
+    try {
+      const data = await request({ url: "/api/v1/assignments", method: "GET" });
+      this.setData({ badge: data.pendingGrade || 0 });
+    } catch (_) {
+      /* ignore */
+    }
+  },
+
   onNickname(e) {
-    this.setData({ nickname: e.detail.value });
+    this.setData({ nickname: (e.detail.value || "").trim() });
+  },
+
+  async onChooseAvatar(e) {
+    const tempPath = e.detail && e.detail.avatarUrl;
+    if (!tempPath) return;
+    this.setData({ loading: true });
+    try {
+      const url = await this.uploadAvatarFile(tempPath);
+      this.setData({
+        avatarUrl: url,
+        displayAvatar: fullUrl(url),
+        loading: false,
+      });
+      wx.showToast({ title: "头像已选，记得保存", icon: "none" });
+    } catch (err) {
+      this.setData({ loading: false });
+      // Fallback: keep temp path for local preview only
+      this.setData({
+        avatarUrl: tempPath,
+        displayAvatar: tempPath,
+      });
+      showError(err, {
+        tag: "avatar.upload",
+        fallback: "头像上传失败，可先保存其它信息",
+      });
+    }
+  },
+
+  uploadAvatarFile(filePath) {
+    return new Promise((resolve, reject) => {
+      const fs = wx.getFileSystemManager();
+      fs.readFile({
+        filePath,
+        encoding: "base64",
+        success: async (res) => {
+          try {
+            const lower = (filePath || "").toLowerCase();
+            const mime = lower.indexOf(".png") >= 0 ? "image/png" : "image/jpeg";
+            const data = await request({
+              url: "/api/v1/uploads/photo",
+              method: "POST",
+              data: { data: res.data, mime },
+            });
+            resolve(data.url);
+          } catch (e) {
+            reject(e);
+          }
+        },
+        fail: () => reject(new Error("读取头像失败")),
+      });
+    });
   },
 
   async onSave() {
@@ -61,12 +136,27 @@ Page({
       });
       setUser(data.user);
       getApp().setUser(data.user);
+      this.applyUser(data.user);
       wx.showToast({ title: "已保存", icon: "success" });
     } catch (e) {
-      wx.showToast({ title: e.message || "保存失败", icon: "none" });
+      showError(e, { fallback: "保存失败" });
     } finally {
       this.setData({ loading: false });
     }
+  },
+
+  onChangeRole() {
+    wx.showModal({
+      title: "切换身份",
+      content:
+        "将进入身份选择页。切到老师需要开通码；班级与作业数据仍按原账号保留。",
+      confirmText: "去切换",
+      success: (res) => {
+        if (res.confirm) {
+          wx.navigateTo({ url: "/pages/role/role?change=1" });
+        }
+      },
+    });
   },
 
   onLogout() {

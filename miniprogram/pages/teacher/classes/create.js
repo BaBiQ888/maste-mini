@@ -1,6 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { setCurrentClassId } = require("../../../utils/class-context");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -50,7 +51,7 @@ Page({
         });
       }, 400);
     } catch (e) {
-      wx.showToast({ title: e.message || "创建失败", icon: "none" });
+      showError(e, { fallback: "创建失败" });
     } finally {
       this.setData({ loading: false });
     }

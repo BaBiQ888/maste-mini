@@ -1,6 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
-const { STATUS_LABEL } = require("../../../utils/media");
+const { STATUS_LABEL, assignmentTypeLabel } = require("../../../utils/media");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -51,6 +52,7 @@ Page({
           const done = s.submission.status === "completed";
           tasks.push({
             ...a,
+            typeLabel: assignmentTypeLabel(a.type),
             submissionStatus: s.submission.status,
             statusLabel: STATUS_LABEL[s.submission.status] || s.submission.status,
             needDot: !done,
@@ -64,6 +66,7 @@ Page({
               : "";
           tasks.push({
             ...a,
+            typeLabel: assignmentTypeLabel(a.type),
             submissionStatus: "not_started",
             statusLabel: STATUS_LABEL.not_started,
             needDot: true,
@@ -75,7 +78,7 @@ Page({
       this.setData({ classes, tasks, incompleteCount, loading: false });
     } catch (e) {
       this.setData({ loading: false });
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 

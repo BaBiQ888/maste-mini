@@ -1,5 +1,11 @@
 const { getToken, clearAuth } = require("./auth");
 const mockApi = require("./mock-api");
+const {
+  logError,
+  toUserError,
+  mapNetworkFailure,
+  friendlyMessage,
+} = require("./errors");
 
 /** Cloud hosting defaults (override via app.globalData). */
 const CLOUD_DEFAULTS = {
@@ -26,7 +32,6 @@ function getBase() {
 function useMockData() {
   const app = getAppSafe();
   if (app && app.globalData && app.globalData.useMockData === true) return true;
-  // Also allow compile-time default when globalData not ready
   try {
     const g = getApp();
     if (g && g.globalData && g.globalData.useMockData) return true;
@@ -54,70 +59,100 @@ function cloudConfig() {
   };
 }
 
-function handleResponse(res, resolve, reject) {
+/**
+ * Turn HTTP response into a user-safe Error; full payload goes to console only.
+ */
+function handleResponse(res, resolve, reject, meta) {
   const status = res.statusCode;
   const data = res.data;
   const code = Number(status);
+  const path = (meta && meta.path) || "";
+  const method = (meta && meta.method) || "";
+
   if (code === 401) {
     clearAuth();
-    reject(
-      Object.assign(new Error((data && data.message) || "未登录"), {
+    const err = toUserError(
+      { code: "UNAUTHORIZED", statusCode: 401, body: data },
+      {
         code: "UNAUTHORIZED",
         statusCode: 401,
-      }),
+        body: data,
+        rawMessage: (data && data.message) || "未登录",
+        fallback: "登录已过期，请重新登录",
+      },
     );
+    logError("http.401", err, { method, path, status: code, body: data });
+    reject(err);
     return;
   }
+
   if (code >= 200 && code < 300) {
     resolve(data);
     return;
   }
+
   if (
     code === 503 &&
     data &&
     (data.phase === "starting" ||
       data.phase === "connecting_db" ||
-      data.code === "STARTING")
+      data.code === "STARTING" ||
+      data.code === "DB_ERROR")
   ) {
-    reject(
-      Object.assign(new Error("服务启动中，请几秒后再试"), {
-        code: "STARTING",
+    const err = toUserError(
+      { code: data.code || "STARTING", statusCode: 503, body: data },
+      {
+        code: data.code === "DB_ERROR" ? "DB_ERROR" : "STARTING",
         statusCode: 503,
-      }),
+        body: data,
+        rawMessage: (data && data.message) || "服务启动中",
+        fallback:
+          data.code === "DB_ERROR"
+            ? "服务暂时不可用，请稍后重试"
+            : "服务正在启动，请几秒后再试",
+      },
     );
+    logError("http.503", err, { method, path, status: code, body: data });
+    reject(err);
     return;
   }
-  const msg =
+
+  const apiCode = data && data.code;
+  const rawMessage =
     (data && (data.message || data.errmsg || data.error)) ||
     (code === 500 ? "服务器错误" : "请求失败");
-  reject(
-    Object.assign(new Error(msg), {
-      code: data && data.code,
+
+  const err = toUserError(
+    { code: apiCode, statusCode: code, body: data, message: rawMessage },
+    {
+      code: apiCode,
       statusCode: code,
       body: data,
-    }),
+      rawMessage: String(rawMessage),
+      fallback: code >= 500 ? "服务暂时出了点问题，请稍后重试" : "操作失败，请稍后重试",
+    },
   );
+  logError("http.error", err, {
+    method,
+    path,
+    status: code,
+    apiCode,
+    body: data,
+  });
+  reject(err);
 }
 
-function formatNetError(err, via) {
-  const detail = (err && (err.errMsg || err.message || err.errCode)) || "";
-  const text = String(detail);
-  if (text.includes("url not in domain") || text.includes("not in domain list")) {
-    return via === "http"
-      ? "公网域名未加入 request 合法域名。正式请用 callContainer，不要依赖公网"
-      : "云调用失败且公网域名未配置";
-  }
-  if (text.includes("Cloud API isn't enabled")) {
-    return "云能力未就绪，请稍后重试或检查环境 ID";
-  }
-  if (text.includes("env") && (text.includes("not found") || text.includes("invalid"))) {
-    return "云环境 ID 无效，请核对 app.js 的 cloudEnv";
-  }
-  const short = text.replace(/^request:fail\s*/i, "").slice(0, 120);
-  return short || (via === "cloud" ? "云调用失败" : "网络错误");
-}
-
-function httpRequest({ url, method, data, token, resolve, reject, retry, isRetry, cloudFailMsg }) {
+function httpRequest({
+  url,
+  method,
+  data,
+  token,
+  resolve,
+  reject,
+  retry,
+  isRetry,
+  cloudFailMsg,
+}) {
   wx.request({
     url: getBase() + url,
     method,
@@ -127,7 +162,7 @@ function httpRequest({ url, method, data, token, resolve, reject, retry, isRetry
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     success(res) {
-      handleResponse(res, resolve, reject);
+      handleResponse(res, resolve, reject, { path: url, method });
     },
     fail(err) {
       if (retry && !isRetry) {
@@ -148,11 +183,30 @@ function httpRequest({ url, method, data, token, resolve, reject, retry, isRetry
         );
         return;
       }
-      const httpMsg = formatNetError(err, "http");
-      const msg = cloudFailMsg
-        ? `云调用失败：${cloudFailMsg}；回退公网：${httpMsg}`
-        : httpMsg;
-      reject(Object.assign(new Error(msg), err));
+      const mapped = mapNetworkFailure(err, "http");
+      if (cloudFailMsg) {
+        logError("http.fail.afterCloud", err, {
+          method,
+          path: url,
+          cloudFailMsg,
+          raw: err && (err.errMsg || err.message),
+        });
+        // User only sees one clear line; details stay in log
+        const combined = toUserError(err, {
+          code: mapped.code || "NETWORK",
+          statusCode: 0,
+          rawMessage: `cloud:${cloudFailMsg}; http:${mapped.rawMessage || ""}`,
+          fallback: "网络不太稳定，请稍后重试",
+        });
+        reject(combined);
+        return;
+      }
+      logError("http.fail", err, {
+        method,
+        path: url,
+        raw: err && (err.errMsg || err.message),
+      });
+      reject(mapped);
     },
   });
 }
@@ -183,7 +237,13 @@ function callContainerOnce({ path, method, data, token, env, service, cloudApi }
 
     const api = cloudApi || wx.cloud;
     if (!api || typeof api.callContainer !== "function") {
-      reject(new Error("callContainer 不可用"));
+      reject(
+        toUserError(null, {
+          code: "CLOUD",
+          rawMessage: "callContainer 不可用",
+          fallback: "云服务未就绪，请稍后重试",
+        }),
+      );
       return;
     }
     try {
@@ -196,16 +256,22 @@ function callContainerOnce({ path, method, data, token, env, service, cloudApi }
 
 /**
  * Prefer local mock (no network), else callContainer, else public HTTPS.
+ * Rejects always carry friendly .message; full detail is logged.
  */
 function request({ url, method = "GET", data, retry = true }) {
   const token = getToken();
   const path = url.startsWith("/") ? url : `/${url}`;
 
-  // Offline UI demo — no domain / server required
   if (useMockData()) {
     return mockApi.handle(path, method, data).catch((e) => {
-      console.warn("[mock-api]", method, path, e);
-      return Promise.reject(e);
+      const err = toUserError(e, {
+        code: e && e.code,
+        statusCode: e && e.statusCode,
+        rawMessage: e && e.message,
+        fallback: "操作失败，请稍后重试",
+      });
+      logError("mock-api", err, { method, path, raw: e && e.message });
+      return Promise.reject(err);
     });
   }
 
@@ -242,7 +308,8 @@ function request({ url, method = "GET", data, retry = true }) {
         (app && app.globalData && app.globalData.cloud) || wx.cloud;
 
       if (!cloudApi || typeof cloudApi.callContainer !== "function") {
-        doHttp(false, "当前环境不支持 callContainer");
+        logError("cloud.unavailable", null, { env, service, path });
+        doHttp(false, "当前环境不支持云调用");
         return;
       }
 
@@ -256,18 +323,21 @@ function request({ url, method = "GET", data, retry = true }) {
           service,
           cloudApi,
         });
-        handleResponse(res, resolve, reject);
+        handleResponse(res, resolve, reject, { path, method });
       } catch (err) {
-        const cloudMsg = formatNetError(err, "cloud");
-        console.warn("[request] callContainer fail → HTTPS fallback", {
+        const cloudMsg = friendlyMessage(
+          mapNetworkFailure(err, "cloud"),
+          "云调用失败",
+        );
+        logError("cloud.fail", err, {
           env,
           service,
           path,
-          err,
+          method,
+          cloudMsg,
+          raw: err && (err.errMsg || err.message),
         });
-        // HTTPS fallback: works with WECHAT_MOCK=1 (deviceId openid).
-        // Real WeChat needs either callContainer (X-WX-OPENID) or container
-        // outbound jscode2session + request 合法域名.
+        // Fallback HTTPS — still one user-facing path
         doHttp(false, cloudMsg);
       }
     };
@@ -276,4 +346,10 @@ function request({ url, method = "GET", data, retry = true }) {
   });
 }
 
-module.exports = { request, getBase, useCloudCall, useMockData, cloudConfig };
+module.exports = {
+  request,
+  getBase,
+  useCloudCall,
+  useMockData,
+  cloudConfig,
+};

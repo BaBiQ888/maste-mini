@@ -1,5 +1,6 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
+const { showError } = require("../../../utils/errors");
 const {
   getCurrentClassId,
   setCurrentClassId,
@@ -55,7 +56,7 @@ Page({
       });
     } catch (e) {
       this.setData({ loading: false });
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 
@@ -112,7 +113,7 @@ Page({
           wx.showToast({ title: "已刷新", icon: "success" });
         } catch (e) {
           this.setData({ busy: false });
-          wx.showToast({ title: e.message || "刷新失败", icon: "none" });
+          showError(e, { fallback: "刷新失败" });
         }
       },
     });
@@ -139,7 +140,7 @@ Page({
           this.load();
         } catch (e) {
           this.setData({ busy: false });
-          wx.showToast({ title: e.message || "操作失败", icon: "none" });
+          showError(e, { fallback: "操作失败" });
         }
       },
     });
@@ -166,7 +167,7 @@ Page({
           wx.showToast({ title: "已归档", icon: "success" });
         } catch (e) {
           this.setData({ busy: false });
-          wx.showToast({ title: e.message || "归档失败", icon: "none" });
+          showError(e, { fallback: "归档失败" });
         }
       },
     });
@@ -185,7 +186,7 @@ Page({
       })
       .catch((e) => {
         this.setData({ busy: false });
-        wx.showToast({ title: e.message || "恢复失败", icon: "none" });
+        showError(e, { fallback: "恢复失败" });
       });
   },
 
@@ -201,7 +202,7 @@ Page({
       this.setData({ qrDataUrl: data.dataUrl, showQr: true });
     } catch (e) {
       wx.hideLoading();
-      wx.showToast({ title: e.message || "生成失败", icon: "none" });
+      showError(e, { fallback: "生成失败" });
     }
   },
 

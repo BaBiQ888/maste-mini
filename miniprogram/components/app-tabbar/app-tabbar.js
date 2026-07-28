@@ -20,6 +20,11 @@ const TEACHER_TABS = [
     label: "题库",
     url: "/pages/teacher/questions/list",
   },
+  {
+    key: "profile",
+    label: "我的",
+    url: "/pages/profile/profile",
+  },
 ];
 
 const STUDENT_TABS = [

@@ -64,7 +64,9 @@ const boot: BootState = {
 
 function healthPayload() {
   return {
+    /** Process is up (liveness). Use `ready` for full app readiness. */
     ok: true,
+    ready: boot.phase === "ready",
     service: "math-mini",
     codeVersion,
     phase: boot.phase,

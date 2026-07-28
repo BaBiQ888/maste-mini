@@ -7,6 +7,7 @@ const {
   routeByUser,
 } = require("../../utils/auth");
 const { request } = require("../../utils/request");
+const { showError } = require("../../utils/errors");
 
 Page({
   data: {
@@ -38,19 +39,12 @@ Page({
       app.setUser(data.user);
       routeByUser(data.user);
     } catch (e) {
-      const title = (e && e.message) || "登录失败";
-      const code = e && e.code ? String(e.code) : "";
-      console.error("[login]", e);
-      // 长错误用弹窗，避免 toast 截断（如微信 errmsg / 500 详情）
-      if (title.length > 20 || code) {
-        wx.showModal({
-          title: "登录失败",
-          content: code ? `[${code}] ${title}` : title,
-          showCancel: false,
-        });
-      } else {
-        wx.showToast({ title, icon: "none", duration: 3500 });
-      }
+      // Full detail in console; user only sees friendly modal
+      showError(e, {
+        tag: "login",
+        fallback: "登录失败，请稍后重试",
+        modal: true,
+      });
     } finally {
       this.setData({ loading: false });
     }
@@ -63,7 +57,6 @@ Page({
           if (res.code) {
             resolve(res.code);
           } else {
-            // no AppID / tool failure — still send a code; deviceId keeps identity stable
             resolve(`dev_fallback_${Date.now()}`);
           }
         },

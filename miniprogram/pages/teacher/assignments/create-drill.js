@@ -1,6 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { getCurrentClassId } = require("../../../utils/class-context");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -35,6 +36,7 @@ Page({
     selectedManualCount: 0,
     loading: false,
     genBusy: false,
+    showAdvanced: false,
   },
 
   onShow() {
@@ -70,7 +72,7 @@ Page({
       });
       await this.loadOps(grade);
     } catch (e) {
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 
@@ -88,6 +90,10 @@ Page({
       preview: [],
       seed: null,
     });
+    // Auto preview so teacher can publish with one more tap
+    if (first) {
+      await this.regenerate({ silent: true });
+    }
   },
 
   pickClass() {
@@ -117,7 +123,7 @@ Page({
     }
     wx.showActionSheet({
       itemList: this.data.operations.map((o) => o.name),
-      success: (res) => {
+      success: async (res) => {
         const o = this.data.operations[res.tapIndex];
         this.setData({
           operationId: o.id,
@@ -125,16 +131,25 @@ Page({
           preview: [],
           seed: null,
         });
+        await this.regenerate({ silent: true });
       },
     });
   },
 
   pickCount(e) {
-    this.setData({ count: Number(e.currentTarget.dataset.n), preview: [] });
+    this.setData({ count: Number(e.currentTarget.dataset.n), preview: [] }, () => {
+      this.regenerate({ silent: true });
+    });
   },
 
   pickDiff(e) {
-    this.setData({ difficulty: e.currentTarget.dataset.id, preview: [] });
+    this.setData({ difficulty: e.currentTarget.dataset.id, preview: [] }, () => {
+      this.regenerate({ silent: true });
+    });
+  },
+
+  toggleAdvanced() {
+    this.setData({ showAdvanced: !this.data.showAdvanced });
   },
 
   pickTime(e) {
@@ -156,9 +171,10 @@ Page({
     });
   },
 
-  async regenerate() {
+  async regenerate(opts) {
+    const silent = opts && opts.silent;
     if (!this.data.operationId) {
-      wx.showToast({ title: "请选择运算", icon: "none" });
+      if (!silent) wx.showToast({ title: "请选择运算", icon: "none" });
       return;
     }
     this.setData({ genBusy: true });
@@ -177,10 +193,14 @@ Page({
         seed: data.seed,
         genBusy: false,
       });
-      wx.showToast({ title: `已生成 ${data.questions.length} 题`, icon: "none" });
+      if (!silent) {
+        wx.showToast({ title: `已生成 ${data.questions.length} 题`, icon: "none" });
+      }
     } catch (e) {
       this.setData({ genBusy: false });
-      wx.showToast({ title: e.message || "生成失败", icon: "none" });
+      if (!silent) {
+        showError(e, { fallback: "生成失败" });
+      }
     }
   },
 
@@ -239,7 +259,7 @@ Page({
         });
       }, 400);
     } catch (e) {
-      wx.showToast({ title: e.message || "失败", icon: "none" });
+      showError(e, { fallback: "布置失败，请稍后重试" });
     } finally {
       this.setData({ loading: false });
     }

@@ -1,7 +1,8 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { getCurrentClassId } = require("../../../utils/class-context");
-const { STATUS_LABEL } = require("../../../utils/media");
+const { STATUS_LABEL, assignmentTypeLabel } = require("../../../utils/media");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -46,7 +47,7 @@ Page({
       await this.load();
     } catch (e) {
       this.setData({ loading: false });
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 
@@ -58,13 +59,16 @@ Page({
         method: "GET",
       });
       this.setData({
-        assignments: data.assignments || [],
+        assignments: (data.assignments || []).map((a) => ({
+          ...a,
+          typeLabel: assignmentTypeLabel(a.type),
+        })),
         pendingGrade: data.pendingGrade || 0,
         loading: false,
       });
     } catch (e) {
       this.setData({ loading: false });
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 

@@ -11,7 +11,23 @@
   margin-bottom: 36rpx;
 }
 
-.avatar {
+.avatar-btn {
+  padding: 0;
+  margin: 0;
+  width: 112rpx;
+  height: 112rpx;
+  border-radius: 50%;
+  overflow: hidden;
+  background: transparent;
+  border: none;
+  line-height: normal;
+  flex-shrink: 0;
+}
+.avatar-btn::after {
+  border: none;
+}
+.avatar,
+.avatar-img {
   width: 112rpx;
   height: 112rpx;
   border-radius: 50%;
@@ -23,6 +39,10 @@
   font-size: 40rpx;
   font-weight: 600;
   color: var(--ink-muted);
+  box-sizing: border-box;
+}
+.avatar-img {
+  display: block;
 }
 
 .name {
@@ -60,4 +80,9 @@
 .placeholder {
   color: var(--ink-faint);
   font-size: 28rpx;
+}
+
+.danger {
+  color: #a63d3d;
+  margin-top: 8rpx;
 }

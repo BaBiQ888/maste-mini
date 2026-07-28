@@ -16,6 +16,37 @@ export function normalizeText(input: string): string {
     .replace(/\s+/g, "");
 }
 
+/**
+ * Parse simple numeric / fraction strings for fill-blank math equivalence.
+ * Supports integers, decimals, and a/b fractions (e.g. 1/2, -3/4).
+ */
+export function parseMathNumber(input: string): number | null {
+  const s = normalizeText(input);
+  if (!s) return null;
+  const frac = s.match(/^(-?\d+)\/(\d+)$/);
+  if (frac) {
+    const den = Number(frac[2]);
+    if (!den) return null;
+    return Number(frac[1]) / den;
+  }
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** True when strings are equal after normalize, or represent the same number. */
+export function answersMatch(expected: string, actual: string): boolean {
+  const a = normalizeText(expected);
+  const b = normalizeText(actual);
+  if (a === b) return true;
+  const na = parseMathNumber(a);
+  const nb = parseMathNumber(b);
+  if (na != null && nb != null) {
+    return Math.abs(na - nb) < 1e-9;
+  }
+  return false;
+}
+
 export function normalizeResponse(
   type: QuestionType,
   response: unknown,
@@ -58,10 +89,10 @@ export function gradeOne(
     };
   }
 
-  // fill_blank
+  // fill_blank — string normalize + simple math equivalence (1/2 ≡ 0.5)
   const expected = normalizeText(String(snapshot.answer));
   return {
-    correct: String(normalized) === expected,
+    correct: answersMatch(expected, String(normalized)),
     normalized,
   };
 }

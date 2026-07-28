@@ -1,6 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { fullUrl, STATUS_LABEL, RESULT_LABEL } = require("../../../utils/media");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -82,7 +83,7 @@ Page({
       });
     } catch (e) {
       this.setData({ loading: false });
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 
@@ -96,7 +97,7 @@ Page({
       wx.showToast({ title: "已发布", icon: "success" });
       this.load();
     } catch (e) {
-      wx.showToast({ title: e.message || "失败", icon: "none" });
+      showError(e, { fallback: "操作失败，请稍后重试" });
     }
   },
 
@@ -115,7 +116,7 @@ Page({
           this.setData({ assignment: data.assignment });
           wx.showToast({ title: "已下架", icon: "success" });
         } catch (e) {
-          wx.showToast({ title: e.message || "失败", icon: "none" });
+          showError(e, { fallback: "操作失败，请稍后重试" });
         }
       },
     });
@@ -134,7 +135,7 @@ Page({
         });
       }, 400);
     } catch (e) {
-      wx.showToast({ title: e.message || "复制失败", icon: "none" });
+      showError(e, { fallback: "复制失败" });
     }
   },
 
@@ -150,7 +151,7 @@ Page({
           wx.showToast({ title: "催交文案已复制", icon: "success" }),
       });
     } catch (e) {
-      wx.showToast({ title: e.message || "复制失败", icon: "none" });
+      showError(e, { fallback: "复制失败" });
     }
   },
 

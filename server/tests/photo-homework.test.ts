@@ -242,7 +242,7 @@ describe("Photo homework", () => {
     expect(teacherList.assignments[0].status).toBe("revoked");
   });
 
-  it("rejects empty photos and completed resubmit", async () => {
+  it("rejects empty photos, freeze after submit, and completed resubmit", async () => {
     const { teacher, student, asg } = await setupClassAndPublish(true);
     const mine = await (
       await app.request(`/api/v1/assignments/${asg.id}/my-submission`, {
@@ -271,6 +271,20 @@ describe("Photo homework", () => {
       headers: auth(student.token),
       body: JSON.stringify({ photoUrls: [up.url] }),
     });
+
+    // submitted is frozen — cannot replace until teacher requires resubmit
+    const whilePending = await app.request(
+      `/api/v1/submissions/${mine.submission.id}/photos`,
+      {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ photoUrls: [up.url] }),
+      },
+    );
+    expect(whilePending.status).toBe(400);
+    const pendingBody = await whilePending.json();
+    expect(pendingBody.code).toBe("INVALID_STATUS");
+
     await app.request(`/api/v1/submissions/${mine.submission.id}/grade`, {
       method: "POST",
       headers: auth(teacher.token),
@@ -285,5 +299,30 @@ describe("Photo homework", () => {
       },
     );
     expect(again.status).toBe(400);
+  });
+
+  it("serves uploaded photo only with session token", async () => {
+    const { student } = await setupClassAndPublish(true);
+    const up = await (
+      await app.request("/api/v1/uploads/photo", {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ data: TINY_JPEG_B64, mime: "image/jpeg" }),
+      })
+    ).json();
+    expect(up.url).toMatch(/^\/uploads\//);
+
+    const anon = await app.request(up.url);
+    expect(anon.status).toBe(401);
+
+    const withQuery = await app.request(
+      `${up.url}?access_token=${encodeURIComponent(student.token)}`,
+    );
+    expect(withQuery.status).toBe(200);
+
+    const withBearer = await app.request(up.url, {
+      headers: { Authorization: `Bearer ${student.token}` },
+    });
+    expect(withBearer.status).toBe(200);
   });
 });

@@ -1,5 +1,6 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
+const { showError } = require("../../../utils/errors");
 const {
   chooseAndUpload,
   fullUrl,
@@ -50,10 +51,10 @@ Page({
       ]);
       const submission = s.submission;
       const localUrls = (submission.photos || []).map((p) => p.url);
+      // Freeze after submit — only first attempt or teacher-required resubmit
       const canEdit =
         submission.status === "not_started" ||
-        submission.status === "resubmit_required" ||
-        submission.status === "submitted";
+        submission.status === "resubmit_required";
       this.setData({
         assignment: a.assignment,
         submission,
@@ -64,7 +65,7 @@ Page({
       });
     } catch (e) {
       this.setData({ loading: false });
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 
@@ -90,7 +91,7 @@ Page({
       });
     } catch (e) {
       this.setData({ busy: false });
-      wx.showToast({ title: e.message || "上传失败", icon: "none" });
+      showError(e, { fallback: "上传失败" });
     }
   },
 
@@ -133,14 +134,13 @@ Page({
         displayUrls: localUrls.map(fullUrl),
         canEdit:
           submission.status === "not_started" ||
-          submission.status === "resubmit_required" ||
-          submission.status === "submitted",
+          submission.status === "resubmit_required",
         busy: false,
       });
       wx.showToast({ title: "已提交", icon: "success" });
     } catch (e) {
       this.setData({ busy: false });
-      wx.showToast({ title: e.message || "提交失败", icon: "none" });
+      showError(e, { fallback: "提交失败" });
     }
   },
 });

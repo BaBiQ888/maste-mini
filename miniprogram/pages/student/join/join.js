@@ -1,5 +1,6 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -66,7 +67,7 @@ Page({
         });
       }, 400);
     } catch (e) {
-      wx.showToast({ title: e.message || "加入失败", icon: "none" });
+      showError(e, { fallback: "加入失败" });
     } finally {
       this.setData({ loading: false });
     }

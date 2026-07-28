@@ -55,13 +55,13 @@
     <block wx:if="{{item.isTf}}">
       <view class="chips">
         <view
-          class="chip {{item.responseText === 'true' ? 'on' : ''}}"
+          class="chip {{item.responseText === 'true' ? 'on' : ''}} {{mode === 'result' || (mode === 'correct' && item.isCorrect !== false) ? 'disabled' : ''}}"
           data-index="{{index}}"
           data-v="1"
           bindtap="pickTf"
         >正确</view>
         <view
-          class="chip {{item.responseText === 'false' ? 'on' : ''}}"
+          class="chip {{item.responseText === 'false' ? 'on' : ''}} {{mode === 'result' || (mode === 'correct' && item.isCorrect !== false) ? 'disabled' : ''}}"
           data-index="{{index}}"
           data-v="0"
           bindtap="pickTf"

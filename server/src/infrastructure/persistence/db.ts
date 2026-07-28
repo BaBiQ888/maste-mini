@@ -5,6 +5,7 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import mysql from "mysql2/promise";
 import type {
   Pool,
@@ -12,6 +13,13 @@ import type {
   RowDataPacket,
   ResultSetHeader,
 } from "mysql2/promise";
+
+/**
+ * Per-async-context MySQL connection for transactions.
+ * Module-level stack was shared across concurrent requests and could
+ * route queries onto the wrong connection under load.
+ */
+const mysqlTxAls = new AsyncLocalStorage<PoolConnection>();
 
 export type UserRole = "teacher" | "student";
 
@@ -193,8 +201,6 @@ async function migrateSqlite(db: AppDatabase): Promise<void> {
 
 // ─── MySQL (async only) ─────────────────────────────────────────────────────
 
-const txStack: PoolConnection[] = [];
-
 /** Network / idle-drop errors common on cloud MySQL — safe to retry. */
 function isTransientMysqlError(err: unknown): boolean {
   const e = err as { code?: string; errno?: number; message?: string };
@@ -296,7 +302,7 @@ async function openMysqlDatabase(
 }
 
 function createMysqlAppDatabase(pool: Pool): AppDatabase {
-  const runner = () => txStack[txStack.length - 1] ?? pool;
+  const runner = () => mysqlTxAls.getStore() ?? pool;
 
   return {
     async get<T>(sql: string, ...params: unknown[]) {
@@ -332,14 +338,14 @@ function createMysqlAppDatabase(pool: Pool): AppDatabase {
       });
     },
     async transaction<T>(fn: () => Promise<T>) {
-      if (txStack.length > 0) return fn();
+      // Nested: reuse the same connection bound to this async context
+      if (mysqlTxAls.getStore()) return fn();
       return withMysqlRetry("transaction", async () => {
         const connection = await pool.getConnection();
         try {
           await connection.beginTransaction();
-          txStack.push(connection);
           try {
-            const result = await fn();
+            const result = await mysqlTxAls.run(connection, fn);
             await connection.commit();
             return result;
           } catch (e) {
@@ -349,8 +355,6 @@ function createMysqlAppDatabase(pool: Pool): AppDatabase {
               /* ignore rollback errors on dead connection */
             }
             throw e;
-          } finally {
-            txStack.pop();
           }
         } finally {
           connection.release();

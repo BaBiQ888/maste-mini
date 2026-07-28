@@ -91,6 +91,7 @@ export function createApp(
   app.get("/health", (c) =>
     c.json({
       ok: true,
+      ready: true,
       service: "math-mini",
       codeVersion,
       dbDriver,
@@ -113,6 +114,22 @@ export function createApp(
     }),
   );
 
+  /** Uploads require session: Bearer or ?access_token= (for <image src>) */
+  app.use("/uploads/*", async (c, next) => {
+    const token =
+      bearer(c.req.header("Authorization")) ||
+      c.req.query("access_token") ||
+      null;
+    const user = await identity.getUserByToken(token);
+    if (!user) {
+      return c.json(
+        { code: "UNAUTHORIZED", message: "未登录或会话已过期" },
+        401,
+      );
+    }
+    await next();
+  });
+
   app.use(
     "/uploads/*",
     serveStatic({
@@ -120,6 +137,11 @@ export function createApp(
       rewriteRequestPath: (p) => p.replace(/^\/uploads/, "/uploads"),
     }),
   );
+
+  app.onError((err, c) => {
+    console.error("[onError]", err);
+    return handleError(c, err);
+  });
 
   app.post("/api/v1/auth/wechat", async (c) => {
     try {
@@ -895,11 +917,65 @@ function bearer(header: string | undefined): string | null {
   return m?.[1]?.trim() || null;
 }
 
+/** Map Zod issues to short Chinese; keep technical text only in logs. */
+function friendlyZodMessage(
+  issue: z.ZodIssue | undefined,
+): string {
+  if (!issue) return "填写内容有误，请检查后重试";
+  const path = issue.path.join(".");
+  if (path === "photoUrls" || path.includes("photo")) {
+    return "请至少上传 1 张照片";
+  }
+  if (path === "answers") {
+    return "请检查作答内容";
+  }
+  if (path === "inviteCode") {
+    return "请填写有效的邀请码";
+  }
+  if (path === "title" || path === "name" || path === "nickname") {
+    return "请填写名称";
+  }
+  if (path === "classId") {
+    return "请选择班级";
+  }
+  if (path === "teacherCode") {
+    return "请填写教师开通码";
+  }
+  if (issue.code === "too_small") {
+    return "填写内容不完整，请检查后重试";
+  }
+  if (issue.code === "too_big") {
+    return "内容过长，请精简后重试";
+  }
+  if (issue.code === "invalid_type" || issue.code === "invalid_enum_value") {
+    return "填写格式不正确，请检查后重试";
+  }
+  // Prefer short CJK messages if schema already customized them
+  const msg = issue.message || "";
+  if (/[\u4e00-\u9fff]/.test(msg) && msg.length <= 40) {
+    return msg;
+  }
+  return "填写内容有误，请检查后重试";
+}
+
 function handleError(
-  c: { json: (b: unknown, s?: number) => Response },
+  c: {
+    json: (b: unknown, s?: number) => Response;
+    req?: { method?: string; path?: string };
+  },
   e: unknown,
 ) {
+  const method = c.req?.method;
+  const path = c.req?.path;
+
   if (e instanceof AppError) {
+    console.warn("[AppError]", {
+      method,
+      path,
+      code: e.code,
+      status: e.status,
+      message: e.message,
+    });
     return c.json({ code: e.code, message: e.message }, e.status);
   }
   if (e instanceof AuthError || isAuthError(e)) {
@@ -910,27 +986,48 @@ function handleError(
         : err.code === "UNAUTHORIZED"
           ? 401
           : 400;
+    // Log technical detail server-side only — never expose to clients
+    console.warn("[AuthError]", {
+      method,
+      path,
+      code: err.code,
+      status,
+      message: err.message,
+      detail: err.detail ?? undefined,
+    });
     return c.json(
       {
         code: err.code,
         message: err.message,
-        detail: err.detail ?? undefined,
       },
       status,
     );
   }
   if (e instanceof z.ZodError) {
+    const first = e.errors[0];
+    console.warn("[Validation]", {
+      method,
+      path,
+      issues: e.errors.slice(0, 5),
+    });
     return c.json(
-      { code: "VALIDATION", message: e.errors[0]?.message || "参数错误" },
+      {
+        code: "VALIDATION",
+        message: friendlyZodMessage(first),
+      },
       400,
     );
   }
-  console.error("[INTERNAL]", e);
-  const msg = e instanceof Error ? e.message : "服务器错误";
+  const raw =
+    e instanceof Error
+      ? { name: e.name, message: e.message, stack: e.stack }
+      : { value: String(e) };
+  console.error("[INTERNAL]", { method, path, ...raw });
+  // Never leak raw exception messages to clients
   return c.json(
     {
       code: "INTERNAL",
-      message: msg || "服务器错误",
+      message: "服务暂时出了点问题，请稍后重试",
     },
     500,
   );

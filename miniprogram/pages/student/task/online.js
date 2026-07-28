@@ -1,6 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { STATUS_LABEL } = require("../../../utils/media");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -69,7 +70,7 @@ Page({
       this.setupTimer(s.submission);
     } catch (e) {
       this.setData({ loading: false });
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 
@@ -238,7 +239,7 @@ Page({
       this.applySubmission(this.data.assignment, data.submission);
       wx.showToast({ title: "草稿已保存", icon: "success" });
     } catch (e) {
-      wx.showToast({ title: e.message || "保存失败", icon: "none" });
+      showError(e, { fallback: "保存失败" });
     } finally {
       this.setData({ busy: false });
     }
@@ -249,28 +250,44 @@ Page({
     const total = this.data.items.length;
     const answered = this.countAnswered(this.data.items, "answer");
     const blank = total - answered;
-    const content =
-      blank > 0
-        ? `还有 ${blank} 题未作答，确定交卷吗？`
-        : "交卷后将自动批改，确定提交吗？";
+    // Server rejects incomplete papers unless timer has expired (force/auto).
+    // Do not open a confirm that would 400 on /answers.
+    if (blank > 0) {
+      const timedOut =
+        this.data.timeRemainingSec != null && this.data.timeRemainingSec <= 0;
+      if (!timedOut) {
+        wx.showToast({
+          title: `还有 ${blank} 题未作答，请先完成`,
+          icon: "none",
+        });
+        return;
+      }
+      // Time already up — force-submit partial
+      this.doSubmitAll({ force: true });
+      return;
+    }
     wx.showModal({
       title: "确认交卷",
-      content,
+      content: "交卷后将自动批改，确定提交吗？",
       confirmText: "交卷",
       success: (res) => {
-        if (res.confirm) this.doSubmitAll();
+        if (res.confirm) this.doSubmitAll({ force: false });
       },
     });
   },
 
-  async doSubmitAll() {
+  async doSubmitAll(opts) {
     if (this.data.busy) return;
+    const force = !!(opts && opts.force);
     this.setData({ busy: true });
     try {
       const data = await request({
         url: `/api/v1/submissions/${this.data.submission.id}/answers`,
         method: "POST",
-        data: { answers: this.collectAnswers(false) },
+        data: {
+          answers: this.collectAnswers(false),
+          force: force || undefined,
+        },
       });
       this.clearTimer();
       this.applySubmission(this.data.assignment, data.submission);
@@ -282,7 +299,7 @@ Page({
         icon: "none",
       });
     } catch (e) {
-      wx.showToast({ title: e.message || "提交失败", icon: "none" });
+      showError(e, { fallback: "提交失败" });
     } finally {
       this.setData({ busy: false });
     }
@@ -301,22 +318,31 @@ Page({
     this._autoSubmitted = true;
     this.setData({ busy: true });
     try {
-      // save draft first so server has partial answers
-      await request({
-        url: `/api/v1/submissions/${this.data.submission.id}/draft`,
-        method: "PUT",
-        data: { answers: this.collectAnswers(false) },
-      });
+      // Single force submit with current answers (server merges + grades).
+      // Avoid draft-then-answers race when server already auto-forced.
       const data = await request({
         url: `/api/v1/submissions/${this.data.submission.id}/answers`,
         method: "POST",
-        data: { answers: this.collectAnswers(false), force: true },
+        data: {
+          answers: this.collectAnswers(false),
+          force: true,
+        },
       });
       this.applySubmission(this.data.assignment, data.submission);
       wx.showToast({ title: "时间到，已自动交卷", icon: "none" });
     } catch (e) {
+      // Concurrent server auto-force already closed the paper
+      if (e && e.code === "INVALID_STATUS") {
+        try {
+          await this.load();
+          wx.showToast({ title: "时间到，已自动交卷", icon: "none" });
+          return;
+        } catch (_) {
+          /* fall through */
+        }
+      }
       this._autoSubmitted = false;
-      wx.showToast({ title: e.message || "自动交卷失败", icon: "none" });
+      showError(e, { fallback: "自动交卷失败" });
     } finally {
       this.setData({ busy: false });
     }
@@ -338,7 +364,7 @@ Page({
         icon: "none",
       });
     } catch (e) {
-      wx.showToast({ title: e.message || "订正失败", icon: "none" });
+      showError(e, { fallback: "订正失败" });
     } finally {
       this.setData({ busy: false });
     }

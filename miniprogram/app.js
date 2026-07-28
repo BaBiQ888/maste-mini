@@ -5,10 +5,11 @@ App({
   globalData: {
     user: null,
     /**
-     * true = 本地 mock 数据，不请求服务端（解决域名/网络问题，便于体验交互）
-     * 正式接云托管时改 false
+     * true = 本地 mock，不请求服务端（纯 UI 演示）
+     * 默认 false：走云托管 / HTTPS，避免假绿与双轨分叉
+     * 临时演示可在开发者工具 Console: getApp().globalData.useMockData = true
      */
-    useMockData: true,
+    useMockData: false,
     /** 本地调试 / callContainer 失败时的公网回退 */
     apiBase: "https://express-gy84-287111-10-1458458765.sh.run.tcloudbase.com",
     /**

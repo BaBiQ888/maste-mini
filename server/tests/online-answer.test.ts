@@ -89,6 +89,22 @@ describe("auto grade helpers", () => {
       ).correct,
     ).toBe(false);
   });
+
+  it("accepts math-equivalent fill blanks", () => {
+    const snap = {
+      type: "fill_blank" as const,
+      stem: "1/2=",
+      options: null,
+      answer: "1/2",
+      explanation: null,
+      knowledgeNodeId: null,
+      source: "manual" as const,
+    };
+    expect(gradeOne(snap, "0.5").correct).toBe(true);
+    expect(gradeOne(snap, "0.50").correct).toBe(true);
+    expect(gradeOne({ ...snap, answer: "0.5" }, "1/2").correct).toBe(true);
+    expect(gradeOne(snap, "1/3").correct).toBe(false);
+  });
 });
 
 describe("Online answer + correction", () => {
@@ -279,5 +295,28 @@ describe("Online answer + correction", () => {
         x.assignmentQuestionId === aqIds[0],
     );
     expect(a0.response).toBe("7");
+  });
+
+  it("rejects incomplete submit without force", async () => {
+    const { student, asg, aqIds } = await setupPaper();
+    const mine = await (
+      await app.request(`/api/v1/assignments/${asg.id}/my-submission`, {
+        headers: auth(student.token),
+      })
+    ).json();
+
+    const res = await app.request(
+      `/api/v1/submissions/${mine.submission.id}/answers`,
+      {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({
+          answers: [{ assignmentQuestionId: aqIds[0], response: "7" }],
+        }),
+      },
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("INCOMPLETE");
   });
 });

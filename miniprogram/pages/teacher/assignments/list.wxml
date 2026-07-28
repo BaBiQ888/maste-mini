@@ -23,7 +23,7 @@
         <view class="name">{{item.title}}</view>
         <view class="st">{{statusLabels[item.status]}}</view>
       </view>
-      <view class="meta muted">{{item.className}} · {{item.type === 'photo_homework' ? '拍照' : (item.type === 'knowledge_checkin' ? '打卡' : '计算')}}{{item.questionCount ? ' · ' + item.questionCount + ' 题' : ''}}</view>
+      <view class="meta muted">{{item.className}} · {{item.typeLabel}}{{item.questionCount ? ' · ' + item.questionCount + ' 题' : ''}}</view>
     </view>
   </block>
 

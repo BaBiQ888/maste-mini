@@ -93,6 +93,10 @@
   color: var(--accent);
   font-weight: 600;
 }
+.opt.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
 .chips { display: flex; gap: 12rpx; }
 .chip {
   padding: 14rpx 28rpx;
@@ -107,6 +111,14 @@
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
+}
+.chip.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.input[disabled] {
+  opacity: 0.55;
+  color: var(--ink-muted);
 }
 .key {
   margin-top: 12rpx;

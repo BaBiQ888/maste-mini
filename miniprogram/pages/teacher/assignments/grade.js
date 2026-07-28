@@ -1,6 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { fullUrl, RESULT_LABEL } = require("../../../utils/media");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -68,7 +69,7 @@ Page({
         ),
       });
     } catch (e) {
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 
@@ -115,7 +116,7 @@ Page({
       wx.showToast({ title: "已保存", icon: "success" });
       setTimeout(() => wx.navigateBack(), 400);
     } catch (e) {
-      wx.showToast({ title: e.message || "批改失败", icon: "none" });
+      showError(e, { fallback: "批改失败" });
     } finally {
       this.setData({ loading: false });
     }

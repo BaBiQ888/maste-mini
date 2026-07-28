@@ -172,7 +172,7 @@ export class IdentityService {
       nickname?: string;
       avatarUrl?: string;
       role?: UserRole;
-      /** Required when first selecting role=teacher */
+      /** Required when selecting / switching to role=teacher */
       teacherCode?: string;
     },
   ): Promise<PublicUser> {
@@ -183,31 +183,30 @@ export class IdentityService {
 
     let role = current.role;
     if (patch.role !== undefined) {
-      if (current.role && current.role !== patch.role) {
-        throw new AuthError("ROLE_LOCKED", "身份已选定，不可更改");
-      }
       if (patch.role !== "teacher" && patch.role !== "student") {
         throw new AuthError("INVALID_ROLE", "身份只能是 teacher 或 student");
       }
 
-      // First-time teacher selection requires access code
-      if (patch.role === "teacher" && !current.role) {
-        const provided = (patch.teacherCode || "").trim();
-        if (!provided) {
-          throw new AuthError(
-            "TEACHER_CODE_REQUIRED",
-            "选择老师身份需要填写教师开通码",
-          );
+      // Allow first-time set and later switch (e.g. selected wrong role).
+      // Becoming teacher always requires access code (first time or switch).
+      if (patch.role !== current.role) {
+        if (patch.role === "teacher") {
+          const provided = (patch.teacherCode || "").trim();
+          if (!provided) {
+            throw new AuthError(
+              "TEACHER_CODE_REQUIRED",
+              "选择老师身份需要填写教师开通码",
+            );
+          }
+          if (provided !== this.teacherAccessCode) {
+            throw new AuthError(
+              "TEACHER_CODE_INVALID",
+              "教师开通码不正确",
+            );
+          }
         }
-        if (provided !== this.teacherAccessCode) {
-          throw new AuthError(
-            "TEACHER_CODE_INVALID",
-            "教师开通码不正确",
-          );
-        }
+        role = patch.role;
       }
-
-      role = patch.role;
     }
 
     const nickname =

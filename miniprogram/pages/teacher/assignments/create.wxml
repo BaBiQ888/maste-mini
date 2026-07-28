@@ -1,27 +1,30 @@
 <view class="page">
-  <view class="intro muted">先选类型，再填写详情。都可先存草稿再发布。</view>
+  <view class="intro muted">约 1 分钟完成 · 选类型后直接填表并发布</view>
+
+  <view class="type-card recommend" bindtap="goDrill">
+    <view class="type-row">
+      <view class="type-badge">推荐</view>
+      <view class="type-eta muted">最快</view>
+    </view>
+    <view class="type-title">每日计算</view>
+    <view class="type-desc">按运算自动出题 · 限时可强交 · 自动批改</view>
+  </view>
 
   <view class="type-card" bindtap="goPhoto">
     <view class="type-badge">拍照</view>
     <view class="type-title">拍照作业</view>
-    <view class="type-desc">学生拍练习册 / 纸质作业，老师批改</view>
-  </view>
-
-  <view class="type-card" bindtap="goDrill">
-    <view class="type-badge">计算</view>
-    <view class="type-title">每日计算</view>
-    <view class="type-desc">按运算规则生成口算题，限时可交卷</view>
+    <view class="type-desc">学生拍练习册，老师在线批改</view>
   </view>
 
   <view class="type-card" bindtap="goCheckin">
     <view class="type-badge">打卡</view>
     <view class="type-title">知识点打卡</view>
-    <view class="type-desc">选定知识点与题目，巩固当日要点</view>
+    <view class="type-desc">挂知识点 + 题目，巩固当日要点</view>
   </view>
 
   <view class="type-card" bindtap="goOnline">
-    <view class="type-badge faint">在线</view>
+    <view class="type-badge faint">选题</view>
     <view class="type-title">在线选题</view>
-    <view class="type-desc">从题库选题布置，自动批改与订正</view>
+    <view class="type-desc">从题库挑题布置，自动批改与订正</view>
   </view>
 </view>

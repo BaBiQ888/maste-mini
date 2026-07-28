@@ -1,5 +1,6 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
+const { showError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -55,7 +56,7 @@ Page({
       });
     } catch (e) {
       this.setData({ loading: false });
-      wx.showToast({ title: e.message || "加载失败", icon: "none" });
+      showError(e, { fallback: "加载失败" });
     }
   },
 

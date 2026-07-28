@@ -18,8 +18,24 @@
   margin-bottom: 20rpx;
 }
 
+.type-card.recommend {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .type-card:active {
-  background: var(--paper-deep);
+  opacity: 0.92;
+}
+
+.type-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.type-eta {
+  font-size: 22rpx;
 }
 
 .type-badge {
@@ -27,9 +43,14 @@
   font-size: 22rpx;
   font-weight: 600;
   color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--white);
   padding: 4rpx 14rpx;
   border-radius: 999rpx;
+  margin-bottom: 0;
+}
+
+.type-card:not(.recommend) .type-badge {
+  background: var(--accent-soft);
   margin-bottom: 12rpx;
 }
 

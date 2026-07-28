@@ -209,4 +209,145 @@ describe("Phase 11", () => {
       forced.submission.status,
     );
   });
+
+  it("draft then expired keeps answers when force-submitting", async () => {
+    const teacher = await loginAs(app, "p11t5", "teacher", "孙老师");
+    const student = await loginAs(app, "p11s5", "student", "小刚");
+    const gen = await (
+      await app.request("/api/v1/questions/generate", {
+        method: "POST",
+        headers: auth(teacher.token),
+        body: JSON.stringify({
+          operationId: "int_mul_table",
+          count: 2,
+          seed: 3,
+        }),
+      })
+    ).json();
+    const cls = await (
+      await app.request("/api/v1/classes", {
+        method: "POST",
+        headers: auth(teacher.token),
+        body: JSON.stringify({ name: "草稿到期班", grade: 3 }),
+      })
+    ).json();
+    await app.request("/api/v1/classes/join", {
+      method: "POST",
+      headers: auth(student.token),
+      body: JSON.stringify({ inviteCode: cls.class.inviteCode }),
+    });
+    const asg = await (
+      await app.request("/api/v1/assignments", {
+        method: "POST",
+        headers: auth(teacher.token),
+        body: JSON.stringify({
+          classId: cls.class.id,
+          type: "daily_drill",
+          title: "草稿到期",
+          publish: true,
+          generatedSnapshots: gen.questions,
+          config: { timeLimitSec: 60 },
+        }),
+      })
+    ).json();
+
+    const mine = await (
+      await app.request(
+        `/api/v1/assignments/${asg.assignment.id}/my-submission`,
+        { headers: auth(student.token) },
+      )
+    ).json();
+    const qid = mine.submission.answers[0].assignmentQuestionId as string;
+    const answer = String(gen.questions[0].answer);
+
+    // Backdate timer, then save draft with one answer — must grade with that answer
+    await db.run(
+      `UPDATE submissions SET timer_started_at = ? WHERE id = ?`,
+      new Date(Date.now() - 120_000).toISOString(),
+      mine.submission.id,
+    );
+
+    const drafted = await (
+      await app.request(`/api/v1/submissions/${mine.submission.id}/draft`, {
+        method: "PUT",
+        headers: auth(student.token),
+        body: JSON.stringify({
+          answers: [{ assignmentQuestionId: qid, response: answer }],
+        }),
+      })
+    ).json();
+    expect(["completed", "pending_correction"]).toContain(
+      drafted.submission.status,
+    );
+    const kept = drafted.submission.answers.find(
+      (a: { assignmentQuestionId: string }) => a.assignmentQuestionId === qid,
+    );
+    expect(kept.response).toBe(answer);
+    expect(kept.isCorrect).toBe(true);
+  });
+
+  it("auto force-submits on reopen when timer already expired", async () => {
+    const teacher = await loginAs(app, "p11t4", "teacher", "钱老师");
+    const student = await loginAs(app, "p11s4", "student", "小红");
+    const gen = await (
+      await app.request("/api/v1/questions/generate", {
+        method: "POST",
+        headers: auth(teacher.token),
+        body: JSON.stringify({
+          operationId: "int_mul_table",
+          count: 2,
+          seed: 2,
+        }),
+      })
+    ).json();
+    const cls = await (
+      await app.request("/api/v1/classes", {
+        method: "POST",
+        headers: auth(teacher.token),
+        body: JSON.stringify({ name: "到期自动班", grade: 3 }),
+      })
+    ).json();
+    await app.request("/api/v1/classes/join", {
+      method: "POST",
+      headers: auth(student.token),
+      body: JSON.stringify({ inviteCode: cls.class.inviteCode }),
+    });
+    const asg = await (
+      await app.request("/api/v1/assignments", {
+        method: "POST",
+        headers: auth(teacher.token),
+        body: JSON.stringify({
+          classId: cls.class.id,
+          type: "daily_drill",
+          title: "杀进程续开",
+          publish: true,
+          generatedSnapshots: gen.questions,
+          config: { timeLimitSec: 60 },
+        }),
+      })
+    ).json();
+
+    const mine = await (
+      await app.request(
+        `/api/v1/assignments/${asg.assignment.id}/my-submission`,
+        { headers: auth(student.token) },
+      )
+    ).json();
+    await db.run(
+      `UPDATE submissions SET timer_started_at = ? WHERE id = ?`,
+      new Date(Date.now() - 120_000).toISOString(),
+      mine.submission.id,
+    );
+
+    // Re-open without client force — server should auto-submit
+    const reopened = await (
+      await app.request(
+        `/api/v1/assignments/${asg.assignment.id}/my-submission`,
+        { headers: auth(student.token) },
+      )
+    ).json();
+    expect(["completed", "pending_correction"]).toContain(
+      reopened.submission.status,
+    );
+  });
 });
