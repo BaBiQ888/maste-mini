@@ -1,12 +1,35 @@
 <view class="page">
-  <view class="head">
-    <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
-      <image wx:if="{{displayAvatar}}" class="avatar-img" src="{{displayAvatar}}" mode="aspectFill" />
-      <view wx:else class="avatar">{{nickname ? nickname[0] : "算"}}</view>
+  <view class="profile-card">
+    <button
+      class="avatar-btn"
+      open-type="chooseAvatar"
+      bind:chooseavatar="onChooseAvatar"
+      hover-class="avatar-btn-hover"
+    >
+      <view class="avatar-ring">
+        <image
+          wx:if="{{displayAvatar}}"
+          class="avatar-img"
+          src="{{displayAvatar}}"
+          mode="aspectFill"
+        />
+        <view wx:else class="avatar-fallback">
+          <image
+            class="avatar-mark"
+            src="/assets/logo-mark.png"
+            mode="aspectFit"
+          />
+        </view>
+        <view class="avatar-edit">
+          <view class="edit-dot"></view>
+          <text class="edit-txt">换</text>
+        </view>
+      </view>
     </button>
     <view class="meta">
       <view class="name">{{nickname || "未命名"}}</view>
-      <view class="role muted">身份 · {{roleLabel}}</view>
+      <view class="role-pill">身份 · {{roleLabel}}</view>
+      <view class="avatar-hint muted">点头像更换微信头像</view>
     </view>
   </view>
 
@@ -23,12 +46,9 @@
     />
   </view>
 
-  <view class="field">
-    <view class="label">头像</view>
-    <view class="input placeholder">点上方头像，使用微信头像</view>
-  </view>
-
-  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="onSave">保存</button>
+  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="onSave">
+    保存
+  </button>
   <button class="btn btn-ghost" bindtap="onChangeRole">切换身份</button>
   <button class="btn btn-ghost danger" bindtap="onLogout">退出登录</button>
 

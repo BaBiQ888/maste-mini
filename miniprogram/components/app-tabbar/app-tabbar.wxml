@@ -7,7 +7,11 @@
     bindtap="onTap"
   >
     <view class="ico-wrap">
-      <view class="ico ico-{{item.key}}"></view>
+      <image
+        class="ico-img"
+        src="{{active === item.key ? item.iconActive : item.icon}}"
+        mode="aspectFit"
+      />
       <view class="badge" wx:if="{{item.badgeKey === 'pending' && badge > 0}}">
         {{badge > 99 ? '99+' : badge}}
       </view>
@@ -15,6 +19,6 @@
         {{badge > 99 ? '99+' : badge}}
       </view>
     </view>
-    <text>{{item.label}}</text>
+    <text class="tab-label">{{item.label}}</text>
   </view>
 </view>

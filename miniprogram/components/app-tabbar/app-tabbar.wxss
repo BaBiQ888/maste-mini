@@ -4,11 +4,12 @@
   right: 0;
   bottom: 0;
   z-index: 100;
-  height: 108rpx;
+  height: 112rpx;
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--white, #fffcf7);
   border-top: 1rpx solid var(--line, #e0d8cc);
   display: flex;
+  box-shadow: 0 -4rpx 24rpx rgba(44, 40, 37, 0.04);
 }
 
 .tab {
@@ -17,63 +18,38 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6rpx;
-  font-size: 20rpx;
+  gap: 4rpx;
   color: var(--ink-faint, #9c948a);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .tab.on {
   color: var(--accent, #c45c26);
-  font-weight: 600;
 }
 
 .ico-wrap {
   position: relative;
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.tab .ico {
-  width: 36rpx;
-  height: 36rpx;
-  border: 2rpx solid currentColor;
-  box-sizing: border-box;
+.ico-img {
+  width: 44rpx;
+  height: 44rpx;
+  display: block;
 }
 
-/* 工作台 / 今日 */
-.tab .ico-home,
-.tab .ico-today {
-  border-radius: 50%;
+.tab-label {
+  font-size: 20rpx;
+  line-height: 1.2;
+  font-weight: 500;
 }
 
-/* 班级 */
-.tab .ico-classes,
-.tab .ico-class {
-  border-radius: 6rpx;
-}
-
-/* 作业 */
-.tab .ico-assignments {
-  border-radius: 4rpx;
-  border-top-width: 6rpx;
-}
-
-/* 题库 */
-.tab .ico-questions {
-  border-radius: 4rpx 4rpx 10rpx 10rpx;
-}
-
-/* 日历 */
-.tab .ico-calendar {
-  border-radius: 4rpx;
-  border-bottom-width: 6rpx;
-}
-
-/* 我的 */
-.tab .ico-profile {
-  border-radius: 50% 50% 8rpx 8rpx;
-}
-
-.tab.on .ico {
-  background: var(--accent-soft, #f3e0d4);
+.tab.on .tab-label {
+  font-weight: 600;
 }
 
 .badge {
@@ -90,4 +66,5 @@
   line-height: 28rpx;
   text-align: center;
   font-weight: 600;
+  box-sizing: border-box;
 }
