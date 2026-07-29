@@ -124,7 +124,11 @@ export class QuestionBankService {
 
   async listForTeacher(
     teacherId: string,
-    opts?: { knowledgeNodeId?: string; type?: QuestionType },
+    opts?: {
+      knowledgeNodeId?: string;
+      type?: QuestionType;
+      limit?: number;
+    },
   ): Promise<PublicQuestion[]> {
     await this.assertTeacher(teacherId);
     let sql = `SELECT * FROM questions WHERE created_by = ?`;
@@ -137,7 +141,8 @@ export class QuestionBankService {
       sql += ` AND type = ?`;
       params.push(opts.type);
     }
-    sql += ` ORDER BY updated_at DESC`;
+    const limit = Math.min(Math.max(opts?.limit ?? 200, 1), 500);
+    sql += ` ORDER BY updated_at DESC LIMIT ${limit}`;
     const rows = await this.db.all(sql, ...params) as QuestionRow[];
     return Promise.all(rows.map(async (r) => this.toPublic(r)));
   }

@@ -63,3 +63,16 @@ npm run predeploy
 
 空库可执行：`docs/sql/math_mini_schema.sql`  
 服务连上 MySQL 后也会自动 `CREATE TABLE IF NOT EXISTS`。
+
+### 启动时自动做的 DB 维护（无需手工 SQL）
+
+每次进程启动（`openDatabase` → migrate）会：
+
+1. **建表**（已存在则跳过）  
+2. **建索引**（已存在则跳过 `ER_DUP_KEYNAME`，含复合索引）  
+3. **清理过期 sessions**（`expires_at <= now`）  
+4. 每 **6 小时** 再清一次过期会话  
+
+因此云托管 **重新部署 / 重启实例** 即加载新索引与清理逻辑，**不必**再手工跑 DDL（除非你要在空库预建表，仍可用 `math_mini_schema.sql`）。
+
+`CODE_VERSION` 含 `db-index-purge-v17` 时可在 `/health` 确认新镜像。

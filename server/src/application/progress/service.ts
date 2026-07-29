@@ -286,16 +286,23 @@ export class ProgressService {
       status: string;
     }>;
 
+    // Batch pending counts for recent ids (avoid N queries)
+    const recentIds = recent.map((a) => a.id);
+    const pendingByAsg = new Map<string, number>();
+    if (recentIds.length) {
+      const ph = recentIds.map(() => "?").join(",");
+      const pendingRows = (await this.db.all(
+        `SELECT assignment_id AS id, COUNT(*) AS c FROM submissions
+           WHERE assignment_id IN (${ph}) AND status = 'submitted'
+           GROUP BY assignment_id`,
+        ...recentIds,
+      )) as Array<{ id: string; c: number }>;
+      for (const r of pendingRows) pendingByAsg.set(r.id, Number(r.c) || 0);
+    }
+
     const recentAssignments = [];
     for (const a of recent) {
       const sum = await this.getAssignmentSummary(a.id, teacherId);
-      const pending = (
-        (await this.db.get(
-          `SELECT COUNT(*) AS c FROM submissions
-             WHERE assignment_id = ? AND status = 'submitted'`,
-          a.id,
-        )) as { c: number }
-      ).c;
       recentAssignments.push({
         id: a.id,
         title: a.title,
@@ -304,7 +311,7 @@ export class ProgressService {
         completionRate: sum.completionRate,
         completedCount: sum.completedCount,
         totalStudents: sum.totalStudents,
-        pendingGrade: pending,
+        pendingGrade: pendingByAsg.get(a.id) ?? 0,
       });
     }
 
@@ -317,22 +324,24 @@ export class ProgressService {
     };
   }
 
-  /** Student: count tasks not yet completed */
+  /** Student: count tasks not yet completed (one query, no N+1) */
   async countStudentIncomplete(studentId: string): Promise<number> {
-    const assignments = await this.db.all(`
-        SELECT a.id
+    const row = (await this.db.get(
+      `
+        SELECT COUNT(*) AS c
         FROM assignments a
         JOIN class_memberships m ON m.class_id = a.class_id AND m.user_id = ?
         JOIN classes c ON c.id = a.class_id
-        WHERE a.status = 'published' AND c.archived = 0
-        `, studentId) as Array<{ id: string }>;
-
-    let n = 0;
-    for (const a of assignments) {
-      const sub = await this.db.get(`SELECT status FROM submissions WHERE assignment_id = ? AND student_id = ?`, a.id, studentId) as { status: string } | undefined;
-      if (!sub || sub.status !== "completed") n += 1;
-    }
-    return n;
+        LEFT JOIN submissions s
+          ON s.assignment_id = a.id AND s.student_id = ?
+        WHERE a.status = 'published'
+          AND c.archived = 0
+          AND (s.id IS NULL OR s.status != 'completed')
+        `,
+      studentId,
+      studentId,
+    )) as { c: number };
+    return Number(row?.c) || 0;
   }
 
   /**
@@ -445,25 +454,53 @@ export class ProgressService {
           AND status IN ('published', 'revoked')
           AND COALESCE(published_at, created_at) >= ?
         ORDER BY COALESCE(published_at, created_at) DESC
+        LIMIT 100
         `, classId, sinceIso) as Array<{
       id: string;
       title: string;
       type: string;
     }>;
 
+    const asgIds = assignments.map((a) => a.id);
+    const subByAsg = new Map<
+      string,
+      {
+        status: string;
+        score: number | null;
+        updated_at: string;
+        submitted_at: string | null;
+      }
+    >();
+    if (asgIds.length) {
+      const ph = asgIds.map(() => "?").join(",");
+      const subs = (await this.db.all(
+        `SELECT assignment_id, status, score, updated_at, submitted_at
+           FROM submissions
+           WHERE student_id = ? AND assignment_id IN (${ph})`,
+        studentId,
+        ...asgIds,
+      )) as Array<{
+        assignment_id: string;
+        status: string;
+        score: number | null;
+        updated_at: string;
+        submitted_at: string | null;
+      }>;
+      for (const s of subs) {
+        subByAsg.set(s.assignment_id, {
+          status: s.status,
+          score: s.score,
+          updated_at: s.updated_at,
+          submitted_at: s.submitted_at,
+        });
+      }
+    }
+
     let completedCount = 0;
     const recent: StudentClassStats["recent"] = [];
 
     for (const a of assignments) {
-      const sub = await this.db.get(`SELECT status, score, updated_at, submitted_at FROM submissions
-           WHERE assignment_id = ? AND student_id = ?`, a.id, studentId) as
-        | {
-            status: string;
-            score: number | null;
-            updated_at: string;
-            submitted_at: string | null;
-          }
-        | undefined;
+      const sub = subByAsg.get(a.id);
       const status = sub?.status || "not_started";
       if (status === "completed") completedCount += 1;
       recent.push({

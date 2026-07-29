@@ -11,8 +11,10 @@ import { fileURLToPath } from "node:url";
 import { createApp } from "../presentation/http/app.js";
 import {
   openDatabase,
+  purgeExpiredSessions,
   resolveDbOptionsFromEnv,
   type OpenDatabaseOptions,
+  type AppDatabase,
 } from "../infrastructure/persistence/db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -174,6 +176,7 @@ async function bootDatabase(): Promise<void> {
     activeFetch = (req) => app.fetch(req);
     boot.phase = "ready";
     boot.dbError = null;
+    scheduleSessionPurge(db);
     console.log(
       `[math-mini] full app ready (wechat mock=${mock}) db=${boot.dbLabel}`,
     );
@@ -196,3 +199,13 @@ setImmediate(() => {
     boot.dbError = err instanceof Error ? err.message : String(err);
   });
 });
+
+/** Purge expired sessions every 6h (also runs once inside openDatabase). */
+function scheduleSessionPurge(db: AppDatabase): void {
+  const SIX_H = 6 * 60 * 60 * 1000;
+  setInterval(() => {
+    purgeExpiredSessions(db).catch((err) => {
+      console.warn("[math-mini] scheduled session purge failed:", err);
+    });
+  }, SIX_H).unref?.();
+}

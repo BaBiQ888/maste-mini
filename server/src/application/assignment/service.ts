@@ -365,7 +365,7 @@ export class AssignmentService {
 
   async listForTeacher(
     teacherId: string,
-    opts?: { classId?: string; status?: AssignmentStatus },
+    opts?: { classId?: string; status?: AssignmentStatus; limit?: number },
   ): Promise<PublicAssignment[]> {
     let sql = `
       SELECT a.*, c.name AS class_name
@@ -382,14 +382,19 @@ export class AssignmentService {
       sql += ` AND a.status = ?`;
       params.push(opts.status);
     }
-    sql += ` ORDER BY a.created_at DESC`;
+    const limit = Math.min(Math.max(opts?.limit ?? 200, 1), 500);
+    sql += ` ORDER BY a.created_at DESC LIMIT ${limit}`;
     const rows = await this.db.all(sql, ...params) as Array<
       AssignmentRow & { class_name: string }
     >;
     return Promise.all(rows.map(async (r) => await this.toPublicAssignment(r, r.class_name)));
   }
 
-  async listForStudent(studentId: string): Promise<PublicAssignment[]> {
+  async listForStudent(
+    studentId: string,
+    opts?: { limit?: number },
+  ): Promise<PublicAssignment[]> {
+    const limit = Math.min(Math.max(opts?.limit ?? 200, 1), 500);
     const rows = await this.db.all(`
         SELECT a.*, c.name AS class_name
         FROM assignments a
@@ -398,6 +403,7 @@ export class AssignmentService {
         WHERE a.status = 'published'
           AND c.archived = 0
         ORDER BY a.due_at IS NULL, a.due_at ASC, a.published_at DESC
+        LIMIT ${limit}
         `, studentId) as Array<AssignmentRow & { class_name: string }>;
     return Promise.all(rows.map(async (r) => await this.toPublicAssignment(r, r.class_name)));
   }

@@ -135,12 +135,38 @@ export async function openDatabase(
   if (options.driver === "mysql") {
     const { db, pool } = await openMysqlDatabase(options.mysql);
     await migrateMysql(db, pool);
+    await purgeExpiredSessions(db);
     return db;
   }
 
   const db = openSqliteDatabase(options.path);
   await migrateSqlite(db);
+  await purgeExpiredSessions(db);
   return db;
+}
+
+/**
+ * Delete expired auth sessions. Safe to run on every boot / on an interval.
+ * Uses ISO string comparison (matches nowIso() storage).
+ */
+export async function purgeExpiredSessions(
+  db: AppDatabase,
+): Promise<number> {
+  const now = nowIso();
+  try {
+    const result = await db.run(
+      `DELETE FROM sessions WHERE expires_at <= ?`,
+      now,
+    );
+    const n = result.changes ?? 0;
+    if (n > 0) {
+      console.log(`[math-mini] purged ${n} expired session(s)`);
+    }
+    return n;
+  } catch (err) {
+    console.warn("[math-mini] purgeExpiredSessions failed:", err);
+    return 0;
+  }
 }
 
 // ─── SQLite ─────────────────────────────────────────────────────────────────
@@ -539,19 +565,29 @@ const SCHEMA_SQL = `
     );
 `;
 
+/**
+ * Idempotent indexes. Duplicates are skipped on boot (ER_DUP_KEYNAME / SQLite).
+ * invite_code already has UNIQUE — no separate idx_classes_invite.
+ */
 const INDEX_SQL = [
   "CREATE INDEX idx_sessions_user ON sessions(user_id)",
+  "CREATE INDEX idx_sessions_expires ON sessions(expires_at)",
   "CREATE INDEX idx_classes_teacher ON classes(teacher_id)",
-  "CREATE INDEX idx_classes_invite ON classes(invite_code)",
   "CREATE INDEX idx_memberships_user ON class_memberships(user_id)",
   "CREATE INDEX idx_assignments_class ON assignments(class_id)",
+  "CREATE INDEX idx_assignments_class_created ON assignments(class_id, created_at)",
   "CREATE INDEX idx_assignments_status ON assignments(status)",
   "CREATE INDEX idx_submissions_assignment ON submissions(assignment_id)",
   "CREATE INDEX idx_submissions_student ON submissions(student_id)",
+  "CREATE INDEX idx_submissions_asg_status ON submissions(assignment_id, status)",
+  "CREATE INDEX idx_submissions_student_updated ON submissions(student_id, updated_at)",
   "CREATE INDEX idx_questions_creator ON questions(created_by)",
+  "CREATE INDEX idx_questions_creator_updated ON questions(created_by, updated_at)",
   "CREATE INDEX idx_questions_knowledge ON questions(knowledge_node_id)",
   "CREATE INDEX idx_asg_questions ON assignment_questions(assignment_id)",
+  "CREATE INDEX idx_photo_assets_sub ON photo_assets(submission_id, sort_order)",
   "CREATE INDEX idx_answer_items_sub ON answer_items(submission_id)",
+  "CREATE INDEX idx_answer_items_aq ON answer_items(assignment_question_id, is_correct)",
 ];
 
 export function createId(prefix: string): string {
