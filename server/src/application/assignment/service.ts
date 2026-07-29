@@ -7,6 +7,7 @@ import type {
 } from "../questionbank/service.js";
 import { gradeOne } from "../../domain/grading/auto-grade.js";
 import { KnowledgeTreeService } from "../knowledge/service.js";
+import { isAllowedMediaUrl } from "../../infrastructure/storage/upload-store.js";
 
 export type AssignmentType =
   | "daily_drill"
@@ -911,7 +912,7 @@ export class AssignmentService {
       throw new AppError("INVALID_PHOTOS", `最多上传 ${MAX_PHOTOS} 张照片`);
     }
     for (const u of urls) {
-      if (!u.startsWith("/uploads/")) {
+      if (!isAllowedMediaUrl(u)) {
         throw new AppError("INVALID_PHOTOS", "图片地址无效");
       }
     }

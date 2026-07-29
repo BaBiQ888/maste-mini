@@ -989,8 +989,12 @@ async function handle(url, method = "GET", data) {
   }
 
   if (path === "/api/v1/uploads/photo" && m === "POST") {
+    // Mock as cloud fileID shape so UI path matches production
     return {
-      url: "https://via.placeholder.com/300x400.png?text=Mock+Photo",
+      url:
+        "cloud://mock-env/homework/mock_" +
+        Date.now().toString(36) +
+        ".jpg",
       path: "/mock/photo.jpg",
     };
   }

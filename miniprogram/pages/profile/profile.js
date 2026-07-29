@@ -6,7 +6,7 @@ const {
   routeByUser,
 } = require("../../utils/auth");
 const { request } = require("../../utils/request");
-const { resolveImageSrc } = require("../../utils/media");
+const { resolveImageSrc, uploadFilePath } = require("../../utils/media");
 const { showError } = require("../../utils/errors");
 
 Page({
@@ -76,7 +76,8 @@ Page({
     if (!tempPath) return;
     this.setData({ loading: true });
     try {
-      const url = await this.uploadAvatarFile(tempPath);
+      // Prefer 云托管对象存储 fileID; falls back to API /uploads
+      const url = await uploadFilePath(tempPath, "avatars");
       const displayAvatar = await resolveImageSrc(url);
       this.setData({
         avatarUrl: url,
@@ -86,7 +87,7 @@ Page({
       wx.showToast({ title: "头像已选，记得保存", icon: "none" });
     } catch (err) {
       this.setData({ loading: false });
-      // Fallback: keep temp path for local preview only
+      // Fallback: keep temp path for local preview only (do not save this to server)
       this.setData({
         avatarUrl: tempPath,
         displayAvatar: tempPath,
@@ -96,31 +97,6 @@ Page({
         fallback: "头像上传失败，可先保存其它信息",
       });
     }
-  },
-
-  uploadAvatarFile(filePath) {
-    return new Promise((resolve, reject) => {
-      const fs = wx.getFileSystemManager();
-      fs.readFile({
-        filePath,
-        encoding: "base64",
-        success: async (res) => {
-          try {
-            const lower = (filePath || "").toLowerCase();
-            const mime = lower.indexOf(".png") >= 0 ? "image/png" : "image/jpeg";
-            const data = await request({
-              url: "/api/v1/uploads/photo",
-              method: "POST",
-              data: { data: res.data, mime },
-            });
-            resolve(data.url);
-          } catch (e) {
-            reject(e);
-          }
-        },
-        fail: () => reject(new Error("读取头像失败")),
-      });
-    });
   },
 
   async onSave() {

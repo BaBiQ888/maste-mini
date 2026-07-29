@@ -1,14 +1,15 @@
-const { request, getBase } = require("./request");
+const { request, getBase, useMockData, useCloudCall } = require("./request");
 const { getToken } = require("./auth");
 const { toUserError, logError } = require("./errors");
 
-/** In-memory path → local file for this session */
+/** In-memory path → local file for this session (legacy /uploads only) */
 const imageLocalCache = Object.create(null);
 
 /**
- * Choose images and upload as base64 to API.
+ * Choose images and upload.
+ * Prefers 云托管对象存储 (wx.cloud.uploadFile); falls back to API base64.
  * @param {number} count max remaining slots
- * @returns {Promise<string[]>} photo url paths
+ * @returns {Promise<string[]>} photo urls (cloud:// fileID or /uploads/...)
  */
 function chooseAndUpload(count = 3) {
   return new Promise((resolve, reject) => {
@@ -24,7 +25,7 @@ function chooseAndUpload(count = 3) {
           reject(new Error("单张图片不能超过 2MB，请压缩后重试"));
           return;
         }
-        Promise.all(files.map((f) => uploadFilePath(f.tempFilePath)))
+        Promise.all(files.map((f) => uploadFilePath(f.tempFilePath, "homework")))
           .then(resolve)
           .catch(reject);
       },
@@ -33,13 +34,14 @@ function chooseAndUpload(count = 3) {
           resolve([]);
           return;
         }
-        // fallback older API
         wx.chooseImage({
           count: Math.min(count, 6),
           sizeType: ["compressed"],
           sourceType: ["album", "camera"],
           success(r) {
-            Promise.all((r.tempFilePaths || []).map(uploadFilePath))
+            Promise.all(
+              (r.tempFilePaths || []).map((p) => uploadFilePath(p, "homework")),
+            )
               .then(resolve)
               .catch(reject);
           },
@@ -50,7 +52,99 @@ function chooseAndUpload(count = 3) {
   });
 }
 
-function uploadFilePath(filePath) {
+/**
+ * @param {string} filePath local temp path
+ * @param {"homework"|"avatars"} folder cloudPath prefix
+ * @returns {Promise<string>} cloud fileID or /uploads/...
+ */
+function uploadFilePath(filePath, folder) {
+  const kind = folder === "avatars" ? "avatars" : "homework";
+  return tryCloudUpload(filePath, kind).catch((cloudErr) => {
+    logError("media.cloudUpload", cloudErr, {
+      filePath,
+      kind,
+      raw: cloudErr && (cloudErr.errMsg || cloudErr.message),
+    });
+    // Mock / no cloud / uploadFile failed → legacy base64 API (container disk)
+    return uploadViaApiBase64(filePath);
+  });
+}
+
+function tryCloudUpload(filePath, kind) {
+  if (useMockData()) {
+    return Promise.reject(new Error("mock: skip cloud storage"));
+  }
+  if (!useCloudCall()) {
+    return Promise.reject(new Error("cloud disabled"));
+  }
+  if (typeof wx === "undefined" || !wx.cloud) {
+    return Promise.reject(new Error("wx.cloud unavailable"));
+  }
+
+  return ensureCloudReady()
+    .then((cloudApi) => {
+      if (!cloudApi || typeof cloudApi.uploadFile !== "function") {
+        throw new Error("cloud.uploadFile unavailable");
+      }
+      const env = getCloudEnv();
+      if (!env) throw new Error("cloudEnv missing");
+
+      const ext = guessExt(filePath);
+      const cloudPath =
+        kind +
+        "/" +
+        Date.now() +
+        "_" +
+        Math.random().toString(36).slice(2, 10) +
+        "." +
+        ext;
+
+      return new Promise((resolve, reject) => {
+        cloudApi.uploadFile({
+          cloudPath,
+          filePath,
+          config: { env },
+          success(res) {
+            if (res && res.fileID) {
+              resolve(res.fileID);
+              return;
+            }
+            reject(new Error("对象存储上传未返回 fileID"));
+          },
+          fail: reject,
+        });
+      });
+    });
+}
+
+function ensureCloudReady() {
+  return new Promise((resolve) => {
+    try {
+      const app = getApp();
+      if (app && typeof app.ensureCloud === "function") {
+        app
+          .ensureCloud()
+          .then((c) => resolve(c || (app.globalData && app.globalData.cloud) || wx.cloud))
+          .catch(() => resolve((app.globalData && app.globalData.cloud) || wx.cloud));
+        return;
+      }
+      resolve((app && app.globalData && app.globalData.cloud) || wx.cloud);
+    } catch (_) {
+      resolve(wx.cloud);
+    }
+  });
+}
+
+function getCloudEnv() {
+  try {
+    const app = getApp();
+    return (app && app.globalData && app.globalData.cloudEnv) || "";
+  } catch (_) {
+    return "";
+  }
+}
+
+function uploadViaApiBase64(filePath) {
   return new Promise((resolve, reject) => {
     const fs = wx.getFileSystemManager();
     fs.readFile({
@@ -91,12 +185,20 @@ function guessMime(p) {
   return "image/jpeg";
 }
 
+function guessExt(p) {
+  const lower = (p || "").toLowerCase();
+  if (lower.endsWith(".png")) return "png";
+  if (lower.endsWith(".webp")) return "webp";
+  return "jpg";
+}
+
 function isLocalOrRemoteDisplayable(path) {
   if (!path) return false;
+  // Cloud object storage fileID — <image src> supports cloud://
+  if (path.indexOf("cloud://") === 0) return true;
   if (path.indexOf("http://") === 0 || path.indexOf("https://") === 0) {
     return true;
   }
-  // WeChat temp / user files
   if (
     path.indexOf("wxfile://") === 0 ||
     path.indexOf("http://tmp") === 0 ||
@@ -104,7 +206,7 @@ function isLocalOrRemoteDisplayable(path) {
   ) {
     return true;
   }
-  // Absolute device path (chooseAvatar temp)
+  // Absolute device path (chooseAvatar temp), not legacy /uploads/
   if (path.indexOf("/") === 0 && path.indexOf("/uploads/") !== 0) {
     return true;
   }
@@ -112,13 +214,12 @@ function isLocalOrRemoteDisplayable(path) {
 }
 
 /**
- * Sync URL builder for public HTTPS.
- * Prefer resolveImageSrc for /uploads/* — public domain often returns INVALID_HOST
- * and <image> cannot send Authorization.
+ * Sync URL builder for public HTTPS (legacy).
+ * Prefer resolveImageSrc for display.
  */
 function fullUrl(path) {
   if (!path) return "";
-  if (path.startsWith("http")) return path;
+  if (path.startsWith("http") || path.startsWith("cloud://")) return path;
   let url = "";
   try {
     const app = getApp();
@@ -133,7 +234,6 @@ function fullUrl(path) {
     /* ignore */
   }
   if (!url) url = getBase() + path;
-  // /uploads/* requires session; <image> cannot send Authorization header
   if (path.indexOf("/uploads/") === 0) {
     const token = getToken();
     if (token && url.indexOf("access_token=") < 0) {
@@ -158,7 +258,8 @@ function localCachePath(filename) {
 
 /**
  * Resolve a stored path to something <image src> can load.
- * /uploads/* → fetch via authenticated API (callContainer) → write local file.
+ * - cloud:// → as-is (native component support)
+ * - /uploads/* → authenticated API → local cache (legacy)
  * @param {string} path
  * @returns {Promise<string>}
  */
@@ -190,8 +291,7 @@ function resolveImageSrc(path) {
 
     const fetchAndWrite = () => {
       request({
-        url:
-          "/api/v1/uploads/content?path=" + encodeURIComponent(key),
+        url: "/api/v1/uploads/content?path=" + encodeURIComponent(key),
         method: "GET",
       })
         .then((data) => {
@@ -200,8 +300,9 @@ function resolveImageSrc(path) {
             return;
           }
           if (!localPath) {
-            // No USER_DATA_PATH — last resort data URL (may be large)
-            finish("data:" + (data.mime || "image/jpeg") + ";base64," + data.data);
+            finish(
+              "data:" + (data.mime || "image/jpeg") + ";base64," + data.data,
+            );
             return;
           }
           try {
@@ -213,7 +314,10 @@ function resolveImageSrc(path) {
               fail: (err) => {
                 logError("media.writeImage", err, { localPath, key });
                 finish(
-                  "data:" + (data.mime || "image/jpeg") + ";base64," + data.data,
+                  "data:" +
+                    (data.mime || "image/jpeg") +
+                    ";base64," +
+                    data.data,
                 );
               },
             });
@@ -284,6 +388,7 @@ const RESULT_LABEL = {
 
 module.exports = {
   chooseAndUpload,
+  uploadFilePath,
   fullUrl,
   resolveImageSrc,
   resolveImageSrcs,

@@ -818,14 +818,14 @@ const loginBody = z.object({
   /** wx.login code; optional when gateway already injects X-WX-OPENID */
   code: z.string().min(1).optional(),
   nickname: z.string().max(64).optional(),
-  avatarUrl: z.string().max(512).optional(),
+  avatarUrl: z.string().max(1024).optional(),
   /** Client-stable id; mock login uses it so re-login reuses the same account */
   deviceId: z.string().min(1).max(128).optional(),
 });
 
 const patchBody = z.object({
   nickname: z.string().min(1).max(64).optional(),
-  avatarUrl: z.string().max(512).optional().nullable(),
+  avatarUrl: z.string().max(1024).optional().nullable(),
   role: z.enum(["teacher", "student"]).optional(),
   /** Required when first selecting role=teacher */
   teacherCode: z.string().min(1).max(64).optional(),

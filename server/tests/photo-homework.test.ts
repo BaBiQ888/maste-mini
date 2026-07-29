@@ -326,6 +326,56 @@ describe("Photo homework", () => {
     expect(withBearer.status).toBe(200);
   });
 
+  it("accepts cloud:// fileID as photo url (object storage)", async () => {
+    const { teacher, student, asg } = await setupClassAndPublish(true);
+    const mine = await (
+      await app.request(`/api/v1/assignments/${asg.id}/my-submission`, {
+        headers: auth(student.token),
+      })
+    ).json();
+    const cloudId =
+      "cloud://prod-d7glqi3icbdfab67d/homework/test_img_001.jpg";
+    const sub = await (
+      await app.request(`/api/v1/submissions/${mine.submission.id}/photos`, {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ photoUrls: [cloudId] }),
+      })
+    ).json();
+    expect(sub.submission.status).toBe("submitted");
+    expect(sub.submission.photos[0].url).toBe(cloudId);
+
+    const bad = await app.request(
+      `/api/v1/submissions/${mine.submission.id}/photos`,
+      {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ photoUrls: ["javascript:alert(1)"] }),
+      },
+    );
+    // already submitted — status blocks first; use fresh student path for invalid
+    expect([400, 403].includes(bad.status) || bad.status >= 400).toBe(true);
+
+    // invalid url on a fresh resubmit flow: teacher grades resubmit then student
+    await app.request(`/api/v1/submissions/${mine.submission.id}/grade`, {
+      method: "POST",
+      headers: auth(teacher.token),
+      body: JSON.stringify({
+        result: "incorrect",
+        requireResubmit: true,
+      }),
+    });
+    const invalid = await app.request(
+      `/api/v1/submissions/${mine.submission.id}/photos`,
+      {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ photoUrls: ["../etc/passwd"] }),
+      },
+    );
+    expect(invalid.status).toBe(400);
+  });
+
   it("returns upload content as base64 via authenticated API", async () => {
     const { student } = await setupClassAndPublish(true);
     const up = await (

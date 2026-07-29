@@ -114,4 +114,33 @@ export function readUploadBase64(
   };
 }
 
+/**
+ * Accept stored media references:
+ * - legacy container paths: /uploads/img_xxx.jpg
+ * - WeChat cloud object storage fileID: cloud://...
+ * - absolute https (e.g. mock / external)
+ */
+export function isAllowedMediaUrl(url: string): boolean {
+  const u = (url || "").trim();
+  if (!u || u.length > 1024) return false;
+  if (u.includes("..") || u.includes("\\") || /\s/.test(u)) return false;
+  if (u.startsWith("/uploads/")) {
+    const name = u.slice("/uploads/".length);
+    return SAFE_UPLOAD_NAME.test(name) && !name.includes("/");
+  }
+  if (u.startsWith("cloud://")) {
+    // cloud://envId/path or cloud://bucket.region/path — no control chars
+    return u.length > "cloud://".length + 3 && !u.includes(" ");
+  }
+  if (u.startsWith("https://") || u.startsWith("http://")) {
+    try {
+      const parsed = new URL(u);
+      return parsed.protocol === "https:" || parsed.protocol === "http:";
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 export { MAX_BYTES, ALLOWED };
