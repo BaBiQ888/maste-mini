@@ -105,30 +105,35 @@
   line-height: 1;
 }
 
-/* Name + role on one horizontal line */
+/*
+ * Name + role one row.
+ * Do NOT use min-width:0 + ellipsis + flex-shrink on name — in mini program
+ * that collapses short nicknames to "段…".
+ * Name sizes to content; only very long names truncate after leaving room for pill.
+ */
 .meta {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 0;
+  width: 0;
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
-  justify-content: flex-start;
-  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .name {
-  /* Grow first; ellipsis only when truly overflowing next to role pill */
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 1 auto;
+  /* keep content width; allow shrink only past ~ half card when name is long */
+  max-width: 70%;
   font-size: 36rpx;
   font-weight: 600;
   color: var(--ink);
   line-height: 1.35;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
   margin-right: 16rpx;
+  /* critical: do not force min-width:0 */
 }
 
 .role-pill {

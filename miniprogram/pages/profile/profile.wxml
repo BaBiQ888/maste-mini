@@ -27,8 +27,8 @@
       </view>
     </button>
     <view class="meta">
-      <text class="name">{{nickname || "未命名"}}</text>
-      <text class="role-pill">身份 · {{roleLabel}}</text>
+      <view class="name">{{nickname || "未命名"}}</view>
+      <view class="role-pill">身份 · {{roleLabel}}</view>
     </view>
   </view>
 
