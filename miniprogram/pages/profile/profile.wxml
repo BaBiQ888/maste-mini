@@ -27,9 +27,10 @@
       </view>
     </button>
     <view class="meta">
-      <view class="name">{{nickname || "未命名"}}</view>
-      <view class="role-pill">身份 · {{roleLabel}}</view>
-      <view class="avatar-hint muted">点头像更换微信头像</view>
+      <view class="meta-row">
+        <view class="name">{{nickname || "未命名"}}</view>
+        <view class="role-pill">身份 · {{roleLabel}}</view>
+      </view>
     </view>
   </view>
 
