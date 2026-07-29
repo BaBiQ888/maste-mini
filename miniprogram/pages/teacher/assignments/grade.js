@@ -1,6 +1,6 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
-const { fullUrl, RESULT_LABEL } = require("../../../utils/media");
+const { resolveImageSrcs, RESULT_LABEL } = require("../../../utils/media");
 const { showError } = require("../../../utils/errors");
 
 Page({
@@ -55,9 +55,12 @@ Page({
         wx.showToast({ title: "记录不存在", icon: "none" });
         return;
       }
+      const photoDisplay = await resolveImageSrcs(
+        (submission.photos || []).map((p) => p.url),
+      );
       this.setData({
         submission,
-        photoDisplay: (submission.photos || []).map((p) => fullUrl(p.url)),
+        photoDisplay,
         result: (submission.grade && submission.grade.result) || "correct",
         score:
           submission.grade && submission.grade.score != null

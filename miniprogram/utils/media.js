@@ -2,6 +2,9 @@ const { request, getBase } = require("./request");
 const { getToken } = require("./auth");
 const { toUserError, logError } = require("./errors");
 
+/** In-memory path → local file for this session */
+const imageLocalCache = Object.create(null);
+
 /**
  * Choose images and upload as base64 to API.
  * @param {number} count max remaining slots
@@ -88,6 +91,31 @@ function guessMime(p) {
   return "image/jpeg";
 }
 
+function isLocalOrRemoteDisplayable(path) {
+  if (!path) return false;
+  if (path.indexOf("http://") === 0 || path.indexOf("https://") === 0) {
+    return true;
+  }
+  // WeChat temp / user files
+  if (
+    path.indexOf("wxfile://") === 0 ||
+    path.indexOf("http://tmp") === 0 ||
+    path.indexOf("wx://") === 0
+  ) {
+    return true;
+  }
+  // Absolute device path (chooseAvatar temp)
+  if (path.indexOf("/") === 0 && path.indexOf("/uploads/") !== 0) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Sync URL builder for public HTTPS.
+ * Prefer resolveImageSrc for /uploads/* — public domain often returns INVALID_HOST
+ * and <image> cannot send Authorization.
+ */
 function fullUrl(path) {
   if (!path) return "";
   if (path.startsWith("http")) return path;
@@ -114,6 +142,116 @@ function fullUrl(path) {
     }
   }
   return url;
+}
+
+function cacheKeyForUpload(path) {
+  return String(path || "").split("?")[0];
+}
+
+function localCachePath(filename) {
+  const root =
+    (typeof wx !== "undefined" && wx.env && wx.env.USER_DATA_PATH) ||
+    "";
+  if (!root) return "";
+  return root + "/mm_upload_" + filename;
+}
+
+/**
+ * Resolve a stored path to something <image src> can load.
+ * /uploads/* → fetch via authenticated API (callContainer) → write local file.
+ * @param {string} path
+ * @returns {Promise<string>}
+ */
+function resolveImageSrc(path) {
+  if (!path) return Promise.resolve("");
+  if (isLocalOrRemoteDisplayable(path)) {
+    return Promise.resolve(path);
+  }
+
+  const key = cacheKeyForUpload(path);
+  if (key.indexOf("/uploads/") !== 0) {
+    return Promise.resolve(fullUrl(path));
+  }
+
+  if (imageLocalCache[key]) {
+    return Promise.resolve(imageLocalCache[key]);
+  }
+
+  const filename = key.split("/").pop() || "img.jpg";
+  const localPath = localCachePath(filename);
+
+  return new Promise((resolve) => {
+    const fs = wx.getFileSystemManager();
+
+    const finish = (local) => {
+      if (local) imageLocalCache[key] = local;
+      resolve(local || "");
+    };
+
+    const fetchAndWrite = () => {
+      request({
+        url:
+          "/api/v1/uploads/content?path=" + encodeURIComponent(key),
+        method: "GET",
+      })
+        .then((data) => {
+          if (!data || !data.data) {
+            finish("");
+            return;
+          }
+          if (!localPath) {
+            // No USER_DATA_PATH — last resort data URL (may be large)
+            finish("data:" + (data.mime || "image/jpeg") + ";base64," + data.data);
+            return;
+          }
+          try {
+            fs.writeFile({
+              filePath: localPath,
+              data: data.data,
+              encoding: "base64",
+              success: () => finish(localPath),
+              fail: (err) => {
+                logError("media.writeImage", err, { localPath, key });
+                finish(
+                  "data:" + (data.mime || "image/jpeg") + ";base64," + data.data,
+                );
+              },
+            });
+          } catch (e) {
+            logError("media.writeImage", e, { localPath, key });
+            finish("");
+          }
+        })
+        .catch((e) => {
+          logError("media.resolveImage", e, { path: key });
+          finish("");
+        });
+    };
+
+    if (!localPath) {
+      fetchAndWrite();
+      return;
+    }
+
+    try {
+      fs.access({
+        path: localPath,
+        success: () => finish(localPath),
+        fail: () => fetchAndWrite(),
+      });
+    } catch (_) {
+      fetchAndWrite();
+    }
+  });
+}
+
+/**
+ * @param {string[]} paths
+ * @returns {Promise<string[]>}
+ */
+function resolveImageSrcs(paths) {
+  const list = Array.isArray(paths) ? paths : [];
+  return Promise.all(list.map((p) => resolveImageSrc(p)));
 }
 
 /** Human label for assignment type (lists / cards) */
@@ -147,6 +285,8 @@ const RESULT_LABEL = {
 module.exports = {
   chooseAndUpload,
   fullUrl,
+  resolveImageSrc,
+  resolveImageSrcs,
   assignmentTypeLabel,
   STATUS_LABEL,
   RESULT_LABEL,

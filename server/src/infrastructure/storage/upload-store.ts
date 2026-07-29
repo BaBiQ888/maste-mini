@@ -52,4 +52,66 @@ export function saveBase64Image(
   };
 }
 
+/** Safe upload basename: img_<hex>.(jpg|jpeg|png|webp) */
+const SAFE_UPLOAD_NAME = /^img_[a-f0-9]+\.(jpg|jpeg|png|webp)$/i;
+
+/**
+ * Resolve a stored `/uploads/...` path to a file under uploadDir.
+ * Rejects path traversal and unexpected names.
+ */
+export function resolveUploadPath(
+  uploadDir: string,
+  urlPath: string,
+): { absolute: string; filename: string; mime: string } {
+  const raw = (urlPath || "").trim();
+  if (!raw || raw.includes("..") || raw.includes("\\")) {
+    throw new AppError("INVALID_IMAGE", "无效的图片路径");
+  }
+
+  // Accept `/uploads/name`, `uploads/name`, or bare `name`
+  const stripped = raw.replace(/^\/+/, "");
+  const withoutPrefix = stripped.startsWith("uploads/")
+    ? stripped.slice("uploads/".length)
+    : stripped;
+  const filename = path.basename(withoutPrefix);
+
+  if (!filename || filename !== withoutPrefix || !SAFE_UPLOAD_NAME.test(filename)) {
+    throw new AppError("INVALID_IMAGE", "无效的图片路径");
+  }
+
+  const resolvedDir = path.resolve(uploadDir);
+  const resolvedFile = path.resolve(path.join(resolvedDir, filename));
+  if (
+    resolvedFile !== path.join(resolvedDir, filename) ||
+    !resolvedFile.startsWith(resolvedDir + path.sep)
+  ) {
+    throw new AppError("INVALID_IMAGE", "无效的图片路径");
+  }
+  if (!fs.existsSync(resolvedFile)) {
+    throw new AppError("NOT_FOUND", "图片不存在或已失效", 404);
+  }
+
+  const lower = filename.toLowerCase();
+  const mime = lower.endsWith(".png")
+    ? "image/png"
+    : lower.endsWith(".webp")
+      ? "image/webp"
+      : "image/jpeg";
+  return { absolute: resolvedFile, filename, mime };
+}
+
+export function readUploadBase64(
+  uploadDir: string,
+  urlPath: string,
+): { filename: string; mime: string; data: string; bytes: number } {
+  const { absolute, filename, mime } = resolveUploadPath(uploadDir, urlPath);
+  const buf = fs.readFileSync(absolute);
+  return {
+    filename,
+    mime,
+    data: buf.toString("base64"),
+    bytes: buf.length,
+  };
+}
+
 export { MAX_BYTES, ALLOWED };

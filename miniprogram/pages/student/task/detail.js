@@ -3,7 +3,7 @@ const { request } = require("../../../utils/request");
 const { showError } = require("../../../utils/errors");
 const {
   chooseAndUpload,
-  fullUrl,
+  resolveImageSrcs,
   STATUS_LABEL,
   RESULT_LABEL,
 } = require("../../../utils/media");
@@ -55,11 +55,12 @@ Page({
       const canEdit =
         submission.status === "not_started" ||
         submission.status === "resubmit_required";
+      const displayUrls = await resolveImageSrcs(localUrls);
       this.setData({
         assignment: a.assignment,
         submission,
         localUrls,
-        displayUrls: localUrls.map(fullUrl),
+        displayUrls,
         canEdit,
         loading: false,
       });
@@ -84,9 +85,10 @@ Page({
         return;
       }
       const localUrls = this.data.localUrls.concat(urls);
+      const displayUrls = await resolveImageSrcs(localUrls);
       this.setData({
         localUrls,
-        displayUrls: localUrls.map(fullUrl),
+        displayUrls,
         busy: false,
       });
     } catch (e) {
@@ -95,14 +97,15 @@ Page({
     }
   },
 
-  removePhoto(e) {
+  async removePhoto(e) {
     if (!this.data.canEdit) return;
     const idx = e.currentTarget.dataset.index;
     const localUrls = this.data.localUrls.slice();
     localUrls.splice(idx, 1);
+    const displayUrls = await resolveImageSrcs(localUrls);
     this.setData({
       localUrls,
-      displayUrls: localUrls.map(fullUrl),
+      displayUrls,
     });
   },
 
@@ -128,10 +131,11 @@ Page({
       });
       const submission = data.submission;
       const localUrls = (submission.photos || []).map((p) => p.url);
+      const displayUrls = await resolveImageSrcs(localUrls);
       this.setData({
         submission,
         localUrls,
-        displayUrls: localUrls.map(fullUrl),
+        displayUrls,
         canEdit:
           submission.status === "not_started" ||
           submission.status === "resubmit_required",

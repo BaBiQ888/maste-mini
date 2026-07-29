@@ -23,6 +23,7 @@ import {
 import { KnowledgeTreeService } from "../../application/knowledge/service.js";
 import {
   ensureUploadDir,
+  readUploadBase64,
   saveBase64Image,
 } from "../../infrastructure/storage/upload-store.js";
 import { AppError } from "../../domain/shared/errors.js";
@@ -343,6 +344,27 @@ export function createApp(
       const body = uploadBody.parse(await c.req.json());
       const saved = saveBase64Image(uploadDir, body);
       return c.json({ url: saved.urlPath, bytes: saved.bytes });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  /**
+   * Fetch upload as base64 JSON (for mini program <image>).
+   * Public HTTPS /uploads/* often fails (INVALID_HOST / no token on image tag);
+   * callContainer + Bearer works for this route.
+   * Query: path=/uploads/img_xxx.jpg
+   */
+  authed.get("/uploads/content", async (c) => {
+    try {
+      const urlPath = c.req.query("path") || "";
+      const file = readUploadBase64(uploadDir, urlPath);
+      return c.json({
+        path: `/uploads/${file.filename}`,
+        mime: file.mime,
+        data: file.data,
+        bytes: file.bytes,
+      });
     } catch (e) {
       return handleError(c, e);
     }

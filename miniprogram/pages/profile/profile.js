@@ -6,7 +6,7 @@ const {
   routeByUser,
 } = require("../../utils/auth");
 const { request } = require("../../utils/request");
-const { fullUrl } = require("../../utils/media");
+const { resolveImageSrc } = require("../../utils/media");
 const { showError } = require("../../utils/errors");
 
 Page({
@@ -34,12 +34,11 @@ Page({
     this.loadBadge(user);
   },
 
-  applyUser(user) {
+  async applyUser(user) {
     const avatarUrl = user.avatarUrl || "";
     this.setData({
       nickname: user.nickname || "",
       avatarUrl,
-      displayAvatar: avatarUrl ? fullUrl(avatarUrl) : "",
       roleLabel:
         user.role === "teacher"
           ? "老师"
@@ -48,6 +47,11 @@ Page({
             : "未选择",
       tabRole: user.role === "teacher" || user.role === "student" ? user.role : "",
     });
+    const displayAvatar = avatarUrl ? await resolveImageSrc(avatarUrl) : "";
+    // Avoid clobbering a newer avatar if user changed while resolving
+    if ((this.data.avatarUrl || "") === avatarUrl) {
+      this.setData({ displayAvatar });
+    }
   },
 
   async loadBadge(user) {
@@ -73,9 +77,10 @@ Page({
     this.setData({ loading: true });
     try {
       const url = await this.uploadAvatarFile(tempPath);
+      const displayAvatar = await resolveImageSrc(url);
       this.setData({
         avatarUrl: url,
-        displayAvatar: fullUrl(url),
+        displayAvatar: displayAvatar || tempPath,
         loading: false,
       });
       wx.showToast({ title: "头像已选，记得保存", icon: "none" });

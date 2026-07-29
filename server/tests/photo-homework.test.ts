@@ -325,4 +325,43 @@ describe("Photo homework", () => {
     });
     expect(withBearer.status).toBe(200);
   });
+
+  it("returns upload content as base64 via authenticated API", async () => {
+    const { student } = await setupClassAndPublish(true);
+    const up = await (
+      await app.request("/api/v1/uploads/photo", {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ data: TINY_JPEG_B64, mime: "image/jpeg" }),
+      })
+    ).json();
+    expect(up.url).toMatch(/^\/uploads\//);
+
+    const anon = await app.request(
+      `/api/v1/uploads/content?path=${encodeURIComponent(up.url)}`,
+    );
+    expect(anon.status).toBe(401);
+
+    const ok = await app.request(
+      `/api/v1/uploads/content?path=${encodeURIComponent(up.url)}`,
+      { headers: auth(student.token) },
+    );
+    expect(ok.status).toBe(200);
+    const body = await ok.json();
+    expect(body.mime).toMatch(/^image\//);
+    expect(body.data).toBeTruthy();
+    expect(body.path).toBe(up.url);
+
+    const bad = await app.request(
+      `/api/v1/uploads/content?path=${encodeURIComponent("/uploads/../etc/passwd")}`,
+      { headers: auth(student.token) },
+    );
+    expect(bad.status).toBe(400);
+
+    const missing = await app.request(
+      `/api/v1/uploads/content?path=${encodeURIComponent("/uploads/img_deadbeefdeadbeefdeadbeefdeadbeef.jpg")}`,
+      { headers: auth(student.token) },
+    );
+    expect(missing.status).toBe(404);
+  });
 });

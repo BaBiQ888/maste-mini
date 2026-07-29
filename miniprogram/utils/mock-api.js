@@ -995,6 +995,16 @@ async function handle(url, method = "GET", data) {
     };
   }
 
+  if (path.indexOf("/api/v1/uploads/content") === 0 && m === "GET") {
+    // Tiny 1x1 PNG for mock display
+    return {
+      path: "/uploads/mock.png",
+      mime: "image/png",
+      data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      bytes: 70,
+    };
+  }
+
   if (path === "/api/v1/me/knowledge-progress" && m === "GET") {
     // Align with server ProgressService: { items: KnowledgeDoneItem[] }
     return {

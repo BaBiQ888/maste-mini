@@ -1,6 +1,10 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
-const { fullUrl, STATUS_LABEL, RESULT_LABEL } = require("../../../utils/media");
+const {
+  resolveImageSrcs,
+  STATUS_LABEL,
+  RESULT_LABEL,
+} = require("../../../utils/media");
 const { showError } = require("../../../utils/errors");
 
 Page({
@@ -57,10 +61,14 @@ Page({
           method: "GET",
         }).catch(() => ({ questions: [] })),
       ]);
-      const submissions = (s.submissions || []).map((sub) => ({
-        ...sub,
-        photoDisplay: (sub.photos || []).map((p) => fullUrl(p.url)),
-      }));
+      const submissions = await Promise.all(
+        (s.submissions || []).map(async (sub) => ({
+          ...sub,
+          photoDisplay: await resolveImageSrcs(
+            (sub.photos || []).map((p) => p.url),
+          ),
+        })),
+      );
       const summary = sum.summary || null;
       const rateText =
         summary && summary.completionRate != null
