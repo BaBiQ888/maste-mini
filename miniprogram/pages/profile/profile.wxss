@@ -6,28 +6,39 @@
 
 .profile-card {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
   align-items: center;
-  gap: 28rpx;
+  gap: 16rpx;
   margin-bottom: 40rpx;
-  padding: 32rpx 28rpx;
+  padding: 28rpx 24rpx;
   background: var(--white);
   border: 1rpx solid var(--line);
   border-radius: 28rpx;
   box-shadow: 0 8rpx 28rpx rgba(44, 40, 37, 0.04);
+  box-sizing: border-box;
 }
 
+/* WeChat button defaults (block + auto margin) push meta away — override hard */
 .avatar-btn {
-  padding: 0;
-  margin: 0;
-  width: 148rpx;
-  height: 148rpx;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 148rpx !important;
+  min-width: 148rpx !important;
+  max-width: 148rpx !important;
+  height: 148rpx !important;
   border-radius: 50%;
   overflow: visible;
   background: transparent;
   border: none;
   line-height: normal;
-  flex-shrink: 0;
+  flex: 0 0 148rpx;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
   position: relative;
+  box-sizing: border-box;
 }
 .avatar-btn::after {
   border: none;
@@ -105,31 +116,30 @@
   line-height: 1;
 }
 
-/*
- * Name + role one row.
- * Do NOT use min-width:0 + ellipsis + flex-shrink on name — in mini program
- * that collapses short nicknames to "段…".
- * Name sizes to content; only very long names truncate after leaving room for pill.
- */
+/* Name + role sit immediately after avatar (left-packed, not centered in free space) */
 .meta {
-  flex: 1 1 0;
-  width: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
+  justify-content: flex-start;
   align-items: center;
   box-sizing: border-box;
 }
 
 .name {
-  /* 0 0 auto: size to content, never shrink (avoids "段…") */
   flex: 0 0 auto;
   font-size: 36rpx;
   font-weight: 600;
   color: var(--ink);
   line-height: 1.35;
   white-space: nowrap;
-  margin-right: 16rpx;
+  margin: 0 12rpx 0 0;
+  padding: 0;
+  text-align: left;
 }
 
 .role-pill {
@@ -142,6 +152,7 @@
   font-weight: 600;
   line-height: 1.35;
   white-space: nowrap;
+  margin: 0;
 }
 
 .field {
