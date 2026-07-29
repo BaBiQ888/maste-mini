@@ -122,18 +122,14 @@
 }
 
 .name {
-  flex: 0 1 auto;
-  /* keep content width; allow shrink only past ~ half card when name is long */
-  max-width: 70%;
+  /* 0 0 auto: size to content, never shrink (avoids "段…") */
+  flex: 0 0 auto;
   font-size: 36rpx;
   font-weight: 600;
   color: var(--ink);
   line-height: 1.35;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   margin-right: 16rpx;
-  /* critical: do not force min-width:0 */
 }
 
 .role-pill {
