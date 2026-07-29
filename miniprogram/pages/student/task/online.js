@@ -122,6 +122,11 @@ Page({
       else if (ans.response === false) responseText = "false";
       else if (ans.response != null) responseText = String(ans.response);
 
+      const options = (ans.options || []).map((o) => ({
+        ...o,
+        letter: o.id != null ? String(o.id).toUpperCase() : "",
+      }));
+
       return {
         ...ans,
         responseText,
@@ -131,7 +136,7 @@ Page({
         showKey: ans.isCorrect !== null && ans.isCorrect !== undefined,
         mark:
           ans.isCorrect === true ? "对" : ans.isCorrect === false ? "错" : "",
-        options: ans.options || [],
+        options,
       };
     });
 

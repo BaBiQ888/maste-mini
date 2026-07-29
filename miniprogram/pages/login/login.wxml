@@ -10,6 +10,6 @@
       微信一键登录
     </button>
     <view class="legal">登录即表示同意使用协议 · 退出后再登录会回到同一账号</view>
-    <view class="legal" style="margin-top:12rpx;color:#C45C26;">当前可开体验模式（本地 mock，无需域名）</view>
+    <view class="legal dev-hint" wx:if="{{showMockHint}}">当前为本地体验数据，无需联网</view>
   </view>
 </view>

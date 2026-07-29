@@ -12,9 +12,18 @@ const { showError } = require("../../utils/errors");
 Page({
   data: {
     loading: false,
+    showMockHint: false,
   },
 
   onShow() {
+    try {
+      const app = getApp();
+      this.setData({
+        showMockHint: !!(app && app.globalData && app.globalData.useMockData),
+      });
+    } catch (_) {
+      this.setData({ showMockHint: false });
+    }
     const token = getToken();
     const user = getUser();
     if (token && user) {

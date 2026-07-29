@@ -7,6 +7,27 @@ const {
 } = require("../../../utils/media");
 const { showError } = require("../../../utils/errors");
 
+const TYPE_LABEL = {
+  fill_blank: "填空",
+  choice: "选择",
+  true_false: "判断",
+};
+
+function formatAnswerLabel(snap) {
+  if (!snap) return "—";
+  const t = snap.type;
+  const a = snap.answer;
+  if (t === "true_false") {
+    if (a === true || a === "true" || a === "正确") return "正确";
+    if (a === false || a === "false" || a === "错误") return "错误";
+  }
+  if (t === "choice" && a != null) {
+    return String(a).toUpperCase();
+  }
+  if (a == null || a === "") return "—";
+  return String(a);
+}
+
 Page({
   data: {
     id: "",
@@ -79,10 +100,18 @@ Page({
         ...q,
         rateText: q.correctRate != null ? `${q.correctRate}%` : "—",
       }));
+      const questions = (qs.questions || []).map((row) => {
+        const snap = row.snapshot || {};
+        return {
+          ...row,
+          typeLabel: TYPE_LABEL[snap.type] || "",
+          answerLabel: formatAnswerLabel(snap),
+        };
+      });
       this.setData({
         assignment: a.assignment,
         submissions,
-        questions: qs.questions || [],
+        questions,
         questionStats,
         isPhoto,
         summary,

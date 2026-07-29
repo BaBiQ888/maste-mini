@@ -248,8 +248,7 @@ function mapNetworkFailure(err, via) {
     detail.indexOf("-501000") >= 0
   ) {
     code = "CLOUD";
-    fallback =
-      "云环境或服务名不正确，请在控制台核对环境 ID 与服务名后改 app.js";
+    fallback = "服务连接异常，请稍后重试或联系管理员";
   } else if (detail.indexOf("Cloud API isn't enabled") >= 0) {
     code = "CLOUD";
     fallback = "云服务未就绪，请稍后重试";
@@ -258,7 +257,7 @@ function mapNetworkFailure(err, via) {
     (detail.indexOf("not found") >= 0 || detail.indexOf("invalid") >= 0)
   ) {
     code = "CLOUD";
-    fallback = "云环境配置有误，请联系管理员";
+    fallback = "服务暂时不可用，请稍后重试或联系管理员";
   } else if (/timeout|超时/i.test(detail)) {
     code = "TIMEOUT";
     fallback = "请求超时，请稍后重试";

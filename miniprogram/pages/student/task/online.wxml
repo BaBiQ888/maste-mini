@@ -49,7 +49,7 @@
         data-index="{{index}}"
         data-oid="{{o.id}}"
         bindtap="pickChoice"
-      >{{o.id}}. {{o.text}}</view>
+      >{{o.letter || o.id}}. {{o.text}}</view>
     </block>
 
     <block wx:if="{{item.isTf}}">

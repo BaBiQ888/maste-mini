@@ -75,7 +75,7 @@
     <view class="ans muted">答：{{item.answer}}</view>
   </view>
 
-  <view class="hint muted">进入页面已自动出题；限时到点会服务端强制交卷。可先草稿再发布。</view>
+  <view class="hint muted">进入页面已自动出题；限时结束后系统会自动收卷。可先存草稿再发布。</view>
 
   <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading || !preview.length || genBusy}}" bindtap="publishNow">发布每日计算</button>
   <button class="btn btn-ghost" disabled="{{loading || !preview.length || genBusy}}" bindtap="saveDraft">存为草稿</button>

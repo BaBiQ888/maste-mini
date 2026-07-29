@@ -18,8 +18,8 @@
         <view class="tag">{{typeLabels[item.type]}}</view>
         <view class="stem">{{item.stem}}</view>
       </view>
-      <view class="meta muted" wx:if="{{item.knowledgeLabel || item.knowledgeNodeId}}">
-        {{item.knowledgePath || item.knowledgeLabel || item.knowledgeNodeId}}
+      <view class="meta muted" wx:if="{{item.knowledgeLabel}}">
+        {{item.knowledgePath || item.knowledgeLabel}}
       </view>
     </view>
   </block>

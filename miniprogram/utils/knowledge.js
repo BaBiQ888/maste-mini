@@ -50,13 +50,10 @@ async function attachKnowledgeLabels(items) {
   return list.map((it) => {
     const id = it && it.knowledgeNodeId;
     const pack = id ? labelCache[id] : null;
+    // Never surface raw technical ids to UI
     return {
       ...it,
-      knowledgeLabel: pack
-        ? pack.name
-        : id
-          ? id
-          : "",
+      knowledgeLabel: pack ? pack.name : "",
       knowledgePath: pack ? pack.pathLabel : "",
     };
   });

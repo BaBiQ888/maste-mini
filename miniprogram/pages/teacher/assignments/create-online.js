@@ -2,6 +2,7 @@ const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { getCurrentClassId } = require("../../../utils/class-context");
 const { showError } = require("../../../utils/errors");
+const { attachKnowledgeLabels } = require("../../../utils/knowledge");
 
 const TYPE_LABEL = {
   fill_blank: "填空",
@@ -49,11 +50,12 @@ Page({
       const classes = cls.classes || [];
       let classId = getCurrentClassId() || "";
       const found = classes.find((c) => c.id === classId);
+      const questions = await attachKnowledgeLabels(qs.questions || []);
       this.setData({
         classes,
         classId: found ? found.id : "",
         className: found ? found.name : "请选择班级",
-        questions: qs.questions || [],
+        questions,
       });
     } catch (e) {
       showError(e, { fallback: "加载失败" });

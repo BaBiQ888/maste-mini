@@ -39,9 +39,7 @@
     bindtap="toggleQ"
   >
     <view class="stem">{{item.stem}}</view>
-    <view class="meta muted" wx:if="{{item.knowledgeLabel || item.knowledgeNodeId}}">
-      {{item.knowledgeLabel || item.knowledgeNodeId}}
-    </view>
+    <view class="meta muted" wx:if="{{item.knowledgeLabel}}">{{item.knowledgeLabel}}</view>
   </view>
 
   <view wx:if="{{!questions.length}}" class="empty-box">

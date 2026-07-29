@@ -43,11 +43,12 @@
       <view class="q-body">
         <view class="tag">{{typeLabels[item.type]}}</view>
         <view class="stem">{{item.stem}}</view>
+        <view class="meta muted" wx:if="{{item.knowledgeLabel}}">{{item.knowledgeLabel}}</view>
       </view>
     </view>
   </view>
 
-  <view class="hint muted">发布后题面写入快照，之后改题库不影响本作业。</view>
+  <view class="hint muted">发布后题目内容会固定在本作业中，之后改题库不会影响已发布的练习。</view>
 
   <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="publishNow">发布</button>
   <button class="btn btn-ghost" disabled="{{loading}}" bindtap="saveDraft">存为草稿</button>

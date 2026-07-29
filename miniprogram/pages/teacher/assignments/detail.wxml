@@ -48,16 +48,18 @@
     </view>
   </block>
   <block wx:elif="{{!isPhoto && questions.length}}">
-    <view class="section muted">题目快照（{{questions.length}}）</view>
+    <view class="section muted">题目（{{questions.length}}）</view>
     <view class="card list">
       <view class="sub" wx:for="{{questions}}" wx:key="id">
         <view class="sn">{{index + 1}}. {{item.snapshot.stem}}</view>
-        <view class="ss muted">答案：{{item.snapshot.answer}} · {{item.snapshot.type}}</view>
+        <view class="ss muted">
+          {{item.typeLabel || ''}}{{item.typeLabel ? ' · ' : ''}}参考答案：{{item.answerLabel}}
+        </view>
       </view>
     </view>
   </block>
 
-  <view class="section muted">{{isPhoto ? '提交明细' : '提交明细（在线作答 Phase 7）'}}</view>
+  <view class="section muted">{{isPhoto ? '提交明细' : '学生作答情况'}}</view>
   <view class="card list" wx:if="{{submissions.length}}">
     <view class="sub" wx:for="{{submissions}}" wx:key="id">
       <view class="sub-head">

@@ -69,6 +69,7 @@
   margin-bottom: 6rpx;
 }
 .stem { font-size: 28rpx; line-height: 1.4; }
+.meta { margin-top: 8rpx; font-size: 22rpx; }
 .hint {
   font-size: 22rpx;
   margin: 20rpx 0 28rpx;

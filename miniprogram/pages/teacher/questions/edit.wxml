@@ -15,7 +15,7 @@
 
   <block wx:if="{{type === 'fill_blank'}}">
     <view class="label">答案</view>
-    <input class="input" placeholder="标准答案字符串" value="{{answer}}" bindinput="onAnswer" />
+    <input class="input" placeholder="填写参考答案，如 12 或 3/4" value="{{answer}}" bindinput="onAnswer" />
   </block>
 
   <block wx:if="{{type === 'true_false'}}">
@@ -48,7 +48,7 @@
   <view class="kp-card" bindtap="openKnowledgePicker">
     <block wx:if="{{knowledgeNodeId}}">
       <view class="kp-path">{{knowledgePath || "已关联"}}</view>
-      <view class="kp-name">{{knowledgeName || knowledgeNodeId}}</view>
+      <view class="kp-name">{{knowledgeName || '已关联知识点'}}</view>
     </block>
     <block wx:else>
       <view class="kp-empty">未关联</view>

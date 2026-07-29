@@ -19,5 +19,5 @@
     确认加入
   </button>
   <button class="btn btn-ghost" disabled="{{loading}}" bindtap="onScan">扫码加入</button>
-  <view class="hint muted">二维码内容为邀请码或 SUANBEN:邀请码</view>
+  <view class="hint muted">也可直接扫描老师出示的入班二维码</view>
 </view>
