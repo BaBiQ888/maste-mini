@@ -55,39 +55,69 @@ function chooseAndUpload(count = 3) {
 /**
  * @param {string} filePath local temp path
  * @param {"homework"|"avatars"} folder cloudPath prefix
- * @returns {Promise<string>} cloud fileID or /uploads/...
+ * @returns {Promise<string>} cloud fileID (or mock/API path only in mock mode)
+ *
+ * Production: cloud object storage only — no silent fallback (kept as
+ * uploadViaApiBase64 for emergency re-enable). Failures surface to the UI
+ * so we can diagnose COS / env / permission issues.
  */
 function uploadFilePath(filePath, folder) {
   const kind = folder === "avatars" ? "avatars" : "homework";
+
+  // Local mock has no COS bucket — keep API mock path only for useMockData
+  if (useMockData()) {
+    return uploadViaApiBase64(filePath);
+  }
+
   return tryCloudUpload(filePath, kind).catch((cloudErr) => {
+    const raw =
+      (cloudErr && (cloudErr.errMsg || cloudErr.message || String(cloudErr))) ||
+      "unknown";
     logError("media.cloudUpload", cloudErr, {
       filePath,
       kind,
-      raw: cloudErr && (cloudErr.errMsg || cloudErr.message),
+      cloudEnv: getCloudEnv(),
+      useCloud: true,
+      raw,
+      errCode: cloudErr && (cloudErr.errCode || cloudErr.code),
     });
-    // Mock / no cloud / uploadFile failed → legacy base64 API (container disk)
-    return uploadViaApiBase64(filePath);
+    // Intentionally NOT falling back to uploadViaApiBase64 — surface failure.
+    // To re-enable container disk fallback temporarily, replace the throw below with:
+    //   return uploadViaApiBase64(filePath);
+    return Promise.reject(
+      toUserError(cloudErr, {
+        code: "CLOUD_UPLOAD",
+        rawMessage: raw,
+        fallback: "对象存储上传失败：" + shortenUploadErr(raw),
+      }),
+    );
   });
 }
 
+/** Keep toast readable; full detail is already in console via logError */
+function shortenUploadErr(raw) {
+  const s = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!s) return "请打开调试器 Console 查看 media.cloudUpload";
+  return s.length > 80 ? s.slice(0, 80) + "…" : s;
+}
+
 function tryCloudUpload(filePath, kind) {
-  if (useMockData()) {
-    return Promise.reject(new Error("mock: skip cloud storage"));
-  }
   if (!useCloudCall()) {
-    return Promise.reject(new Error("cloud disabled"));
+    return Promise.reject(
+      new Error("useCloud=false，对象存储需开启云托管调用"),
+    );
   }
   if (typeof wx === "undefined" || !wx.cloud) {
-    return Promise.reject(new Error("wx.cloud unavailable"));
+    return Promise.reject(new Error("wx.cloud 不可用（基础库/环境）"));
   }
 
   return ensureCloudReady()
     .then((cloudApi) => {
       if (!cloudApi || typeof cloudApi.uploadFile !== "function") {
-        throw new Error("cloud.uploadFile unavailable");
+        throw new Error("cloud.uploadFile 不可用（云初始化失败？）");
       }
       const env = getCloudEnv();
-      if (!env) throw new Error("cloudEnv missing");
+      if (!env) throw new Error("cloudEnv 未配置");
 
       const ext = guessExt(filePath);
       const cloudPath =
@@ -99,6 +129,8 @@ function tryCloudUpload(filePath, kind) {
         "." +
         ext;
 
+      console.info("[media.cloudUpload] start", { env, cloudPath, kind });
+
       return new Promise((resolve, reject) => {
         cloudApi.uploadFile({
           cloudPath,
@@ -106,12 +138,29 @@ function tryCloudUpload(filePath, kind) {
           config: { env },
           success(res) {
             if (res && res.fileID) {
+              console.info("[media.cloudUpload] ok", {
+                fileID: res.fileID,
+                cloudPath,
+              });
               resolve(res.fileID);
               return;
             }
-            reject(new Error("对象存储上传未返回 fileID"));
+            reject(
+              new Error(
+                "uploadFile 成功但无 fileID: " + JSON.stringify(res || {}),
+              ),
+            );
           },
-          fail: reject,
+          fail(err) {
+            console.error("[media.cloudUpload] fail", {
+              env,
+              cloudPath,
+              errMsg: err && err.errMsg,
+              errCode: err && err.errCode,
+              err,
+            });
+            reject(err || new Error("uploadFile fail"));
+          },
         });
       });
     });
@@ -144,6 +193,10 @@ function getCloudEnv() {
   }
 }
 
+/**
+ * Legacy: base64 → POST /api/v1/uploads/photo → container disk.
+ * Kept for mock mode and emergency re-enable; production path does not call this.
+ */
 function uploadViaApiBase64(filePath) {
   return new Promise((resolve, reject) => {
     const fs = wx.getFileSystemManager();

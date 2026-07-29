@@ -33,6 +33,7 @@ const CODE_MESSAGES = {
   NETWORK: "网络不太稳定，请检查后重试",
   TIMEOUT: "请求超时，请稍后重试",
   CLOUD: "云服务暂时连不上，请稍后重试",
+  CLOUD_UPLOAD: "对象存储上传失败，请稍后重试",
 };
 
 /** Substrings that must never surface to users as-is */
@@ -109,6 +110,19 @@ function friendlyMessage(err, fallback) {
   if (!err) return fb;
 
   const code = err.code || (err.body && err.body.code);
+  // Surface COS/upload diagnostics (errMsg) so integration can be debugged
+  if (code === "CLOUD_UPLOAD") {
+    const detail =
+      err.rawMessage || err.errMsg || (err.message && err.message !== CODE_MESSAGES.CLOUD_UPLOAD
+        ? err.message
+        : "");
+    if (detail && String(detail).trim()) {
+      const s = String(detail).replace(/\s+/g, " ").trim();
+      const short = s.length > 72 ? s.slice(0, 72) + "…" : s;
+      return "对象存储上传失败：" + short;
+    }
+    return CODE_MESSAGES.CLOUD_UPLOAD;
+  }
   if (code && CODE_MESSAGES[code]) {
     return CODE_MESSAGES[code];
   }
@@ -193,7 +207,8 @@ function showError(err, opts) {
     options.modal === true ||
     text.length > 22 ||
     (err && Number(err.statusCode) >= 500) ||
-    (err && err.code === "UNAUTHORIZED");
+    (err && err.code === "UNAUTHORIZED") ||
+    (err && err.code === "CLOUD_UPLOAD");
 
   if (useModal) {
     wx.showModal({
