@@ -39,12 +39,14 @@
     bindtap="toggleQ"
   >
     <view class="stem">{{item.stem}}</view>
-    <view class="meta muted" wx:if="{{item.knowledgeNodeId}}">{{item.knowledgeNodeId}}</view>
+    <view class="meta muted" wx:if="{{item.knowledgeLabel || item.knowledgeNodeId}}">
+      {{item.knowledgeLabel || item.knowledgeNodeId}}
+    </view>
   </view>
 
   <view wx:if="{{!questions.length}}" class="empty-box">
     <view class="title">题库为空</view>
-    <view class="desc">录入题目时填写知识点 id，打卡选题更顺</view>
+    <view class="desc">录入题目时关联知识点，打卡选题更顺</view>
     <button class="btn btn-primary mt" bindtap="goQuestionBank">去录入</button>
   </view>
 

@@ -44,9 +44,27 @@
   <view class="label">解析（可选）</view>
   <textarea class="area sm" placeholder="提交后学生可见" maxlength="500" value="{{explanation}}" bindinput="onExpl" />
 
-  <view class="label">知识点 id（可选）</view>
-  <input class="input" placeholder="如 g3-u-addsub-k-add2" value="{{knowledgeNodeId}}" bindinput="onKnowledge" />
-  <view class="hint muted">知识树 UI 下阶段完善，此处先填配置 id</view>
+  <view class="label">关联知识点（可选）</view>
+  <view class="kp-card" bindtap="openKnowledgePicker">
+    <block wx:if="{{knowledgeNodeId}}">
+      <view class="kp-path">{{knowledgePath || "已关联"}}</view>
+      <view class="kp-name">{{knowledgeName || knowledgeNodeId}}</view>
+    </block>
+    <block wx:else>
+      <view class="kp-empty">未关联</view>
+      <view class="kp-hint">用于打卡与学情归类，不选也能保存</view>
+    </block>
+    <view class="kp-action">{{knowledgeNodeId ? "更改" : "选择知识点"}}</view>
+  </view>
+  <view class="kp-clear muted" wx:if="{{knowledgeNodeId}}" bindtap="clearKnowledge">清除关联</view>
 
   <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="save">保存</button>
+
+  <knowledge-picker
+    show="{{pickerShow}}"
+    value="{{knowledgeNodeId}}"
+    grade="{{pickerGrade}}"
+    bind:change="onKnowledgeChange"
+    bind:close="closeKnowledgePicker"
+  />
 </view>

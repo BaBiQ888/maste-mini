@@ -1,6 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { showError } = require("../../../utils/errors");
+const { attachKnowledgeLabels } = require("../../../utils/knowledge");
 
 const TYPE_LABEL = {
   fill_blank: "填空",
@@ -32,7 +33,8 @@ Page({
     this.setData({ loading: true });
     try {
       const data = await request({ url: "/api/v1/questions", method: "GET" });
-      this.setData({ questions: data.questions || [], loading: false });
+      const questions = await attachKnowledgeLabels(data.questions || []);
+      this.setData({ questions, loading: false });
     } catch (e) {
       this.setData({ loading: false });
       showError(e, { fallback: "加载失败" });

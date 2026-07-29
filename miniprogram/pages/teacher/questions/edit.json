@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "录入题目"
+  "navigationBarTitleText": "录入题目",
+  "usingComponents": {
+    "knowledge-picker": "/components/knowledge-picker/knowledge-picker"
+  }
 }

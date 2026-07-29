@@ -18,7 +18,9 @@
         <view class="tag">{{typeLabels[item.type]}}</view>
         <view class="stem">{{item.stem}}</view>
       </view>
-      <view class="meta muted" wx:if="{{item.knowledgeNodeId}}">知识点 {{item.knowledgeNodeId}}</view>
+      <view class="meta muted" wx:if="{{item.knowledgeLabel || item.knowledgeNodeId}}">
+        {{item.knowledgePath || item.knowledgeLabel || item.knowledgeNodeId}}
+      </view>
     </view>
   </block>
 

@@ -2,6 +2,7 @@ const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { getCurrentClassId } = require("../../../utils/class-context");
 const { showError } = require("../../../utils/errors");
+const { attachKnowledgeLabels } = require("../../../utils/knowledge");
 
 Page({
   data: {
@@ -43,13 +44,14 @@ Page({
       let classId = getCurrentClassId() || "";
       const found = classes.find((c) => c.id === classId);
       const grade = found ? found.grade : 3;
+      const questions = await attachKnowledgeLabels(qs.questions || []);
       this.setData({
         classes,
         classId: found ? found.id : "",
         className: found ? found.name : "请选择班级",
         grade,
         title: found ? `${found.name} · 知识点打卡` : "知识点打卡",
-        questions: qs.questions || [],
+        questions,
       });
       await this.loadTree(grade);
     } catch (e) {

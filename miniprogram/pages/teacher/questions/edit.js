@@ -1,6 +1,8 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
-const { showError } = require("../../../utils/errors");
+const { showError, logError } = require("../../../utils/errors");
+const { resolveKnowledgeLabel } = require("../../../utils/knowledge");
+const { getCurrentClassId } = require("../../../utils/class-context");
 
 Page({
   data: {
@@ -15,6 +17,10 @@ Page({
     answer: "",
     explanation: "",
     knowledgeNodeId: "",
+    knowledgeName: "",
+    knowledgePath: "",
+    pickerShow: false,
+    pickerGrade: 3,
     optA: "",
     optB: "",
     optC: "",
@@ -38,7 +44,22 @@ Page({
       routeByUser(user);
       return;
     }
+    this.initPickerGrade();
     if (this.data.id) this.load();
+  },
+
+  async initPickerGrade() {
+    try {
+      const classId = getCurrentClassId();
+      if (!classId) return;
+      const data = await request({ url: "/api/v1/classes", method: "GET" });
+      const found = (data.classes || []).find((c) => c.id === classId);
+      if (found && found.grade) {
+        this.setData({ pickerGrade: found.grade });
+      }
+    } catch (e) {
+      logError("questions.edit.initGrade", e, {});
+    }
   },
 
   async load() {
@@ -48,11 +69,12 @@ Page({
         method: "GET",
       });
       const q = data.question;
+      const knowledgeNodeId = q.knowledgeNodeId || "";
       const patch = {
         type: q.type,
         stem: q.stem,
         explanation: q.explanation || "",
-        knowledgeNodeId: q.knowledgeNodeId || "",
+        knowledgeNodeId,
       };
       if (q.type === "fill_blank") {
         patch.answer = String(q.answer);
@@ -67,6 +89,20 @@ Page({
         patch.choiceAnswer = q.answer || "a";
       }
       this.setData(patch);
+      if (knowledgeNodeId) {
+        const pack = await resolveKnowledgeLabel(knowledgeNodeId);
+        if (pack && this.data.knowledgeNodeId === knowledgeNodeId) {
+          this.setData({
+            knowledgeName: pack.name,
+            knowledgePath: pack.pathLabel,
+          });
+          if (pack.pathLabel && /年级/.test(pack.pathLabel)) {
+            // leave pickerGrade as class grade; optional parse skipped
+          }
+        }
+      } else {
+        this.setData({ knowledgeName: "", knowledgePath: "" });
+      }
     } catch (e) {
       showError(e, { fallback: "加载失败" });
     }
@@ -83,9 +119,6 @@ Page({
   },
   onExpl(e) {
     this.setData({ explanation: e.detail.value });
-  },
-  onKnowledge(e) {
-    this.setData({ knowledgeNodeId: e.detail.value });
   },
   onOptA(e) {
     this.setData({ optA: e.detail.value });
@@ -104,6 +137,29 @@ Page({
   },
   pickTf(e) {
     this.setData({ tfAnswer: e.currentTarget.dataset.v === "1" });
+  },
+
+  openKnowledgePicker() {
+    this.setData({ pickerShow: true });
+  },
+  closeKnowledgePicker() {
+    this.setData({ pickerShow: false });
+  },
+  onKnowledgeChange(e) {
+    const d = (e && e.detail) || {};
+    this.setData({
+      knowledgeNodeId: d.id || "",
+      knowledgeName: d.name || "",
+      knowledgePath: d.pathLabel || "",
+      pickerShow: false,
+    });
+  },
+  clearKnowledge() {
+    this.setData({
+      knowledgeNodeId: "",
+      knowledgeName: "",
+      knowledgePath: "",
+    });
   },
 
   buildPayload() {
