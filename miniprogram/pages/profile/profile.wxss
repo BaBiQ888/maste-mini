@@ -166,7 +166,33 @@
   box-sizing: border-box;
 }
 
-.danger {
-  color: #a63d3d;
+/* Three actions in one horizontal row */
+.actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 16rpx;
   margin-top: 8rpx;
+}
+
+.action-btn {
+  flex: 1;
+  min-width: 0;
+  height: 88rpx;
+  margin: 0 !important;
+  padding: 0 8rpx;
+  font-size: 26rpx;
+  box-sizing: border-box;
+}
+
+/* Override global .btn-ghost margin-top so row stays flat */
+.actions .btn-ghost {
+  margin-top: 0;
+  background: var(--white);
+}
+
+.danger {
+  color: #a63d3d !important;
 }

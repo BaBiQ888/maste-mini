@@ -45,11 +45,18 @@
     />
   </view>
 
-  <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="onSave">
-    保存
-  </button>
-  <button class="btn btn-ghost" bindtap="onChangeRole">切换身份</button>
-  <button class="btn btn-ghost danger" bindtap="onLogout">退出登录</button>
+  <view class="actions">
+    <button
+      class="btn btn-primary action-btn"
+      loading="{{loading}}"
+      disabled="{{loading}}"
+      bindtap="onSave"
+    >
+      保存
+    </button>
+    <button class="btn btn-ghost action-btn" bindtap="onChangeRole">切换身份</button>
+    <button class="btn btn-ghost action-btn danger" bindtap="onLogout">退出登录</button>
+  </view>
 
   <app-tabbar wx:if="{{tabRole}}" role="{{tabRole}}" active="profile" badge="{{badge}}" />
 </view>
