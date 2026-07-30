@@ -643,7 +643,10 @@ export function createApp(
   authed.get("/me/interaction-badge", async (c) => {
     try {
       const user = c.get("user");
-      const badge = await interaction.getBadge(user.id, user.role);
+      const classId = c.req.query("classId") || undefined;
+      const badge = await interaction.getBadge(user.id, user.role, {
+        classId,
+      });
       return c.json({ badge });
     } catch (e) {
       return handleError(c, e);
@@ -664,6 +667,16 @@ export function createApp(
     try {
       const result = await interaction.ackInbox(c.get("user").id);
       return c.json(result);
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  /** Student home display bundle: badge + focus + inbox preview */
+  authed.get("/me/student-home", async (c) => {
+    try {
+      const home = await interaction.getStudentHomeBundle(c.get("user").id);
+      return c.json({ home });
     } catch (e) {
       return handleError(c, e);
     }

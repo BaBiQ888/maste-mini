@@ -29,7 +29,7 @@
     </view>
     <view class="buckets">
       <view class="b"><view class="bn">{{summary.completedCount}}</view><view class="bl muted">已完成</view></view>
-      <view class="b"><view class="bn">{{summary.inProgressCount}}</view><view class="bl muted">进行中</view></view>
+      <view class="b"><view class="bn">{{summary.pendingCorrectionCount != null ? summary.pendingCorrectionCount : 0}}</view><view class="bl muted">待订正</view></view>
       <view class="b"><view class="bn">{{summary.notStartedCount}}</view><view class="bl muted">未开始</view></view>
       <view class="b"><view class="bn">{{summary.overdueCount}}</view><view class="bl muted">逾期</view></view>
     </view>

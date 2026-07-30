@@ -87,7 +87,12 @@ export interface PublicAnswerItem {
   correctionRound: number;
   /** Optional student self-tag on wrong/correct (S2) */
   wrongReason?: string | null;
-  /** Shown after first submit */
+  /**
+   * Server reveal policy: true only when keys may be shown to the student.
+   * Clients must not invent this from isCorrect.
+   */
+  revealKey: boolean;
+  /** Present only when revealKey */
   correctAnswer?: string | boolean;
   explanation?: string | null;
   stem?: string;
@@ -381,6 +386,29 @@ export class AssignmentService {
   }
 
   /**
+   * Top wrongs via ProgressService stats path (injected lazily to avoid cycles).
+   */
+  private async getTopWrongStats(
+    teacherId: string,
+    assignmentId: string,
+    limit: number,
+  ): Promise<
+    Array<{
+      knowledgeNodeId: string | null;
+      wrongCount: number;
+    }>
+  > {
+    // Lazy import avoids circular module init with ProgressService
+    const { ProgressService } = await import("../progress/service.js");
+    const progress = new ProgressService(this.db);
+    const top = await progress.getTopWrongs(assignmentId, teacherId, limit);
+    return top.questions.map((q) => ({
+      knowledgeNodeId: q.knowledgeNodeId,
+      wrongCount: q.wrongCount,
+    }));
+  }
+
+  /**
    * One-click variant drill from this assignment's top wrong knowledge/stems.
    * Generates new daily_drill questions and optionally publishes.
    */
@@ -394,35 +422,15 @@ export class AssignmentService {
     const count = Math.min(Math.max(opts?.count ?? 10, 5), 30);
     const publish = opts?.publish !== false;
 
-    // Aggregate wrongs → knowledge / ops
-    const wrongRows = (await this.db.all(
-      `SELECT aq.question_snapshot,
-              SUM(CASE WHEN ai.is_correct = 0 THEN 1 ELSE 0 END) AS wrong_c
-       FROM assignment_questions aq
-       LEFT JOIN answer_items ai ON ai.assignment_question_id = aq.id
-         AND ai.is_correct IS NOT NULL
-       WHERE aq.assignment_id = ?
-       GROUP BY aq.id, aq.question_snapshot
-       HAVING wrong_c > 0
-       ORDER BY wrong_c DESC
-       LIMIT 8`,
-      sourceAssignmentId,
-    )) as Array<{ question_snapshot: string; wrong_c: number }>;
-
+    // Single source: question-stats → top wrongs (no third SQL)
+    const top = await this.getTopWrongStats(teacherId, sourceAssignmentId, 8);
     const opIds = new Set<string>();
-    for (const r of wrongRows) {
-      try {
-        const snap = JSON.parse(r.question_snapshot) as {
-          knowledgeNodeId?: string | null;
-        };
-        const kn = snap.knowledgeNodeId
-          ? this.knowledge.getById(snap.knowledgeNodeId)
-          : null;
-        for (const op of kn?.suggestedDrillOps || []) {
-          opIds.add(op);
-        }
-      } catch {
-        /* ignore */
+    for (const q of top) {
+      const kn = q.knowledgeNodeId
+        ? this.knowledge.getById(q.knowledgeNodeId)
+        : null;
+      for (const op of kn?.suggestedDrillOps || []) {
+        opIds.add(op);
       }
     }
     if (!opIds.size) {
@@ -1748,10 +1756,8 @@ export class AssignmentService {
         const revealAfterDone = this.readRevealAnswerAfterDone(
           asgCfg?.config_json || "{}",
         );
-        // Never leak answer keys while student is still correcting.
-        // After completed: optional reveal (default true) so review is possible;
-        // teacher stats always use server-side grades, independent of reveal.
-        const showKey =
+        // Never leak answer keys while correcting; only when completed + policy.
+        const revealKey =
           row.status === "completed" && revealAfterDone;
 
         answers = items.map((it) => {
@@ -1773,12 +1779,13 @@ export class AssignmentService {
                 : it.is_correct === 1,
             correctionRound: it.correction_round,
             wrongReason: it.wrong_reason ?? null,
+            revealKey,
             stem: snap?.stem,
             type: snap?.type,
             options: snap?.options ?? null,
             knowledgeLabel,
           };
-          if (showKey && snap && it.is_correct !== null) {
+          if (revealKey && snap && it.is_correct !== null) {
             base.correctAnswer = snap.answer;
             base.explanation = snap.explanation;
           }
@@ -1803,6 +1810,7 @@ export class AssignmentService {
                 response: null,
                 isCorrect: null,
                 correctionRound: 0,
+                revealKey: false,
                 stem: snap.stem,
                 type: snap.type,
                 options: snap.options,

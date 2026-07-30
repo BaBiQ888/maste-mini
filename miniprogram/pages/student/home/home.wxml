@@ -39,22 +39,13 @@
       </view>
     </view>
 
-    <!-- 老师印章 / 小纸条 -->
-    <view class="card soft" wx:if="{{stamps.length || notes.length || teacherReplies.length || stuckReplies.length}}">
+    <!-- 老师留言预览（与消息中心同一 inbox 契约） -->
+    <view class="card soft" wx:if="{{previewItems.length}}" bindtap="goInbox">
       <view class="label muted" style="margin:0 0 8rpx">老师留言</view>
-      <view class="stamp-chip" wx:for="{{stamps}}" wx:key="id">
-        印章「{{item.label}}」
-        <text wx:if="{{item.assignmentTitle}}"> · {{item.assignmentTitle}}</text>
-      </view>
-      <view class="note-line muted" wx:for="{{notes}}" wx:key="id">
-        {{item.body}}
-      </view>
-      <view class="note-line" wx:for="{{teacherReplies}}" wx:key="id">
-        老师回周小结：{{item.teacherReply}}
-      </view>
-      <view class="note-line" wx:for="{{stuckReplies}}" wx:key="id">
-        老师答「还不会」：{{item.teacherReply}}
-        <text class="muted sm" wx:if="{{item.stem}}">（{{item.stem}}）</text>
+      <view class="note-line" wx:for="{{previewItems}}" wx:key="id">
+        <text class="stamp-chip" wx:if="{{item.kindLabel}}">{{item.kindLabel}}</text>
+        {{item.title}}
+        <text class="muted sm" wx:if="{{item.body}}"> · {{item.body}}</text>
       </view>
     </view>
 

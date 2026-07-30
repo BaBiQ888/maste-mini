@@ -9,14 +9,16 @@
   <block wx:elif="{{classId}}">
     <!-- 班级共亮 -->
     <view class="card" wx:if="{{mapProgress}}">
-      <view class="sec">班级算本树（无排名）</view>
+      <view class="sec">班级巩固（人次 · 无排名）</view>
       <view class="stats">
         <view class="st"><view class="n">{{mapProgress.studentCount}}</view><view class="l muted">同学</view></view>
-        <view class="st"><view class="n">{{mapProgress.litNodeCount}}</view><view class="l muted">过关点</view></view>
-        <view class="st"><view class="n">{{mapProgress.halfNodeCount}}</view><view class="l muted">待巩固</view></view>
-        <view class="st"><view class="n">{{mapProgress.passCountWeek}}</view><view class="l muted">本周过关</view></view>
+        <view class="st"><view class="n">{{mapProgress.passEventsTotal != null ? mapProgress.passEventsTotal : mapProgress.litNodeCount}}</view><view class="l muted">过关人次</view></view>
+        <view class="st"><view class="n">{{mapProgress.queueEvents != null ? mapProgress.queueEvents : mapProgress.halfNodeCount}}</view><view class="l muted">队列人次</view></view>
+        <view class="st"><view class="n">{{mapProgress.passEventsWeek != null ? mapProgress.passEventsWeek : mapProgress.passCountWeek}}</view><view class="l muted">本周过关</view></view>
       </view>
-      <view class="muted sm" wx:if="{{mapProgress.dueReviewCount}}">今日到期回访 {{mapProgress.dueReviewCount}} 人次</view>
+      <view class="muted sm" wx:if="{{mapProgress.dueReviewEvents || mapProgress.dueReviewCount}}">
+        待回访 {{mapProgress.dueReviewEvents != null ? mapProgress.dueReviewEvents : mapProgress.dueReviewCount}} 人次
+      </view>
     </view>
 
     <!-- 今日焦点 -->

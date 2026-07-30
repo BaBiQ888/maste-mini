@@ -80,12 +80,12 @@
       </view>
     </block>
 
-    <!-- 订正中不展示答案；完成后才显示（服务端 pending_correction 不下发 correctAnswer） -->
-    <view class="key muted" wx:if="{{mode === 'result' && item.showKey && item.isCorrect === false && item.correctAnswer != null}}">
+    <!-- 仅服务端 revealKey 时展示答案 -->
+    <view class="key muted" wx:if="{{item.revealKey && item.isCorrect === false && item.correctAnswer != null}}">
       正确答案：{{item.correctAnswer}}
       <text wx:if="{{item.explanation}}"> · {{item.explanation}}</text>
     </view>
-    <view class="key ok-text" wx:if="{{mode === 'result' && item.showKey && item.isCorrect === true && item.explanation}}">
+    <view class="key ok-text" wx:if="{{item.revealKey && item.isCorrect === true && item.explanation}}">
       {{item.explanation}}
     </view>
     <view class="key muted" wx:if="{{mode === 'correct' && item.isCorrect === false}}">

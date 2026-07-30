@@ -65,7 +65,7 @@ Page({
   async load() {
     this.setData({ loading: true });
     try {
-      const [a, s, sum, qs, qst, top] = await Promise.all([
+      const [a, s, sum, qs, qst] = await Promise.all([
         request({ url: `/api/v1/assignments/${this.data.id}`, method: "GET" }),
         request({
           url: `/api/v1/assignments/${this.data.id}/submissions`,
@@ -74,19 +74,24 @@ Page({
         request({
           url: `/api/v1/assignments/${this.data.id}/summary`,
           method: "GET",
-        }).catch(() => ({ summary: null })),
+        }).catch((err) => {
+          console.error("[detail.summary]", err);
+          return { summary: null };
+        }),
         request({
           url: `/api/v1/assignments/${this.data.id}/questions`,
           method: "GET",
-        }).catch(() => ({ questions: [] })),
+        }).catch((err) => {
+          console.error("[detail.questions]", err);
+          return { questions: [] };
+        }),
         request({
           url: `/api/v1/assignments/${this.data.id}/question-stats`,
           method: "GET",
-        }).catch(() => ({ questions: [] })),
-        request({
-          url: `/api/v1/assignments/${this.data.id}/top-wrongs`,
-          method: "GET",
-        }).catch(() => ({ questions: [] })),
+        }).catch((err) => {
+          console.error("[detail.questionStats]", err);
+          return { questions: [] };
+        }),
       ]);
       const submissions = await Promise.all(
         (s.submissions || []).map(async (sub) => ({
@@ -104,8 +109,27 @@ Page({
       const isPhoto = a.assignment.type === "photo_homework";
       const questionStats = (qst.questions || []).map((q) => ({
         ...q,
+        wrongCount:
+          q.wrongCount != null
+            ? q.wrongCount
+            : Math.max(0, (q.answeredCount || 0) - (q.correctCount || 0)),
         rateText: q.correctRate != null ? `${q.correctRate}%` : "—",
       }));
+      // Single source: top wrongs from question-stats (no second endpoint)
+      const topWrongs = questionStats
+        .filter((q) => q.wrongCount > 0)
+        .sort(
+          (x, y) =>
+            y.wrongCount - x.wrongCount ||
+            (y.answeredCount || 0) - (x.answeredCount || 0),
+        )
+        .slice(0, 3)
+        .map((q) => ({
+          assignmentQuestionId: q.assignmentQuestionId,
+          stem: q.stem,
+          wrongCount: q.wrongCount,
+          answeredCount: q.answeredCount,
+        }));
       const questions = (qs.questions || []).map((row) => {
         const snap = row.snapshot || {};
         return {
@@ -126,7 +150,7 @@ Page({
         summary,
         rateText,
         requireCorrection,
-        topWrongs: top.questions || [],
+        topWrongs,
         loading: false,
       });
     } catch (e) {

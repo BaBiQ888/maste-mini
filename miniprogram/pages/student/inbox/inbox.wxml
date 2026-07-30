@@ -6,7 +6,7 @@
 
   <block wx:elif="{{items.length}}">
     <view class="card" wx:for="{{items}}" wx:key="id">
-      <view class="kind muted">{{item.kind}}</view>
+      <view class="kind muted">{{item.kindLabel || item.title}}</view>
       <view class="h">{{item.title}}</view>
       <view class="b">{{item.body}}</view>
       <view class="meta muted" wx:if="{{item.meta}}">{{item.meta}}</view>

@@ -39,12 +39,9 @@ Page({
   async load() {
     this.setData({ loading: true });
     try {
-      const [clsData, asgData, badgeData] = await Promise.all([
+      const [clsData, asgData] = await Promise.all([
         request({ url: "/api/v1/classes", method: "GET" }),
         request({ url: "/api/v1/assignments", method: "GET" }),
-        request({ url: "/api/v1/me/interaction-badge", method: "GET" }).catch(
-          () => ({ badge: { total: 0 } }),
-        ),
       ]);
       const classes = clsData.classes || [];
       let currentId = getCurrentClassId();
@@ -60,18 +57,27 @@ Page({
 
       let dashboard = null;
       let recent = [];
+      let interactBadge = 0;
       if (current) {
         try {
-          const d = await request({
-            url: `/api/v1/classes/${current.id}/dashboard`,
-            method: "GET",
-          });
+          const [d, badgeData] = await Promise.all([
+            request({
+              url: `/api/v1/classes/${current.id}/dashboard`,
+              method: "GET",
+            }),
+            request({
+              url: `/api/v1/me/interaction-badge?classId=${current.id}`,
+              method: "GET",
+            }).catch(() => ({ badge: { total: 0 } })),
+          ]);
           dashboard = d.dashboard;
           recent = (dashboard.recentAssignments || []).map((a) => ({
             ...a,
             rateText:
               a.completionRate != null ? `${a.completionRate}%` : "—",
           }));
+          interactBadge =
+            (badgeData && badgeData.badge && badgeData.badge.total) || 0;
         } catch (_) {
           /* ignore */
         }
@@ -81,8 +87,7 @@ Page({
         classes,
         current,
         pendingGrade: asgData.pendingGrade || 0,
-        interactBadge:
-          (badgeData && badgeData.badge && badgeData.badge.total) || 0,
+        interactBadge,
         dashboard,
         recent,
         loading: false,

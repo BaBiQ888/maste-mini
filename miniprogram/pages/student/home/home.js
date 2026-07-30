@@ -16,10 +16,7 @@ Page({
     allClear: false,
     emptyTip: "今日空页。可翻翻知识地图，或等老师布置。",
     focusItems: [],
-    stamps: [],
-    notes: [],
-    teacherReplies: [],
-    stuckReplies: [],
+    previewItems: [],
     inboxBadge: 0,
     loading: true,
     loadError: false,
@@ -48,59 +45,37 @@ Page({
       const now = new Date();
       const year = now.getFullYear();
       const month = now.getMonth() + 1;
-      const [cls, asg, cal, due, focus, stamps, notes, replies, stuck, badge] =
-        await Promise.all([
-          request({ url: "/api/v1/classes", method: "GET" }),
-          request({ url: "/api/v1/assignments", method: "GET" }),
-          request({
-            url: `/api/v1/me/calendar?year=${year}&month=${month}`,
-            method: "GET",
-          }).catch((err) => {
-            logError("home.calendar", err, { year, month });
-            return null;
-          }),
-          request({
-            url: "/api/v1/me/mastery/due",
-            method: "GET",
-          }).catch((err) => {
-            logError("home.masteryDue", err, {});
-            return { review: null };
-          }),
-          request({ url: "/api/v1/me/class-focus", method: "GET" }).catch(
-            (err) => {
-              logError("home.classFocus", err, {});
-              return { items: [] };
-            },
-          ),
-          request({ url: "/api/v1/me/stamps", method: "GET" }).catch((err) => {
-            logError("home.stamps", err, {});
-            return { stamps: [] };
-          }),
-          request({ url: "/api/v1/me/notes", method: "GET" }).catch((err) => {
-            logError("home.notes", err, {});
-            return { notes: [] };
-          }),
-          request({
-            url: "/api/v1/me/week-share-replies",
-            method: "GET",
-          }).catch((err) => {
-            logError("home.weekShareReplies", err, {});
-            return { replies: [] };
-          }),
-          request({ url: "/api/v1/me/stuck-reports", method: "GET" }).catch(
-            (err) => {
-              logError("home.stuckReports", err, {});
-              return { reports: [] };
-            },
-          ),
-          request({
-            url: "/api/v1/me/interaction-badge",
-            method: "GET",
-          }).catch((err) => {
-            logError("home.inboxBadge", err, {});
-            return { badge: { total: 0 } };
-          }),
-        ]);
+      const [cls, asg, cal, due, homeBundle] = await Promise.all([
+        request({ url: "/api/v1/classes", method: "GET" }),
+        request({ url: "/api/v1/assignments", method: "GET" }),
+        request({
+          url: `/api/v1/me/calendar?year=${year}&month=${month}`,
+          method: "GET",
+        }).catch((err) => {
+          logError("home.calendar", err, { year, month });
+          return null;
+        }),
+        request({
+          url: "/api/v1/me/mastery/due",
+          method: "GET",
+        }).catch((err) => {
+          logError("home.masteryDue", err, {});
+          return { review: null };
+        }),
+        request({ url: "/api/v1/me/student-home", method: "GET" }).catch(
+          (err) => {
+            logError("home.studentHome", err, {});
+            return {
+              home: { badge: { total: 0 }, focus: [], preview: [] },
+            };
+          },
+        ),
+      ]);
+      const home = (homeBundle && homeBundle.home) || {
+        badge: { total: 0 },
+        focus: [],
+        preview: [],
+      };
       const classes = cls.classes || [];
       const assignments = asg.assignments || [];
       const incompleteCount = asg.incompleteCount || 0;
@@ -152,14 +127,10 @@ Page({
         monthLitDays,
         streakLabel,
         allClear,
-        focusItems: (focus && focus.items) || [],
-        stamps: ((stamps && stamps.stamps) || []).slice(0, 5),
-        notes: ((notes && notes.notes) || []).slice(0, 5),
-        teacherReplies: ((replies && replies.replies) || []).slice(0, 3),
-        stuckReplies: ((stuck && stuck.reports) || [])
-          .filter((r) => r.teacherReply)
-          .slice(0, 5),
-        inboxBadge: (badge && badge.badge && badge.badge.total) || 0,
+        focusItems: home.focus || [],
+        // Preview from single inbox contract (kindLabel/title/body)
+        previewItems: home.preview || [],
+        inboxBadge: (home.badge && home.badge.total) || 0,
         loading: false,
         loadError: false,
       });

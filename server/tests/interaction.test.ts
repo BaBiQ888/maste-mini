@@ -319,12 +319,14 @@ describe("Teacher-student interactions", () => {
       body: JSON.stringify({ assignmentQuestionId: aqId, note: "不会" }),
     });
     const badge = await (
-      await app.request("/api/v1/me/interaction-badge", {
-        headers: auth(teacher.token),
-      })
+      await app.request(
+        `/api/v1/me/interaction-badge?classId=${cls.id}`,
+        { headers: auth(teacher.token) },
+      )
     ).json();
     expect(badge.badge.total).toBeGreaterThanOrEqual(1);
     expect(badge.badge.stuckOpen).toBeGreaterThanOrEqual(1);
+    expect(badge.badge.classId).toBe(cls.id);
 
     const variant = await app.request(
       `/api/v1/assignments/${asg.id}/variant-drill`,
@@ -371,6 +373,14 @@ describe("Teacher-student interactions", () => {
       })
     ).json();
     expect(afterAck.badge.total).toBe(0);
-    void cls;
+
+    const studentHome = await (
+      await app.request("/api/v1/me/student-home", {
+        headers: auth(student.token),
+      })
+    ).json();
+    expect(studentHome.home.badge).toBeTruthy();
+    expect(Array.isArray(studentHome.home.focus)).toBe(true);
+    expect(Array.isArray(studentHome.home.preview)).toBe(true);
   });
 });

@@ -36,8 +36,10 @@ export interface AssignmentSummary {
   totalStudents: number;
   /** 已完成人数（分子） */
   completedCount: number;
-  /** 进行中：已提交待批改 / 需重交 */
+  /** 进行中：含待订正 / 已提交 / 进行中答题 */
   inProgressCount: number;
+  /** 待订正（inProgress 子集） */
+  pendingCorrectionCount: number;
   /** 未开始 */
   notStartedCount: number;
   /** 未完成且已逾期（可与其它态重叠统计时单独展示） */
@@ -76,6 +78,8 @@ export interface QuestionStat {
   /** Students who have a graded answer on this item */
   answeredCount: number;
   correctCount: number;
+  /** answeredCount - correctCount */
+  wrongCount: number;
   /** 0–100, null if no answers yet */
   correctRate: number | null;
 }
@@ -250,6 +254,9 @@ export class ProgressService {
 
     const totalStudents = students.length;
     const completedCount = completed.length;
+    const pendingCorrectionCount = inProgress.filter(
+      (s) => s.status === "pending_correction",
+    ).length;
     const completionRate =
       totalStudents === 0
         ? null
@@ -266,6 +273,7 @@ export class ProgressService {
       totalStudents,
       completedCount,
       inProgressCount: inProgress.length,
+      pendingCorrectionCount,
       notStartedCount: notStarted.length,
       overdueCount,
       completionRate,
@@ -476,6 +484,7 @@ export class ProgressService {
       const agg = aggByQ.get(r.id) || { answered: 0, correct: 0 };
       const answeredCount = agg.answered;
       const correctCount = agg.correct;
+      const wrongCount = Math.max(0, answeredCount - correctCount);
       const correctRate =
         answeredCount === 0
           ? null
@@ -489,11 +498,45 @@ export class ProgressService {
         knowledgeNodeId: snap.knowledgeNodeId ?? null,
         answeredCount,
         correctCount,
+        wrongCount,
         correctRate,
       };
     });
 
     return { assignmentId, type: asg.type, questions };
+  }
+
+  /** Canonical top-N wrongs derived from getQuestionStats (single SQL path). */
+  async getTopWrongs(
+    assignmentId: string,
+    teacherId: string,
+    limit = 3,
+  ): Promise<{
+    questions: Array<{
+      assignmentQuestionId: string;
+      stem: string;
+      wrongCount: number;
+      answeredCount: number;
+      knowledgeNodeId: string | null;
+    }>;
+  }> {
+    const n = Math.min(Math.max(limit, 1), 10);
+    const stats = await this.getQuestionStats(assignmentId, teacherId);
+    const questions = stats.questions
+      .filter((q) => q.wrongCount > 0)
+      .sort(
+        (a, b) =>
+          b.wrongCount - a.wrongCount || b.answeredCount - a.answeredCount,
+      )
+      .slice(0, n)
+      .map((q) => ({
+        assignmentQuestionId: q.assignmentQuestionId,
+        stem: q.stem,
+        wrongCount: q.wrongCount,
+        answeredCount: q.answeredCount,
+        knowledgeNodeId: q.knowledgeNodeId,
+      }));
+    return { questions };
   }
 
   async getStudentStats(

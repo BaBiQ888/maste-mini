@@ -162,7 +162,8 @@ Page({
         isTf,
         isChoice,
         isFill: !isTf && !isChoice,
-        showKey: ans.isCorrect !== null && ans.isCorrect !== undefined,
+        // revealKey is server policy only — never invent from isCorrect
+        revealKey: !!ans.revealKey,
         mark:
           ans.isCorrect === true ? "对" : ans.isCorrect === false ? "错" : "",
         wrongReason: ans.wrongReason || "",

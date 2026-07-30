@@ -714,6 +714,7 @@ export class InteractionService {
     };
   }
 
+  /** Delegate to ProgressService — single stats SQL path. */
   async topWrongs(
     assignmentId: string,
     teacherId: string,
@@ -727,68 +728,25 @@ export class InteractionService {
       knowledgeNodeId: string | null;
     }>;
   }> {
-    const asg = (await this.db.get(
-      `SELECT a.id, c.teacher_id FROM assignments a
-       JOIN classes c ON c.id = a.class_id
-       WHERE a.id = ?`,
-      assignmentId,
-    )) as { id: string; teacher_id: string } | undefined;
-    if (!asg) throw new AppError("NOT_FOUND", "作业不存在", 404);
-    if (asg.teacher_id !== teacherId) {
-      throw new AppError("FORBIDDEN", "无权查看", 403);
-    }
-    const n = Math.min(Math.max(limit, 1), 10);
-    const rows = (await this.db.all(
-      `SELECT aq.id, aq.question_snapshot,
-              SUM(CASE WHEN ai.is_correct = 0 THEN 1 ELSE 0 END) AS wrong_c,
-              COUNT(ai.id) AS ans_c
-       FROM assignment_questions aq
-       LEFT JOIN answer_items ai ON ai.assignment_question_id = aq.id
-         AND ai.is_correct IS NOT NULL
-       WHERE aq.assignment_id = ?
-       GROUP BY aq.id, aq.question_snapshot
-       HAVING wrong_c > 0
-       ORDER BY wrong_c DESC, ans_c DESC
-       LIMIT ${n}`,
-      assignmentId,
-    )) as Array<{
-      id: string;
-      question_snapshot: string;
-      wrong_c: number;
-      ans_c: number;
-    }>;
-    return {
-      questions: rows.map((r) => {
-        let stem = "";
-        let kn: string | null = null;
-        try {
-          const snap = JSON.parse(r.question_snapshot) as {
-            stem?: string;
-            knowledgeNodeId?: string;
-          };
-          stem = snap.stem || "";
-          kn = snap.knowledgeNodeId || null;
-        } catch {
-          /* ignore */
-        }
-        return {
-          assignmentQuestionId: r.id,
-          stem,
-          wrongCount: Number(r.wrong_c) || 0,
-          answeredCount: Number(r.ans_c) || 0,
-          knowledgeNodeId: kn,
-        };
-      }),
-    };
+    return this.progress.getTopWrongs(assignmentId, teacherId, limit);
   }
 
-  // ── Class map co-light (aggregate, no ranking) ─────────────────────────
+  // ── Class map co-light (person-event units, no ranking) ────────────────
 
   async classMapProgress(
     classId: string,
     teacherId: string,
   ): Promise<{
     studentCount: number;
+    /** 待回访人次（due 行） */
+    dueReviewEvents: number;
+    /** 巩固队列人次（due + open miss>0） */
+    queueEvents: number;
+    /** 本周过关人次 */
+    passEventsWeek: number;
+    /** 历史过关人次（passed 行） */
+    passEventsTotal: number;
+    // legacy aliases for older clients
     litNodeCount: number;
     halfNodeCount: number;
     dueReviewCount: number;
@@ -807,18 +765,11 @@ export class InteractionService {
        WHERE m.status = 'due' AND m.miss_count > 0 AND LOWER(cm.role) = 'student'`,
       classId,
     )) as { n: number };
-    const half = (await this.db.get(
-      `SELECT COUNT(DISTINCT m.knowledge_node_id) AS n FROM mastery_items m
+    const queue = (await this.db.get(
+      `SELECT COUNT(*) AS n FROM mastery_items m
        JOIN class_memberships cm ON cm.user_id = m.user_id AND cm.class_id = ?
-       WHERE m.knowledge_node_id IS NOT NULL
-         AND (m.status = 'due' OR (m.status = 'open' AND m.miss_count > 0))
-         AND LOWER(cm.role) = 'student'`,
-      classId,
-    )) as { n: number };
-    const lit = (await this.db.get(
-      `SELECT COUNT(DISTINCT m.knowledge_node_id) AS n FROM mastery_items m
-       JOIN class_memberships cm ON cm.user_id = m.user_id AND cm.class_id = ?
-       WHERE m.knowledge_node_id IS NOT NULL AND m.status = 'passed'
+       WHERE m.miss_count > 0
+         AND (m.status = 'due' OR m.status = 'open')
          AND LOWER(cm.role) = 'student'`,
       classId,
     )) as { n: number };
@@ -830,12 +781,27 @@ export class InteractionService {
       classId,
       weekAgo,
     )) as { n: number };
+    const passTotal = (await this.db.get(
+      `SELECT COUNT(*) AS n FROM mastery_items m
+       JOIN class_memberships cm ON cm.user_id = m.user_id AND cm.class_id = ?
+       WHERE m.status = 'passed' AND LOWER(cm.role) = 'student'`,
+      classId,
+    )) as { n: number };
+    const dueReviewEvents = Number(due?.n) || 0;
+    const queueEvents = Number(queue?.n) || 0;
+    const passEventsWeek = Number(passWeek?.n) || 0;
+    const passEventsTotal = Number(passTotal?.n) || 0;
     return {
       studentCount: Number(students?.n) || 0,
-      litNodeCount: Number(lit?.n) || 0,
-      halfNodeCount: Number(half?.n) || 0,
-      dueReviewCount: Number(due?.n) || 0,
-      passCountWeek: Number(passWeek?.n) || 0,
+      dueReviewEvents,
+      queueEvents,
+      passEventsWeek,
+      passEventsTotal,
+      // legacy: same units so UI not more misleading
+      litNodeCount: passEventsTotal,
+      halfNodeCount: queueEvents,
+      dueReviewCount: dueReviewEvents,
+      passCountWeek: passEventsWeek,
     };
   }
 
@@ -935,8 +901,10 @@ export class InteractionService {
   async getBadge(
     userId: string,
     role: string | null,
+    opts?: { classId?: string | null },
   ): Promise<{
     total: number;
+    classId?: string | null;
     stuckOpen?: number;
     weekSharesPending?: number;
     stamps?: number;
@@ -945,6 +913,29 @@ export class InteractionService {
     weekReplies?: number;
   }> {
     if (role === "teacher") {
+      // Prefer current class so badge matches interact hub (same classId).
+      const classId = (opts?.classId || "").trim() || null;
+      if (classId) {
+        await this.assertTeacherOwnsClass(classId, userId);
+        const stuck = (await this.db.get(
+          `SELECT COUNT(*) AS n FROM stuck_reports
+           WHERE class_id = ? AND status = 'open'`,
+          classId,
+        )) as { n: number };
+        const shares = (await this.db.get(
+          `SELECT COUNT(*) AS n FROM week_shares
+           WHERE class_id = ? AND teacher_reply IS NULL`,
+          classId,
+        )) as { n: number };
+        const stuckOpen = Number(stuck?.n) || 0;
+        const weekSharesPending = Number(shares?.n) || 0;
+        return {
+          total: stuckOpen + weekSharesPending,
+          classId,
+          stuckOpen,
+          weekSharesPending,
+        };
+      }
       const stuck = (await this.db.get(
         `SELECT COUNT(*) AS n FROM stuck_reports r
          JOIN classes c ON c.id = r.class_id
@@ -961,6 +952,7 @@ export class InteractionService {
       const weekSharesPending = Number(shares?.n) || 0;
       return {
         total: stuckOpen + weekSharesPending,
+        classId: null,
         stuckOpen,
         weekSharesPending,
       };
@@ -1070,6 +1062,7 @@ export class InteractionService {
     for (const s of stamps) {
       items.push({
         kind: "stamp",
+        kindLabel: "印章",
         id: s.id,
         title: `印章「${s.label}」`,
         body: s.assignmentTitle || s.note || "",
@@ -1079,6 +1072,7 @@ export class InteractionService {
     for (const n of notes) {
       items.push({
         kind: "note",
+        kindLabel: "小纸条",
         id: n.id,
         title: n.broadcast ? "全班小纸条" : "老师小纸条",
         body: n.body,
@@ -1090,6 +1084,7 @@ export class InteractionService {
       if (!s.teacherReply) continue;
       items.push({
         kind: "stuck_reply",
+        kindLabel: "还不会回复",
         id: s.id,
         title: "老师答「还不会」",
         body: s.teacherReply,
@@ -1100,6 +1095,7 @@ export class InteractionService {
     for (const w of week) {
       items.push({
         kind: "week_reply",
+        kindLabel: "周小结回复",
         id: w.id,
         title: "老师回周小结",
         body: w.teacherReply,
@@ -1110,5 +1106,25 @@ export class InteractionService {
       String(b.createdAt || "").localeCompare(String(a.createdAt || "")),
     );
     return { items: items.slice(0, 60) };
+  }
+
+  /**
+   * Student home display contract — one round-trip for badge + focus + preview.
+   */
+  async getStudentHomeBundle(studentId: string): Promise<{
+    badge: Awaited<ReturnType<InteractionService["getBadge"]>>;
+    focus: Array<Record<string, unknown>>;
+    preview: Array<Record<string, unknown>>;
+  }> {
+    const [badge, focus, inbox] = await Promise.all([
+      this.getBadge(studentId, "student"),
+      this.listFocusForStudent(studentId),
+      this.getInbox(studentId, "student"),
+    ]);
+    return {
+      badge,
+      focus,
+      preview: (inbox.items || []).slice(0, 5),
+    };
   }
 }
