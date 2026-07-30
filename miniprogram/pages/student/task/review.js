@@ -1,6 +1,6 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
-const { showError } = require("../../../utils/errors");
+const { showError, logError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -62,6 +62,35 @@ Page({
       } else {
         throw new Error("缺少回访参数");
       }
+      // Abandoned session: do not enter answer mode (submit would only fail later)
+      if (review && review.status === "abandoned") {
+        logError(
+          "mastery.review.abandoned",
+          new Error("review abandoned"),
+          {
+            reviewId: review.id,
+            itemId: this.data.itemId,
+          },
+        );
+        // Prefer re-start from itemId when available
+        if (this.data.itemId) {
+          const data = await request({
+            url: `/api/v1/me/mastery/${this.data.itemId}/start-review`,
+            method: "POST",
+            data: {},
+          });
+          review = data.review;
+        } else {
+          throw Object.assign(new Error("这次回访已失效，请重新进入"), {
+            code: "REVIEW_ABANDONED",
+          });
+        }
+      }
+      if (review && review.status === "abandoned") {
+        throw Object.assign(new Error("这次回访已失效，请重新进入"), {
+          code: "REVIEW_ABANDONED",
+        });
+      }
       this.applyReview(review);
       this._bootstrapped = true;
       this.setData({ loadError: false });
@@ -76,7 +105,12 @@ Page({
   },
 
   applyReview(review) {
-    const mode = review.status === "completed" ? "result" : "answer";
+    const mode =
+      review.status === "completed"
+        ? "result"
+        : review.status === "abandoned"
+          ? "result"
+          : "answer";
     const items = (review.questions || []).map((q) => {
       const isTf = q.type === "true_false";
       const isChoice = q.type === "choice";

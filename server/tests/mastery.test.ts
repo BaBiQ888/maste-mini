@@ -687,6 +687,158 @@ describe("Mastery S2 enqueue + S3 review", () => {
     expect(Number(row.miss_count)).toBe(2);
   });
 
+  it("starting formal review abandons other-source in_progress session", async () => {
+    const { student, asg, aqIds, knId } = await setupWithKnowledge();
+    await wrongThenCorrect(student.token, asg.id, aqIds);
+
+    // Self-practice while still open (before due)
+    const sp = await (
+      await app.request("/api/v1/me/mastery/self-practice", {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ knowledgeNodeId: knId }),
+      })
+    ).json();
+    const spId = sp.review.id as string;
+    expect(sp.review.status).toBe("in_progress");
+    expect(sp.review.source).toBe("self_practice");
+
+    await db.run(
+      `UPDATE mastery_items SET status = 'due', review_at = ? WHERE user_id = ?`,
+      "2020-01-01T00:00:00.000Z",
+      student.userId,
+    );
+    const item = (await db.get(
+      `SELECT id FROM mastery_items WHERE user_id = ?`,
+      student.userId,
+    )) as { id: string };
+
+    const formal = await (
+      await app.request(`/api/v1/me/mastery/${item.id}/start-review`, {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({}),
+      })
+    ).json();
+    expect(formal.review.status).toBe("in_progress");
+    expect(formal.review.source).toBe("review");
+    expect(formal.review.id).not.toBe(spId);
+
+    const spRow = (await db.get(
+      `SELECT status FROM mastery_reviews WHERE id = ?`,
+      spId,
+    )) as { status: string };
+    expect(spRow.status).toBe("abandoned");
+
+    const live = (await db.get(
+      `SELECT COUNT(*) AS n FROM mastery_reviews
+       WHERE mastery_item_id = ? AND status = 'in_progress'`,
+      item.id,
+    )) as { n: number };
+    expect(Number(live.n)).toBe(1);
+  });
+
+  it("historical review questions are kn-scoped (not starved by other topics)", async () => {
+    const { student, asg, aqIds, knId } = await setupWithKnowledge();
+    await wrongThenCorrect(student.token, asg.id, aqIds);
+    const mastery = new MasteryService(db);
+
+    const knB = "g4-u-int-k-add";
+    const ts = new Date().toISOString();
+    const clsRow = (await db.get(
+      `SELECT class_id FROM assignments WHERE id = ?`,
+      asg.id,
+    )) as { class_id: string };
+    // Separate assignment: unique (assignment_id, student_id) on submissions
+    const asgHist = `asg_hist_${Date.now()}`;
+    await db.run(
+      `INSERT INTO assignments (
+         id, class_id, type, title, description, status, due_at, config_json,
+         created_by, created_at, published_at, updated_at
+       ) VALUES (?, ?, 'daily_drill', 'hist', NULL, 'published', NULL, '{}',
+         ?, ?, ?, ?)`,
+      asgHist,
+      clsRow.class_id,
+      student.userId,
+      ts,
+      ts,
+      ts,
+    );
+    const subId = `sub_hist_${Date.now()}`;
+    await db.run(
+      `INSERT INTO submissions (
+         id, assignment_id, student_id, status, overdue, score,
+         created_at, updated_at, submitted_at, timer_started_at
+       ) VALUES (?, ?, ?, 'completed', 0, 0, ?, ?, ?, NULL)`,
+      subId,
+      asgHist,
+      student.userId,
+      ts,
+      ts,
+      ts,
+    );
+    // 50 wrongs on kn B + 2 wrongs on kn A under one submission
+    for (let i = 0; i < 52; i++) {
+      const isA = i >= 50;
+      const kn = isA ? knId : knB;
+      const stem = isA ? `UNIQUE_A_HIST_${i}` : `OTHER_B_HIST_${i}`;
+      const aqId = `aq_hist_${i}`;
+      const aiId = `ai_hist_${i}`;
+      const snap = JSON.stringify({
+        type: "fill_blank",
+        stem,
+        options: null,
+        answer: "1",
+        explanation: null,
+        knowledgeNodeId: kn,
+        source: "bank",
+        id: `q_hist_${i}`,
+      });
+      await db.run(
+        `INSERT INTO assignment_questions (
+           id, assignment_id, sort_order, source_question_id, question_snapshot, created_at
+         ) VALUES (?, ?, ?, NULL, ?, ?)`,
+        aqId,
+        asgHist,
+        i,
+        snap,
+        ts,
+      );
+      await db.run(
+        `INSERT INTO answer_items (
+           id, submission_id, assignment_question_id, response_json,
+           is_correct, correction_round, wrong_reason, updated_at
+         ) VALUES (?, ?, ?, ?, 0, 0, 'careless', ?)`,
+        aiId,
+        subId,
+        aqId,
+        JSON.stringify("x"),
+        ts,
+      );
+    }
+
+    await db.run(
+      `UPDATE mastery_items SET status = 'due', review_at = ? WHERE user_id = ?`,
+      "2020-01-01T00:00:00.000Z",
+      student.userId,
+    );
+    const item = (await db.get(
+      `SELECT * FROM mastery_items WHERE user_id = ?`,
+      student.userId,
+    )) as Record<string, unknown>;
+    const review = await mastery.startReview(
+      student.userId,
+      String(item.id),
+      "review",
+    );
+    const stems = review.questions.map((q) => q.stem || "");
+    for (const s of stems) {
+      expect(s.includes("OTHER_B_HIST")).toBe(false);
+    }
+    const hasA = stems.some((s) => s.includes("UNIQUE_A_HIST"));
+    expect(hasA).toBe(true);
+  });
+
   it("abandoned review submit returns REVIEW_ABANDONED", async () => {
     const { student, asg, aqIds } = await setupWithKnowledge();
     await wrongThenCorrect(student.token, asg.id, aqIds);

@@ -458,17 +458,16 @@ export class MasteryService {
 
     const id = createId("mrv");
     const ts = nowIso();
-    // Race: concurrent double-tap can both pass resume check — abandon orphans
-    // so only one in_progress session remains submittable for this item+source.
+    // Abandon any other in_progress for this item (same or other source).
+    // Prevents review + self_practice double-apply on mastery_items, and
+    // concurrent double-tap orphans for the same source.
     const abandoned = await this.db.run(
       `UPDATE mastery_reviews
          SET status = 'abandoned', completed_at = ?
-       WHERE mastery_item_id = ? AND user_id = ? AND status = 'in_progress'
-         AND source = ?`,
+       WHERE mastery_item_id = ? AND user_id = ? AND status = 'in_progress'`,
       ts,
       masteryItemId,
       userId,
-      source,
     );
     if ((abandoned.changes ?? 0) > 0) {
       console.info("[mastery.review.abandon]", {
@@ -981,6 +980,19 @@ export class MasteryService {
         reviewId,
       );
       if ((cas.changes ?? 0) === 0) {
+        // Race: abandoned between pre-check and CAS
+        const again = (await this.db.get(
+          `SELECT status FROM mastery_reviews WHERE id = ? AND user_id = ?`,
+          reviewId,
+          userId,
+        )) as { status: string } | undefined;
+        if (again?.status === "abandoned") {
+          throw new AppError(
+            "REVIEW_ABANDONED",
+            "这次回访已失效（可能重复打开了），请从首页重新进入",
+            400,
+          );
+        }
         throw new AppError("INVALID_STATUS", "该回访已提交", 400);
       }
 
@@ -1167,8 +1179,12 @@ export class MasteryService {
           if (out.length >= need) break;
           push(q);
         }
-      } catch {
-        /* ignore */
+      } catch (err) {
+        console.warn("[mastery.review.generate.fallback]", {
+          err: err instanceof Error ? err.message : String(err),
+          have: out.length,
+          need,
+        });
       }
     }
 
