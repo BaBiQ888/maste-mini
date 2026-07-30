@@ -26,6 +26,7 @@ Page({
     selectedCount: 0,
     typeLabels: TYPE_LABEL,
     loading: false,
+    requireCorrection: true,
   },
 
   onShow() {
@@ -126,6 +127,9 @@ Page({
           title,
           questionIds,
           publish,
+          config: {
+            requireCorrection: !!this.data.requireCorrection,
+          },
         },
       });
       wx.showToast({
@@ -149,5 +153,8 @@ Page({
   },
   publishNow() {
     this.submit(true);
+  },
+  toggleRequireCorrection() {
+    this.setData({ requireCorrection: !this.data.requireCorrection });
   },
 });

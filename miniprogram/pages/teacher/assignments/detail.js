@@ -38,6 +38,7 @@ Page({
     isPhoto: true,
     summary: null,
     rateText: "—",
+    requireCorrection: true,
     loading: true,
     statusLabels: STATUS_LABEL,
     resultLabels: RESULT_LABEL,
@@ -108,6 +109,9 @@ Page({
           answerLabel: formatAnswerLabel(snap),
         };
       });
+      const cfg = (a.assignment && a.assignment.config) || {};
+      const requireCorrection =
+        cfg.requireCorrection === false ? false : !isPhoto;
       this.setData({
         assignment: a.assignment,
         submissions,
@@ -116,6 +120,7 @@ Page({
         isPhoto,
         summary,
         rateText,
+        requireCorrection,
         loading: false,
       });
     } catch (e) {

@@ -758,6 +758,17 @@ export class AssignmentService {
     let correctCount = 0;
     const total = qMap.size;
 
+    const asgRow = (await this.db.get(
+      `SELECT config_json, class_id, type FROM assignments WHERE id = ?`,
+      sub.assignment_id,
+    )) as
+      | { config_json: string; class_id: string; type: string }
+      | undefined;
+    const requireCorrection = this.readRequireCorrection(
+      asgRow?.config_json || assignment.config_json,
+    );
+
+    let finalStatus: SubmissionStatus = "completed";
     await this.db.transaction(async () => {
       for (const [qid, snap] of qMap) {
         const resp = responseMap.has(qid) ? responseMap.get(qid) : null;
@@ -767,16 +778,39 @@ export class AssignmentService {
       }
       const allCorrect = correctCount === total;
       const score = Math.round((correctCount / total) * 1000) / 10;
-      await this.db.run(`UPDATE submissions
+      // Teacher-controlled: requireCorrection (default true) → wrongs stay pending
+      finalStatus =
+        allCorrect || !requireCorrection
+          ? "completed"
+          : "pending_correction";
+      await this.db.run(
+        `UPDATE submissions
            SET status = ?, overdue = ?, score = ?,
                submitted_at = ?, updated_at = ?
-           WHERE id = ?`, allCorrect ? "completed" : "pending_correction",
-          overdue,
-          score,
-          ts,
-          ts,
-          submissionId,);
+           WHERE id = ?`,
+        finalStatus,
+        overdue,
+        score,
+        ts,
+        ts,
+        submissionId,
+      );
     });
+
+    // No-correction path: still enqueue mastery for first-submit wrongs so
+    // teachers see weak points / student map updates without a correction loop.
+    if (finalStatus === "completed" && correctCount < total) {
+      try {
+        await this.enqueueMasteryFromSubmission(submissionId, studentId, {
+          mode: "first_submit_wrongs",
+        });
+      } catch (err) {
+        console.error("[mastery.enqueue] failed after submit", {
+          submissionId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     return await this.toPublicSubmission(
       await this.getSubmissionRow(submissionId),
@@ -796,6 +830,38 @@ export class AssignmentService {
       /* ignore */
     }
     return null;
+  }
+
+  /**
+   * Whether wrong online answers must be corrected before completed.
+   * Default true (legacy / product default). Teacher sets via assignment.config.
+   */
+  private readRequireCorrection(configJson: string): boolean {
+    try {
+      const cfg = JSON.parse(configJson || "{}") as {
+        requireCorrection?: boolean | null;
+      };
+      if (cfg.requireCorrection === false) return false;
+      return true;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * After completed: reveal answer keys so student can review.
+   * Default true. Set revealAnswerAfterDone:false to keep keys teacher-only.
+   */
+  private readRevealAnswerAfterDone(configJson: string): boolean {
+    try {
+      const cfg = JSON.parse(configJson || "{}") as {
+        revealAnswerAfterDone?: boolean | null;
+      };
+      if (cfg.revealAnswerAfterDone === false) return false;
+      return true;
+    } catch {
+      return true;
+    }
   }
 
   /**
@@ -897,37 +963,9 @@ export class AssignmentService {
 
     if (becameCompleted) {
       try {
-        // Multi-round correction: any item with correction_round > 0 was wrong
-        // at least once (not only the last POST's still-wrong set).
-        const finalRows = await this.loadAnswerRows(submissionId);
-        const missAqIds = finalRows
-          .filter((r) => (r.correction_round || 0) > 0)
-          .map((r) => r.assignment_question_id);
-        const asg = (await this.db.get(
-          `SELECT class_id, type FROM assignments WHERE id = ?`,
-          sub.assignment_id,
-        )) as { class_id: string; type: string } | undefined;
-        const missItems = missAqIds
-          .map((aqId) => {
-            const snap = qMap.get(aqId);
-            if (!snap) return null;
-            const row = finalRows.find(
-              (r) => r.assignment_question_id === aqId,
-            );
-            return {
-              snapshot: snap,
-              sourceQuestionId: sourceMap.get(aqId) ?? snap.id ?? null,
-              wrongReason:
-                reasonMap.get(aqId) ?? row?.wrong_reason ?? null,
-            };
-          })
-          .filter((x): x is NonNullable<typeof x> => !!x);
-        await this.mastery.enqueueAfterCorrection({
-          userId: studentId,
-          classId: asg?.class_id ?? null,
-          assignmentId: sub.assignment_id,
-          assignmentType: asg?.type || "daily_drill",
-          misses: missesFromSnapshots(missItems),
+        await this.enqueueMasteryFromSubmission(submissionId, studentId, {
+          mode: "correction_round",
+          reasonMap,
         });
       } catch (err) {
         console.error("[mastery.enqueue] failed after correct", {
@@ -942,6 +980,59 @@ export class AssignmentService {
       undefined,
       true,
     );
+  }
+
+  /**
+   * Enqueue mastery misses after online work.
+   * - correction_round: items that were wrong at least once (correction_round > 0)
+   * - first_submit_wrongs: current is_correct=0 rows (no-correction path)
+   */
+  private async enqueueMasteryFromSubmission(
+    submissionId: string,
+    studentId: string,
+    opts: {
+      mode: "correction_round" | "first_submit_wrongs";
+      reasonMap?: Map<string, string>;
+    },
+  ): Promise<void> {
+    const sub = await this.getSubmissionRow(submissionId);
+    const qMap = await this.loadQuestionMap(sub.assignment_id);
+    const sourceMap = await this.loadSourceQuestionMap(sub.assignment_id);
+    const finalRows = await this.loadAnswerRows(submissionId);
+    const missAqIds =
+      opts.mode === "correction_round"
+        ? finalRows
+            .filter((r) => (r.correction_round || 0) > 0)
+            .map((r) => r.assignment_question_id)
+        : finalRows
+            .filter((r) => r.is_correct === 0)
+            .map((r) => r.assignment_question_id);
+    if (!missAqIds.length) return;
+
+    const asg = (await this.db.get(
+      `SELECT class_id, type FROM assignments WHERE id = ?`,
+      sub.assignment_id,
+    )) as { class_id: string; type: string } | undefined;
+    const reasonMap = opts.reasonMap || new Map<string, string>();
+    const missItems = missAqIds
+      .map((aqId) => {
+        const snap = qMap.get(aqId);
+        if (!snap) return null;
+        const row = finalRows.find((r) => r.assignment_question_id === aqId);
+        return {
+          snapshot: snap,
+          sourceQuestionId: sourceMap.get(aqId) ?? snap.id ?? null,
+          wrongReason: reasonMap.get(aqId) ?? row?.wrong_reason ?? null,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x);
+    await this.mastery.enqueueAfterCorrection({
+      userId: studentId,
+      classId: asg?.class_id ?? null,
+      assignmentId: sub.assignment_id,
+      assignmentType: asg?.type || "daily_drill",
+      misses: missesFromSnapshots(missItems),
+    });
   }
 
   private async assertOnlineAssignment(assignmentId: string): Promise<void> {
@@ -1547,10 +1638,20 @@ export class AssignmentService {
       if (asgType && asgType !== "photo_homework") {
         const qMap = await this.loadQuestionMap(row.assignment_id);
         const items = await this.loadAnswerRows(row.id);
+        const asgCfg = (
+          await this.db.get(
+            `SELECT config_json FROM assignments WHERE id = ?`,
+            row.assignment_id,
+          )
+        ) as { config_json: string } | undefined;
+        const revealAfterDone = this.readRevealAnswerAfterDone(
+          asgCfg?.config_json || "{}",
+        );
+        // Never leak answer keys while student is still correcting.
+        // After completed: optional reveal (default true) so review is possible;
+        // teacher stats always use server-side grades, independent of reveal.
         const showKey =
-          row.status === "pending_correction" ||
-          row.status === "completed" ||
-          row.status === "submitted";
+          row.status === "completed" && revealAfterDone;
 
         answers = items.map((it) => {
           const snap = qMap.get(it.assignment_question_id);

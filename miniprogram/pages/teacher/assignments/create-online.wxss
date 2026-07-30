@@ -76,3 +76,34 @@
   line-height: 1.45;
 }
 .mt { margin-top: 24rpx; }
+
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 20rpx 24rpx;
+  margin: 20rpx 0;
+  background: var(--white);
+  border-radius: 16rpx;
+  border: 1rpx solid var(--line);
+}
+.switch-row .label { margin: 0 0 8rpx; font-size: 28rpx; color: var(--ink); font-weight: 600; }
+.switch-row .sm { font-size: 22rpx; line-height: 1.4; }
+.switch {
+  flex-shrink: 0;
+  min-width: 72rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+  text-align: center;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+  background: var(--line);
+  color: var(--ink-muted);
+  padding: 0 16rpx;
+}
+.switch.on {
+  background: var(--accent-soft, #f0e6d8);
+  color: var(--accent);
+}

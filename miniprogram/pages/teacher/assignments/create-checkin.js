@@ -19,6 +19,7 @@ Page({
     selectedQCount: 0,
     search: "",
     loading: false,
+    requireCorrection: true,
     /** Field-level validation messages (shown near inputs) */
     errors: {
       classId: "",
@@ -242,7 +243,10 @@ Page({
           title,
           publish,
           questionIds,
-          config: { knowledgeNodeIds },
+          config: {
+            knowledgeNodeIds,
+            requireCorrection: !!this.data.requireCorrection,
+          },
         },
       });
       wx.showToast({
@@ -266,5 +270,8 @@ Page({
   },
   publishNow() {
     this.submit(true);
+  },
+  toggleRequireCorrection() {
+    this.setData({ requireCorrection: !this.data.requireCorrection });
   },
 });

@@ -52,6 +52,14 @@
     <button class="btn btn-primary mt" bindtap="goQuestionBank">去录入</button>
   </view>
 
+  <view class="field switch-row" bindtap="toggleRequireCorrection">
+    <view>
+      <view class="label">错题须订正</view>
+      <view class="muted sm">开启后有错必须改对才算完成；关闭则交卷即完成，你仍可看正确率。</view>
+    </view>
+    <view class="switch {{requireCorrection ? 'on' : ''}}">{{requireCorrection ? '开' : '关'}}</view>
+  </view>
+
   <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="publishNow">发布打卡</button>
   <button class="btn btn-ghost" disabled="{{loading}}" bindtap="saveDraft">存为草稿</button>
 </view>

@@ -75,7 +75,15 @@
     <view class="ans muted">答：{{item.answer}}</view>
   </view>
 
-  <view class="hint muted">进入页面已自动出题；限时结束后系统会自动收卷。可先存草稿再发布。</view>
+  <view class="field switch-row" bindtap="toggleRequireCorrection">
+    <view>
+      <view class="label">错题须订正</view>
+      <view class="muted sm">开启后学生有错必须改对才算完成；关闭则交卷即完成，你仍可看正确率与错题。</view>
+    </view>
+    <view class="switch {{requireCorrection ? 'on' : ''}}">{{requireCorrection ? '开' : '关'}}</view>
+  </view>
+
+  <view class="hint muted">进入页面已自动出题；限时结束后系统会自动收卷。可先存草稿再发布。订正过程不提供正确答案。</view>
 
   <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading || !preview.length || genBusy}}" bindtap="publishNow">发布每日计算</button>
   <button class="btn btn-ghost" disabled="{{loading || !preview.length || genBusy}}" bindtap="saveDraft">存为草稿</button>

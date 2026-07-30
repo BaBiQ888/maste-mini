@@ -232,11 +232,15 @@ describe("Online answer + correction", () => {
     ).json();
     expect(sub.submission.status).toBe("pending_correction");
     expect(sub.submission.score).toBe(50);
-    expect(
-      sub.submission.answers.find(
-        (a: { isCorrect: boolean | null }) => a.isCorrect === false,
-      ),
-    ).toBeTruthy();
+    const wrong = sub.submission.answers.find(
+      (a: { isCorrect: boolean | null }) => a.isCorrect === false,
+    );
+    expect(wrong).toBeTruthy();
+    // 订正中不下发正确答案
+    expect(wrong.correctAnswer).toBeUndefined();
+    expect(wrong.explanation == null || wrong.explanation === undefined).toBe(
+      true,
+    );
 
     let summary = await (
       await app.request(`/api/v1/assignments/${asg.id}/summary`, {
@@ -266,6 +270,90 @@ describe("Online answer + correction", () => {
     ).json();
     expect(summary.summary.completedCount).toBe(1);
     expect(summary.summary.completionRate).toBe(100);
+    // After completed, answer keys may be revealed
+    const doneWrong = sub.submission.answers.find(
+      (a: { isCorrect: boolean | null }) => a.isCorrect === true,
+    );
+    expect(doneWrong).toBeTruthy();
+  });
+
+  it("requireCorrection:false completes with wrongs (no pending_correction)", async () => {
+    const teacher = await loginAs(app, "ot2", "teacher", "李老师");
+    const student = await loginAs(app, "os2", "student", "小红");
+    const q1 = await (
+      await app.request("/api/v1/questions", {
+        method: "POST",
+        headers: auth(teacher.token),
+        body: JSON.stringify({
+          type: "fill_blank",
+          stem: "1+1=",
+          answer: "2",
+        }),
+      })
+    ).json();
+    const cls = await (
+      await app.request("/api/v1/classes", {
+        method: "POST",
+        headers: auth(teacher.token),
+        body: JSON.stringify({ name: "不订正班", grade: 3 }),
+      })
+    ).json();
+    await app.request("/api/v1/classes/join", {
+      method: "POST",
+      headers: auth(student.token),
+      body: JSON.stringify({ inviteCode: cls.class.inviteCode }),
+    });
+    const asg = await (
+      await app.request("/api/v1/assignments", {
+        method: "POST",
+        headers: auth(teacher.token),
+        body: JSON.stringify({
+          classId: cls.class.id,
+          type: "daily_drill",
+          title: "不强制订正",
+          questionIds: [q1.question.id],
+          publish: true,
+          config: { requireCorrection: false },
+        }),
+      })
+    ).json();
+    const qs = await (
+      await app.request(`/api/v1/assignments/${asg.assignment.id}/questions`, {
+        headers: auth(teacher.token),
+      })
+    ).json();
+    const aqId = qs.questions[0].id as string;
+    const mine = await (
+      await app.request(
+        `/api/v1/assignments/${asg.assignment.id}/my-submission`,
+        { headers: auth(student.token) },
+      )
+    ).json();
+    const sub = await (
+      await app.request(`/api/v1/submissions/${mine.submission.id}/answers`, {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({
+          answers: [{ assignmentQuestionId: aqId, response: "9" }],
+        }),
+      })
+    ).json();
+    expect(sub.submission.status).toBe("completed");
+    expect(sub.submission.score).toBe(0);
+    const summary = await (
+      await app.request(`/api/v1/assignments/${asg.assignment.id}/summary`, {
+        headers: auth(teacher.token),
+      })
+    ).json();
+    expect(summary.summary.completedCount).toBe(1);
+    const stats = await (
+      await app.request(
+        `/api/v1/assignments/${asg.assignment.id}/question-stats`,
+        { headers: auth(teacher.token) },
+      )
+    ).json();
+    expect(stats.questions[0].answeredCount).toBe(1);
+    expect(stats.questions[0].correctCount).toBe(0);
   });
 
   it("saves draft and resumes", async () => {

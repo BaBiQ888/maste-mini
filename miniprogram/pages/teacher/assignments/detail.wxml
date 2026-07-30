@@ -7,6 +7,9 @@
       <text wx:for="{{assignment.knowledgePoints}}" wx:key="id">{{item.name}}{{index < assignment.knowledgePoints.length - 1 ? '、' : ''}}</text>
     </view>
     <view class="desc" wx:if="{{assignment.description}}">{{assignment.description}}</view>
+    <view class="meta muted" wx:if="{{!isPhoto}}">
+      错题订正：{{requireCorrection ? '须订正后才算完成' : '交卷即完成（不强制订正）'}}
+    </view>
     <view class="ops">
       <text class="op accent" wx:if="{{assignment.status === 'draft'}}" bindtap="publish">发布</text>
       <text class="op danger" wx:if="{{assignment.status === 'draft'}}" bindtap="deleteDraft">删除草稿</text>

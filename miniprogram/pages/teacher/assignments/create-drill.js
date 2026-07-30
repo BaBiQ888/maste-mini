@@ -28,6 +28,8 @@ Page({
       { sec: 300, label: "5 分钟" },
       { sec: 600, label: "10 分钟" },
     ],
+    /** 老师决定：有错是否必须订正（默认开） */
+    requireCorrection: true,
     title: "",
     preview: [],
     seed: null,
@@ -246,6 +248,7 @@ Page({
             difficulty: this.data.difficulty,
             timeLimitSec: this.data.timeLimitSec || null,
             seed: this.data.seed,
+            requireCorrection: !!this.data.requireCorrection,
           },
         },
       });
@@ -270,5 +273,9 @@ Page({
   },
   publishNow() {
     this.submit(true);
+  },
+
+  toggleRequireCorrection() {
+    this.setData({ requireCorrection: !this.data.requireCorrection });
   },
 });

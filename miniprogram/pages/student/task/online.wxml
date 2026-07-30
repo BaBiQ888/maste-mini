@@ -80,12 +80,16 @@
       </view>
     </block>
 
-    <view class="key muted" wx:if="{{item.showKey && item.isCorrect === false}}">
+    <!-- 订正中不展示答案；完成后才显示（服务端 pending_correction 不下发 correctAnswer） -->
+    <view class="key muted" wx:if="{{mode === 'result' && item.showKey && item.isCorrect === false && item.correctAnswer != null}}">
       正确答案：{{item.correctAnswer}}
       <text wx:if="{{item.explanation}}"> · {{item.explanation}}</text>
     </view>
-    <view class="key ok-text" wx:if="{{item.showKey && item.isCorrect === true && item.explanation}}">
+    <view class="key ok-text" wx:if="{{mode === 'result' && item.showKey && item.isCorrect === true && item.explanation}}">
       {{item.explanation}}
+    </view>
+    <view class="key muted" wx:if="{{mode === 'correct' && item.isCorrect === false}}">
+      本题需订正（不显示答案，请自己再算一遍）
     </view>
 
     <!-- S2: optional wrong-reason chips (订正时，可跳过) -->
@@ -111,7 +115,7 @@
   </view>
 
   <block wx:if="{{mode === 'correct'}}">
-    <view class="hint muted">请订正标「错」的题目，全部正确后才算完成。错因可选，不影响提交。</view>
+    <view class="hint muted">请订正标「错」的题目（不提供正确答案）。全部正确后才算完成。错因可选，不影响提交。</view>
     <button class="btn btn-primary" loading="{{busy}}" disabled="{{busy}}" bindtap="submitCorrect">提交订正</button>
   </block>
 
