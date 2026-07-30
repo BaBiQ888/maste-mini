@@ -377,10 +377,10 @@ function createMysqlAppDatabase(pool: Pool): AppDatabase {
     async exec(sql: string) {
       return withMysqlRetry("exec", async () => {
         const r = runner();
-        const statements = sql
-          .split(/;\s*\n/)
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0 && !s.startsWith("--"));
+        // Split multi-statement DDL. Strip leading comment-only lines so a
+        // block like `-- note\nCREATE TABLE ...` is not dropped entirely
+        // (that bug skipped interaction_* tables in production migrate).
+        const statements = splitSqlStatements(sql);
         for (const stmt of statements) {
           await r.query(stmt);
         }
@@ -417,6 +417,27 @@ function createMysqlAppDatabase(pool: Pool): AppDatabase {
 }
 
 /**
+ * Split multi-statement SQL and drop pure-comment / empty chunks.
+ * Keeps CREATE that is preceded by `--` comment lines (strip comments only).
+ */
+export function splitSqlStatements(sql: string): string[] {
+  return sql
+    .split(/;\s*\n/)
+    .map((chunk) => {
+      const lines = chunk.split("\n").map((l) => l.trimEnd());
+      // drop leading blank / full-line SQL comments
+      while (
+        lines.length &&
+        (lines[0].trim() === "" || lines[0].trim().startsWith("--"))
+      ) {
+        lines.shift();
+      }
+      return lines.join("\n").trim();
+    })
+    .filter((s) => s.length > 0);
+}
+
+/**
  * Run one DDL statement; skip quietly if object already exists.
  * Avoids withMysqlRetry error spam for ER_DUP_KEYNAME.
  */
@@ -435,15 +456,31 @@ async function execSchemaStatement(
 }
 
 async function migrateMysql(db: AppDatabase, pool?: Pool): Promise<void> {
-  // Tables (IF NOT EXISTS)
-  await db.exec(SCHEMA_SQL);
+  // Tables (IF NOT EXISTS) — run one-by-one so one failure is diagnosable
+  const tableStmts = splitSqlStatements(SCHEMA_SQL);
+  console.log(
+    `[math-mini] mysql schema migrate: ${tableStmts.length} table statements`,
+  );
+  for (const stmt of tableStmts) {
+    try {
+      if (pool) {
+        await execSchemaStatement(pool, stmt);
+      } else {
+        await db.exec(stmt.endsWith(";") ? stmt : `${stmt};`);
+      }
+    } catch (err) {
+      const head = stmt.replace(/\s+/g, " ").slice(0, 80);
+      console.error("[math-mini] mysql table DDL failed:", head, err);
+      throw err;
+    }
+  }
 
   // Indexes: may already exist from manual SQL or prior boots — skip duplicates
   const indexRunner = pool
     ? (sql: string) => execSchemaStatement(pool, sql)
     : async (sql: string) => {
         try {
-          await db.exec(sql);
+          await db.exec(sql.endsWith(";") ? sql : `${sql};`);
         } catch (err) {
           if (isIgnorableSchemaError(err)) return;
           throw err;
@@ -451,7 +488,12 @@ async function migrateMysql(db: AppDatabase, pool?: Pool): Promise<void> {
       };
 
   for (const sql of INDEX_SQL) {
-    await indexRunner(sql);
+    try {
+      await indexRunner(sql);
+    } catch (err) {
+      console.error("[math-mini] mysql index DDL failed:", sql, err);
+      throw err;
+    }
   }
 
   try {
@@ -632,7 +674,6 @@ const SCHEMA_SQL = `
       completed_at VARCHAR(40)
     );
 
-    -- Teacher ↔ student light interactions
     CREATE TABLE IF NOT EXISTS interaction_stamps (
       id VARCHAR(64) PRIMARY KEY,
       class_id VARCHAR(64) NOT NULL,
