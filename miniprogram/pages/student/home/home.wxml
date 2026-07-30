@@ -34,7 +34,7 @@
     </view>
 
     <!-- 老师印章 / 小纸条 -->
-    <view class="card soft" wx:if="{{stamps.length || notes.length || teacherReplies.length}}">
+    <view class="card soft" wx:if="{{stamps.length || notes.length || teacherReplies.length || stuckReplies.length}}">
       <view class="label muted" style="margin:0 0 8rpx">老师留言</view>
       <view class="stamp-chip" wx:for="{{stamps}}" wx:key="id">
         印章「{{item.label}}」
@@ -45,6 +45,10 @@
       </view>
       <view class="note-line" wx:for="{{teacherReplies}}" wx:key="id">
         老师回周小结：{{item.teacherReply}}
+      </view>
+      <view class="note-line" wx:for="{{stuckReplies}}" wx:key="id">
+        老师答「还不会」：{{item.teacherReply}}
+        <text class="muted sm" wx:if="{{item.stem}}">（{{item.stem}}）</text>
       </view>
     </view>
 

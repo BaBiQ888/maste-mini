@@ -914,6 +914,7 @@ export function createApp(
     try {
       const stamps = await interaction.listStampsForSubmission(
         c.req.param("id"),
+        c.get("user").id,
       );
       return c.json({ stamps });
     } catch (e) {
@@ -1005,7 +1006,10 @@ export function createApp(
 
   authed.get("/classes/:id/focus", async (c) => {
     try {
-      const focus = await interaction.getClassFocus(c.req.param("id"));
+      const focus = await interaction.getClassFocus(
+        c.req.param("id"),
+        c.get("user").id,
+      );
       return c.json({ focus });
     } catch (e) {
       return handleError(c, e);
@@ -1016,6 +1020,16 @@ export function createApp(
     try {
       const items = await interaction.listFocusForStudent(c.get("user").id);
       return c.json({ items });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  /** Student: own stuck reports + teacher replies */
+  authed.get("/me/stuck-reports", async (c) => {
+    try {
+      const reports = await interaction.listStuckForStudent(c.get("user").id);
+      return c.json({ reports });
     } catch (e) {
       return handleError(c, e);
     }

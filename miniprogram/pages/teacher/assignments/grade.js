@@ -1,7 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { resolveImageSrcs, RESULT_LABEL } = require("../../../utils/media");
-const { showError } = require("../../../utils/errors");
+const { showError, logError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -73,8 +73,10 @@ Page({
           method: "GET",
         });
         stamps = st.stamps || [];
-      } catch (_) {
-        /* ignore */
+      } catch (err) {
+        logError("grade.stamps", err, {
+          submissionId: this.data.submissionId,
+        });
       }
       this.setData({
         submission,

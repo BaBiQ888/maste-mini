@@ -19,6 +19,7 @@ Page({
     stamps: [],
     notes: [],
     teacherReplies: [],
+    stuckReplies: [],
     loading: true,
     loadError: false,
   },
@@ -46,7 +47,7 @@ Page({
       const now = new Date();
       const year = now.getFullYear();
       const month = now.getMonth() + 1;
-      const [cls, asg, cal, due, focus, stamps, notes, replies] =
+      const [cls, asg, cal, due, focus, stamps, notes, replies, stuck] =
         await Promise.all([
           request({ url: "/api/v1/classes", method: "GET" }),
           request({ url: "/api/v1/assignments", method: "GET" }),
@@ -65,18 +66,32 @@ Page({
             return { review: null };
           }),
           request({ url: "/api/v1/me/class-focus", method: "GET" }).catch(
-            () => ({ items: [] }),
+            (err) => {
+              logError("home.classFocus", err, {});
+              return { items: [] };
+            },
           ),
-          request({ url: "/api/v1/me/stamps", method: "GET" }).catch(() => ({
-            stamps: [],
-          })),
-          request({ url: "/api/v1/me/notes", method: "GET" }).catch(() => ({
-            notes: [],
-          })),
+          request({ url: "/api/v1/me/stamps", method: "GET" }).catch((err) => {
+            logError("home.stamps", err, {});
+            return { stamps: [] };
+          }),
+          request({ url: "/api/v1/me/notes", method: "GET" }).catch((err) => {
+            logError("home.notes", err, {});
+            return { notes: [] };
+          }),
           request({
             url: "/api/v1/me/week-share-replies",
             method: "GET",
-          }).catch(() => ({ replies: [] })),
+          }).catch((err) => {
+            logError("home.weekShareReplies", err, {});
+            return { replies: [] };
+          }),
+          request({ url: "/api/v1/me/stuck-reports", method: "GET" }).catch(
+            (err) => {
+              logError("home.stuckReports", err, {});
+              return { reports: [] };
+            },
+          ),
         ]);
       const classes = cls.classes || [];
       const assignments = asg.assignments || [];
@@ -133,6 +148,9 @@ Page({
         stamps: ((stamps && stamps.stamps) || []).slice(0, 5),
         notes: ((notes && notes.notes) || []).slice(0, 5),
         teacherReplies: ((replies && replies.replies) || []).slice(0, 3),
+        stuckReplies: ((stuck && stuck.reports) || [])
+          .filter((r) => r.teacherReply)
+          .slice(0, 5),
         loading: false,
         loadError: false,
       });

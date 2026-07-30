@@ -1,7 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { getCurrentClassId, setCurrentClassId } = require("../../../utils/class-context");
-const { showError } = require("../../../utils/errors");
+const { showError, logError } = require("../../../utils/errors");
 
 const REASON_LABEL = {
   careless: "粗心",
@@ -68,24 +68,39 @@ Page({
     try {
       const [focus, stuck, shares, reasons, map] = await Promise.all([
         request({ url: `/api/v1/classes/${classId}/focus`, method: "GET" }).catch(
-          () => ({ focus: null }),
+          (err) => {
+            logError("interact.focus", err, { classId });
+            return { focus: null };
+          },
         ),
         request({
           url: `/api/v1/classes/${classId}/stuck-reports?status=open`,
           method: "GET",
-        }).catch(() => ({ reports: [] })),
+        }).catch((err) => {
+          logError("interact.stuck", err, { classId });
+          return { reports: [] };
+        }),
         request({
           url: `/api/v1/classes/${classId}/week-shares`,
           method: "GET",
-        }).catch(() => ({ shares: [] })),
+        }).catch((err) => {
+          logError("interact.weekShares", err, { classId });
+          return { shares: [] };
+        }),
         request({
           url: `/api/v1/classes/${classId}/wrong-reason-stats`,
           method: "GET",
-        }).catch(() => ({ reasons: [] })),
+        }).catch((err) => {
+          logError("interact.wrongReasons", err, { classId });
+          return { reasons: [] };
+        }),
         request({
           url: `/api/v1/classes/${classId}/map-progress`,
           method: "GET",
-        }).catch(() => ({ progress: null })),
+        }).catch((err) => {
+          logError("interact.mapProgress", err, { classId });
+          return { progress: null };
+        }),
       ]);
       this.setData({
         focus: focus.focus || null,

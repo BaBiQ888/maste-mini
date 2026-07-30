@@ -149,7 +149,20 @@ export class InteractionService {
 
   async listStampsForSubmission(
     submissionId: string,
+    callerId: string,
   ): Promise<Array<Record<string, unknown>>> {
+    const sub = (await this.db.get(
+      `SELECT s.student_id, c.teacher_id
+       FROM submissions s
+       JOIN assignments a ON a.id = s.assignment_id
+       JOIN classes c ON c.id = a.class_id
+       WHERE s.id = ?`,
+      submissionId,
+    )) as { student_id: string; teacher_id: string } | undefined;
+    if (!sub) throw new AppError("NOT_FOUND", "提交不存在", 404);
+    if (sub.student_id !== callerId && sub.teacher_id !== callerId) {
+      throw new AppError("FORBIDDEN", "无权查看印章", 403);
+    }
     const rows = (await this.db.all(
       `SELECT * FROM interaction_stamps
        WHERE submission_id = ?
@@ -208,22 +221,27 @@ export class InteractionService {
 
     let stem: string | null = null;
     let knId: string | null = null;
+    let aqId: string | null = null;
     if (input.assignmentQuestionId) {
       const aq = (await this.db.get(
-        `SELECT question_snapshot FROM assignment_questions WHERE id = ?`,
+        `SELECT question_snapshot FROM assignment_questions
+         WHERE id = ? AND assignment_id = ?`,
         input.assignmentQuestionId,
+        sub.aid,
       )) as { question_snapshot: string } | undefined;
-      if (aq) {
-        try {
-          const snap = JSON.parse(aq.question_snapshot) as {
-            stem?: string;
-            knowledgeNodeId?: string;
-          };
-          stem = snap.stem || null;
-          knId = snap.knowledgeNodeId || null;
-        } catch {
-          /* ignore */
-        }
+      if (!aq) {
+        throw new AppError("INVALID_QUESTION", "题目不属于该作业", 400);
+      }
+      aqId = input.assignmentQuestionId;
+      try {
+        const snap = JSON.parse(aq.question_snapshot) as {
+          stem?: string;
+          knowledgeNodeId?: string;
+        };
+        stem = snap.stem || null;
+        knId = snap.knowledgeNodeId || null;
+      } catch {
+        /* ignore */
       }
     }
 
@@ -239,7 +257,7 @@ export class InteractionService {
       sub.class_id,
       sub.aid,
       sub.id,
-      input.assignmentQuestionId || null,
+      aqId,
       studentId,
       stem,
       knId,
@@ -327,6 +345,25 @@ export class InteractionService {
     return this.mapStuck(again);
   }
 
+  /** Student inbox: own stuck reports (with teacher replies when present). */
+  async listStuckForStudent(
+    studentId: string,
+    limit = 30,
+  ): Promise<Array<Record<string, unknown>>> {
+    const n = Math.min(Math.max(limit, 1), 50);
+    const rows = (await this.db.all(
+      `SELECT r.*, a.title AS assignment_title, u.nickname
+       FROM stuck_reports r
+       JOIN assignments a ON a.id = r.assignment_id
+       JOIN users u ON u.id = r.student_id
+       WHERE r.student_id = ?
+       ORDER BY r.updated_at DESC
+       LIMIT ${n}`,
+      studentId,
+    )) as Array<Record<string, unknown>>;
+    return rows.map((r) => this.mapStuck(r));
+  }
+
   private mapStuck(r: Record<string, unknown>) {
     return {
       id: r.id,
@@ -396,7 +433,23 @@ export class InteractionService {
     return focus || { classId, label, knowledgeNodeId: null, note: null };
   }
 
-  async getClassFocus(classId: string): Promise<Record<string, unknown> | null> {
+  async getClassFocus(
+    classId: string,
+    callerId?: string,
+  ): Promise<Record<string, unknown> | null> {
+    if (callerId) {
+      const ok = (await this.db.get(
+        `SELECT 1 AS ok FROM classes c
+         LEFT JOIN class_memberships m
+           ON m.class_id = c.id AND m.user_id = ?
+         WHERE c.id = ?
+           AND (c.teacher_id = ? OR m.user_id IS NOT NULL)`,
+        callerId,
+        classId,
+        callerId,
+      )) as { ok: number } | undefined;
+      if (!ok) throw new AppError("FORBIDDEN", "无权查看该班级焦点", 403);
+    }
     const row = (await this.db.get(
       `SELECT * FROM class_focus WHERE class_id = ?`,
       classId,

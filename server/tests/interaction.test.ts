@@ -138,6 +138,20 @@ describe("Teacher-student interactions", () => {
     const body = await res.json();
     expect(body.stamp.label).toBe("进步");
 
+    const bySub = await (
+      await app.request(`/api/v1/submissions/${submissionId}/stamps`, {
+        headers: auth(teacher.token),
+      })
+    ).json();
+    expect(bySub.stamps.length).toBeGreaterThanOrEqual(1);
+
+    const other = await loginAs(app, "ixs2", "student", "路人");
+    const denied = await app.request(
+      `/api/v1/submissions/${submissionId}/stamps`,
+      { headers: auth(other.token) },
+    );
+    expect(denied.status).toBe(403);
+
     const mine = await (
       await app.request("/api/v1/me/stamps", {
         headers: auth(student.token),
@@ -147,7 +161,7 @@ describe("Teacher-student interactions", () => {
     expect(mine.stamps[0].stampType).toBe("progress");
   });
 
-  it("stuck report and teacher reply", async () => {
+  it("stuck report and teacher reply reaches student inbox", async () => {
     const { teacher, student, submissionId, aqId, cls } = await setupClass();
     const rep = await (
       await app.request(`/api/v1/submissions/${submissionId}/stuck`, {
@@ -160,6 +174,20 @@ describe("Teacher-student interactions", () => {
       })
     ).json();
     expect(rep.report.status).toBe("open");
+
+    // foreign question id rejected
+    const badAq = await app.request(
+      `/api/v1/submissions/${submissionId}/stuck`,
+      {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({
+          assignmentQuestionId: "aq_not_exists_xxx",
+          note: "x",
+        }),
+      },
+    );
+    expect(badAq.status).toBe(400);
 
     const list = await (
       await app.request(`/api/v1/classes/${cls.id}/stuck-reports?status=open`, {
@@ -177,6 +205,18 @@ describe("Teacher-student interactions", () => {
     ).json();
     expect(replied.report.status).toBe("resolved");
     expect(replied.report.teacherReply).toContain("进位");
+
+    const studentInbox = await (
+      await app.request("/api/v1/me/stuck-reports", {
+        headers: auth(student.token),
+      })
+    ).json();
+    expect(
+      studentInbox.reports.some(
+        (r: { teacherReply?: string }) =>
+          r.teacherReply && r.teacherReply.includes("进位"),
+      ),
+    ).toBe(true);
   });
 
   it("class focus and notes and week share", async () => {

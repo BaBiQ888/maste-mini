@@ -276,4 +276,7 @@ Page({
   toggleRequireCorrection() {
     this.setData({ requireCorrection: !this.data.requireCorrection });
   },
+  toggleAllowStuck() {
+    this.setData({ allowStuckReport: !this.data.allowStuckReport });
+  },
 });
