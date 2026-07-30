@@ -32,9 +32,16 @@
     </view>
 
     <view class="card copy-box">
-      <view class="sec">发给家长（可选）</view>
+      <view class="sec">发给家长 / 老师（可选）</view>
       <view class="copy-text">{{summary.copyText}}</view>
       <button class="btn btn-primary" bindtap="onCopy">复制文案</button>
+      <button
+        class="btn btn-ghost"
+        style="margin-top:16rpx"
+        loading="{{shareBusy}}"
+        disabled="{{shareBusy || !classId}}"
+        bindtap="shareToTeacher"
+      >发给老师</button>
     </view>
 
     <view class="links">

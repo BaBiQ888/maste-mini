@@ -93,6 +93,9 @@ Page({
   goCreateAssignment() {
     wx.navigateTo({ url: "/pages/teacher/assignments/create" });
   },
+  goInteract() {
+    wx.navigateTo({ url: "/pages/teacher/interact/hub" });
+  },
   goAssignments() {
     wx.reLaunch({ url: "/pages/teacher/assignments/list" });
   },

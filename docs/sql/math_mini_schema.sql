@@ -177,3 +177,62 @@ CREATE UNIQUE INDEX idx_mastery_user_kn_uq ON mastery_items(user_id, knowledge_n
 CREATE UNIQUE INDEX idx_mastery_user_sk_uq ON mastery_items(user_id, skill_key);
 CREATE INDEX idx_mastery_reviews_user ON mastery_reviews(user_id, status);
 CREATE INDEX idx_mastery_reviews_item ON mastery_reviews(mastery_item_id);
+
+CREATE TABLE IF NOT EXISTS interaction_stamps (
+  id VARCHAR(64) PRIMARY KEY,
+  class_id VARCHAR(64) NOT NULL,
+  assignment_id VARCHAR(64),
+  submission_id VARCHAR(64),
+  student_id VARCHAR(64) NOT NULL,
+  teacher_id VARCHAR(64) NOT NULL,
+  stamp_type VARCHAR(32) NOT NULL,
+  note TEXT,
+  created_at VARCHAR(40) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS stuck_reports (
+  id VARCHAR(64) PRIMARY KEY,
+  class_id VARCHAR(64) NOT NULL,
+  assignment_id VARCHAR(64) NOT NULL,
+  submission_id VARCHAR(64) NOT NULL,
+  assignment_question_id VARCHAR(64),
+  student_id VARCHAR(64) NOT NULL,
+  stem TEXT,
+  knowledge_node_id VARCHAR(64),
+  note TEXT,
+  status VARCHAR(32) NOT NULL,
+  teacher_reply TEXT,
+  created_at VARCHAR(40) NOT NULL,
+  updated_at VARCHAR(40) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS class_focus (
+  class_id VARCHAR(64) PRIMARY KEY,
+  knowledge_node_id VARCHAR(64),
+  label VARCHAR(200) NOT NULL,
+  note TEXT,
+  set_by VARCHAR(64) NOT NULL,
+  updated_at VARCHAR(40) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS class_notes (
+  id VARCHAR(64) PRIMARY KEY,
+  class_id VARCHAR(64) NOT NULL,
+  teacher_id VARCHAR(64) NOT NULL,
+  student_id VARCHAR(64),
+  body TEXT NOT NULL,
+  kind VARCHAR(32) NOT NULL,
+  created_at VARCHAR(40) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS week_shares (
+  id VARCHAR(64) PRIMARY KEY,
+  class_id VARCHAR(64) NOT NULL,
+  student_id VARCHAR(64) NOT NULL,
+  week_label VARCHAR(80) NOT NULL,
+  copy_text TEXT NOT NULL,
+  payload_json MEDIUMTEXT,
+  teacher_reply TEXT,
+  created_at VARCHAR(40) NOT NULL,
+  replied_at VARCHAR(40)
+);

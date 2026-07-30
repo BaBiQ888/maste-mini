@@ -483,4 +483,35 @@ Page({
       this.setData({ busy: false });
     }
   },
+
+  reportStuck(e) {
+    const idx = e.currentTarget.dataset.index;
+    const item = this.data.items[idx];
+    if (!this.data.submission || !item) return;
+    wx.showModal({
+      title: "告诉老师还不会",
+      content: "不会公开，只给老师看。可写一句哪里卡住了。",
+      editable: true,
+      placeholderText: "如：进位不会",
+      success: async (res) => {
+        if (!res.confirm) return;
+        try {
+          await request({
+            url: `/api/v1/submissions/${this.data.submission.id}/stuck`,
+            method: "POST",
+            data: {
+              assignmentQuestionId: item.assignmentQuestionId,
+              note: (res.content || "").trim() || null,
+            },
+          });
+          wx.showToast({ title: "已告诉老师", icon: "success" });
+        } catch (err) {
+          showError(err, {
+            tag: "online.stuck",
+            fallback: "上报失败",
+          });
+        }
+      },
+    });
+  },
 });

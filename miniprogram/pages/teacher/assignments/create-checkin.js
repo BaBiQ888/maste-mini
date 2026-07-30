@@ -20,6 +20,7 @@ Page({
     search: "",
     loading: false,
     requireCorrection: true,
+    allowStuckReport: true,
     /** Field-level validation messages (shown near inputs) */
     errors: {
       classId: "",
@@ -246,6 +247,7 @@ Page({
           config: {
             knowledgeNodeIds,
             requireCorrection: !!this.data.requireCorrection,
+            allowStuckReport: !!this.data.allowStuckReport,
           },
         },
       });

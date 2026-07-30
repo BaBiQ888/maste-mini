@@ -38,6 +38,25 @@
 }
 .streak-meta { font-size: 24rpx; }
 .label { margin-bottom: 16rpx; font-size: 26rpx; }
+.focus-card { margin-bottom: 16rpx; border-left: 6rpx solid var(--accent); }
+.focus-line { margin-top: 8rpx; }
+.focus-title { font-size: 30rpx; font-weight: 600; }
+.stamp-chip {
+  display: inline-block;
+  font-size: 22rpx;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999rpx;
+  padding: 6rpx 14rpx;
+  margin: 4rpx 8rpx 4rpx 0;
+}
+.note-line {
+  font-size: 24rpx;
+  margin-top: 8rpx;
+  line-height: 1.4;
+}
+.soft { margin-bottom: 16rpx; }
 .mt-sec { margin-top: 32rpx; }
 .lined {
   background-image: repeating-linear-gradient(

@@ -631,6 +631,66 @@ const SCHEMA_SQL = `
       started_at VARCHAR(40) NOT NULL,
       completed_at VARCHAR(40)
     );
+
+    -- Teacher ↔ student light interactions
+    CREATE TABLE IF NOT EXISTS interaction_stamps (
+      id VARCHAR(64) PRIMARY KEY,
+      class_id VARCHAR(64) NOT NULL,
+      assignment_id VARCHAR(64),
+      submission_id VARCHAR(64),
+      student_id VARCHAR(64) NOT NULL,
+      teacher_id VARCHAR(64) NOT NULL,
+      stamp_type VARCHAR(32) NOT NULL,
+      note TEXT,
+      created_at VARCHAR(40) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS stuck_reports (
+      id VARCHAR(64) PRIMARY KEY,
+      class_id VARCHAR(64) NOT NULL,
+      assignment_id VARCHAR(64) NOT NULL,
+      submission_id VARCHAR(64) NOT NULL,
+      assignment_question_id VARCHAR(64),
+      student_id VARCHAR(64) NOT NULL,
+      stem TEXT,
+      knowledge_node_id VARCHAR(64),
+      note TEXT,
+      status VARCHAR(32) NOT NULL,
+      teacher_reply TEXT,
+      created_at VARCHAR(40) NOT NULL,
+      updated_at VARCHAR(40) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS class_focus (
+      class_id VARCHAR(64) PRIMARY KEY,
+      knowledge_node_id VARCHAR(64),
+      label VARCHAR(200) NOT NULL,
+      note TEXT,
+      set_by VARCHAR(64) NOT NULL,
+      updated_at VARCHAR(40) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS class_notes (
+      id VARCHAR(64) PRIMARY KEY,
+      class_id VARCHAR(64) NOT NULL,
+      teacher_id VARCHAR(64) NOT NULL,
+      student_id VARCHAR(64),
+      body TEXT NOT NULL,
+      kind VARCHAR(32) NOT NULL,
+      created_at VARCHAR(40) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS week_shares (
+      id VARCHAR(64) PRIMARY KEY,
+      class_id VARCHAR(64) NOT NULL,
+      student_id VARCHAR(64) NOT NULL,
+      week_label VARCHAR(80) NOT NULL,
+      copy_text TEXT NOT NULL,
+      payload_json MEDIUMTEXT,
+      teacher_reply TEXT,
+      created_at VARCHAR(40) NOT NULL,
+      replied_at VARCHAR(40)
+    );
 `;
 
 /**
@@ -664,6 +724,14 @@ const INDEX_SQL = [
   "CREATE UNIQUE INDEX idx_mastery_user_sk_uq ON mastery_items(user_id, skill_key)",
   "CREATE INDEX idx_mastery_reviews_user ON mastery_reviews(user_id, status)",
   "CREATE INDEX idx_mastery_reviews_item ON mastery_reviews(mastery_item_id)",
+  "CREATE INDEX idx_stamps_student ON interaction_stamps(student_id, created_at)",
+  "CREATE INDEX idx_stamps_class ON interaction_stamps(class_id, created_at)",
+  "CREATE INDEX idx_stuck_class ON stuck_reports(class_id, status, created_at)",
+  "CREATE INDEX idx_stuck_student ON stuck_reports(student_id, status)",
+  "CREATE INDEX idx_notes_student ON class_notes(student_id, created_at)",
+  "CREATE INDEX idx_notes_class ON class_notes(class_id, created_at)",
+  "CREATE INDEX idx_week_shares_class ON week_shares(class_id, created_at)",
+  "CREATE INDEX idx_week_shares_student ON week_shares(student_id, created_at)",
 ];
 
 export function createId(prefix: string): string {

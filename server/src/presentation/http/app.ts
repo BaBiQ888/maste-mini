@@ -23,6 +23,10 @@ import {
 import { KnowledgeTreeService } from "../../application/knowledge/service.js";
 import { MasteryService } from "../../application/mastery/service.js";
 import {
+  InteractionService,
+  STAMP_TYPES,
+} from "../../application/interaction/service.js";
+import {
   ensureUploadDir,
   readUploadBase64,
   saveBase64Image,
@@ -79,6 +83,7 @@ export function createApp(
   const progress = new ProgressService(db);
   const knowledge = new KnowledgeTreeService();
   const mastery = new MasteryService(db);
+  const interaction = new InteractionService(db, progress);
   const uploadDir = ensureUploadDir(dataDir);
 
   const app = new Hono<AppEnv>();
@@ -560,11 +565,33 @@ export function createApp(
 
   authed.get("/assignments/:id/reminder-text", async (c) => {
     try {
+      const layered = c.req.query("layered") === "1";
+      if (layered) {
+        const data = await interaction.buildLayeredReminder(
+          c.req.param("id"),
+          c.get("user").id,
+        );
+        return c.json(data);
+      }
       const text = await progress.buildReminderText(
         c.req.param("id"),
         c.get("user").id,
       );
       return c.json({ text });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/assignments/:id/top-wrongs", async (c) => {
+    try {
+      const limit = Number(c.req.query("limit") || 3);
+      const data = await interaction.topWrongs(
+        c.req.param("id"),
+        c.get("user").id,
+        Number.isFinite(limit) ? limit : 3,
+      );
+      return c.json(data);
     } catch (e) {
       return handleError(c, e);
     }
@@ -857,6 +884,249 @@ export function createApp(
     try {
       const summary = await mastery.getWeekSummary(c.get("user").id);
       return c.json({ summary });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  // —— Teacher ↔ student interactions ——
+  authed.post("/submissions/:id/stamps", async (c) => {
+    try {
+      const body = z
+        .object({
+          stampType: z.enum(STAMP_TYPES),
+          note: z.string().max(200).optional(),
+        })
+        .parse(await c.req.json());
+      const stamp = await interaction.stampSubmission(
+        c.get("user").id,
+        c.req.param("id"),
+        body.stampType,
+        body.note,
+      );
+      return c.json({ stamp }, 201);
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/submissions/:id/stamps", async (c) => {
+    try {
+      const stamps = await interaction.listStampsForSubmission(
+        c.req.param("id"),
+      );
+      return c.json({ stamps });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/me/stamps", async (c) => {
+    try {
+      const stamps = await interaction.listStampsForStudent(c.get("user").id);
+      return c.json({ stamps });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.post("/submissions/:id/stuck", async (c) => {
+    try {
+      const body = z
+        .object({
+          assignmentQuestionId: z.string().max(64).optional().nullable(),
+          note: z.string().max(300).optional().nullable(),
+        })
+        .parse(await c.req.json().catch(() => ({})));
+      const report = await interaction.reportStuck(c.get("user").id, {
+        submissionId: c.req.param("id"),
+        assignmentQuestionId: body.assignmentQuestionId,
+        note: body.note,
+      });
+      return c.json({ report }, 201);
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/classes/:id/stuck-reports", async (c) => {
+    try {
+      const status = c.req.query("status") || undefined;
+      const reports = await interaction.listStuckForClass(
+        c.req.param("id"),
+        c.get("user").id,
+        status,
+      );
+      return c.json({ reports });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.post("/stuck-reports/:id/reply", async (c) => {
+    try {
+      const body = z
+        .object({
+          reply: z.string().max(500),
+          resolve: z.boolean().optional(),
+        })
+        .parse(await c.req.json());
+      const report = await interaction.replyStuck(
+        c.get("user").id,
+        c.req.param("id"),
+        body.reply,
+        body.resolve !== false,
+      );
+      return c.json({ report });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.put("/classes/:id/focus", async (c) => {
+    try {
+      const body = z
+        .object({
+          label: z.string().min(1).max(80),
+          knowledgeNodeId: z.string().max(64).optional().nullable(),
+          note: z.string().max(300).optional(),
+        })
+        .parse(await c.req.json());
+      const focus = await interaction.setClassFocus(
+        c.get("user").id,
+        c.req.param("id"),
+        body,
+      );
+      return c.json({ focus });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/classes/:id/focus", async (c) => {
+    try {
+      const focus = await interaction.getClassFocus(c.req.param("id"));
+      return c.json({ focus });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/me/class-focus", async (c) => {
+    try {
+      const items = await interaction.listFocusForStudent(c.get("user").id);
+      return c.json({ items });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.post("/classes/:id/notes", async (c) => {
+    try {
+      const body = z
+        .object({
+          body: z.string().min(1).max(500),
+          studentId: z.string().max(64).optional().nullable(),
+          kind: z.string().max(32).optional(),
+        })
+        .parse(await c.req.json());
+      const note = await interaction.sendNote(
+        c.get("user").id,
+        c.req.param("id"),
+        body,
+      );
+      return c.json({ note }, 201);
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/me/notes", async (c) => {
+    try {
+      const notes = await interaction.listNotesForStudent(c.get("user").id);
+      return c.json({ notes });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.post("/me/week-share", async (c) => {
+    try {
+      const body = z
+        .object({
+          classId: z.string().min(1).max(64),
+          weekLabel: z.string().max(80),
+          copyText: z.string().min(1).max(2000),
+          payload: z.record(z.unknown()).optional(),
+        })
+        .parse(await c.req.json());
+      const share = await interaction.shareWeekSummary(c.get("user").id, body);
+      return c.json({ share }, 201);
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/classes/:id/week-shares", async (c) => {
+    try {
+      const shares = await interaction.listWeekShares(
+        c.req.param("id"),
+        c.get("user").id,
+      );
+      return c.json({ shares });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.post("/week-shares/:id/reply", async (c) => {
+    try {
+      const body = z
+        .object({ reply: z.string().min(1).max(500) })
+        .parse(await c.req.json());
+      const share = await interaction.replyWeekShare(
+        c.get("user").id,
+        c.req.param("id"),
+        body.reply,
+      );
+      return c.json({ share });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/me/week-share-replies", async (c) => {
+    try {
+      const replies = await interaction.listMyWeekShareReplies(
+        c.get("user").id,
+      );
+      return c.json({ replies });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/classes/:id/wrong-reason-stats", async (c) => {
+    try {
+      const days = Number(c.req.query("days") || 14);
+      const data = await interaction.wrongReasonStats(
+        c.req.param("id"),
+        c.get("user").id,
+        Number.isFinite(days) ? days : 14,
+      );
+      return c.json(data);
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/classes/:id/map-progress", async (c) => {
+    try {
+      const progressMap = await interaction.classMapProgress(
+        c.req.param("id"),
+        c.get("user").id,
+      );
+      return c.json({ progress: progressMap });
     } catch (e) {
       return handleError(c, e);
     }

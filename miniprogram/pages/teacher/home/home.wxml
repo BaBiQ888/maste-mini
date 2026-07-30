@@ -13,9 +13,13 @@
       <view class="n plus">+</view>
       <view class="l">布置作业</view>
     </view>
+    <view class="stat" bindtap="goInteract">
+      <view class="n">互</view>
+      <view class="l">师生互动</view>
+    </view>
   </view>
   <view class="quick muted">
-    点「布置作业」选类型：拍照 · 每日计算 · 知识打卡 · 在线题
+    点「布置作业」选类型；「师生互动」看焦点、卡住名单、周小结与印章反馈
   </view>
 
   <view class="label muted">当前班级</view>

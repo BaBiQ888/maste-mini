@@ -82,6 +82,13 @@
     </view>
     <view class="switch {{requireCorrection ? 'on' : ''}}">{{requireCorrection ? '开' : '关'}}</view>
   </view>
+  <view class="field switch-row" bindtap="toggleAllowStuck">
+    <view>
+      <view class="label">允许「还不会」上报</view>
+      <view class="muted sm">学生卡住时可私下告诉你，不公开。</view>
+    </view>
+    <view class="switch {{allowStuckReport ? 'on' : ''}}">{{allowStuckReport ? '开' : '关'}}</view>
+  </view>
 
   <view class="hint muted">进入页面已自动出题；限时结束后系统会自动收卷。可先存草稿再发布。订正过程不提供正确答案。</view>
 

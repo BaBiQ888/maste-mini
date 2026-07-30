@@ -5,7 +5,10 @@ const { showError } = require("../../../utils/errors");
 Page({
   data: {
     summary: null,
+    classes: [],
+    classId: "",
     loading: true,
+    shareBusy: false,
   },
 
   onShow() {
@@ -24,17 +27,28 @@ Page({
   async load() {
     this.setData({ loading: true });
     try {
-      const data = await request({
-        url: "/api/v1/me/mastery/week-summary",
-        method: "GET",
-      });
+      const [data, cls] = await Promise.all([
+        request({
+          url: "/api/v1/me/mastery/week-summary",
+          method: "GET",
+        }),
+        request({ url: "/api/v1/classes", method: "GET" }).catch(() => ({
+          classes: [],
+        })),
+      ]);
       const summary = data.summary || null;
       if (summary) {
         // WXML cannot call Array methods — precompute display text
         const names = summary.knowledgeNames || [];
         summary.knowledgeNamesText = names.length ? names.join("、") : "";
       }
-      this.setData({ summary, loading: false });
+      const classes = cls.classes || [];
+      this.setData({
+        summary,
+        classes,
+        classId: classes[0] ? classes[0].id : "",
+        loading: false,
+      });
     } catch (e) {
       this.setData({ loading: false });
       showError(e, { fallback: "加载失败" });
@@ -54,6 +68,40 @@ Page({
         wx.showToast({ title: "已复制，可发给家长", icon: "none" });
       },
     });
+  },
+
+  async shareToTeacher() {
+    const summary = this.data.summary;
+    if (!summary || !summary.copyText) {
+      wx.showToast({ title: "暂无内容", icon: "none" });
+      return;
+    }
+    if (!this.data.classId) {
+      wx.showToast({ title: "请先加入班级", icon: "none" });
+      return;
+    }
+    if (this.data.shareBusy) return;
+    this.setData({ shareBusy: true });
+    try {
+      await request({
+        url: "/api/v1/me/week-share",
+        method: "POST",
+        data: {
+          classId: this.data.classId,
+          weekLabel: summary.weekLabel || "本周",
+          copyText: summary.copyText,
+          payload: {
+            litDays: summary.litDays,
+            completedTaskCount: summary.completedTaskCount,
+          },
+        },
+      });
+      wx.showToast({ title: "已发给老师", icon: "success" });
+    } catch (e) {
+      showError(e, { tag: "week.share", fallback: "发送失败" });
+    } finally {
+      this.setData({ shareBusy: false });
+    }
   },
 
   goMap() {

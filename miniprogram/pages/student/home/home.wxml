@@ -24,6 +24,30 @@
   </view>
 
   <block wx:else>
+    <!-- 老师今日焦点 -->
+    <view class="card focus-card" wx:if="{{focusItems.length}}">
+      <view class="label muted" style="margin:0">老师钉的焦点</view>
+      <view wx:for="{{focusItems}}" wx:key="classId" class="focus-line">
+        <text class="focus-title">{{item.label}}</text>
+        <text class="muted sm" wx:if="{{item.className}}"> · {{item.className}}</text>
+      </view>
+    </view>
+
+    <!-- 老师印章 / 小纸条 -->
+    <view class="card soft" wx:if="{{stamps.length || notes.length || teacherReplies.length}}">
+      <view class="label muted" style="margin:0 0 8rpx">老师留言</view>
+      <view class="stamp-chip" wx:for="{{stamps}}" wx:key="id">
+        印章「{{item.label}}」
+        <text wx:if="{{item.assignmentTitle}}"> · {{item.assignmentTitle}}</text>
+      </view>
+      <view class="note-line muted" wx:for="{{notes}}" wx:key="id">
+        {{item.body}}
+      </view>
+      <view class="note-line" wx:for="{{teacherReplies}}" wx:key="id">
+        老师回周小结：{{item.teacherReply}}
+      </view>
+    </view>
+
     <!-- 必做：老师布置的未完成 -->
     <view class="label muted">必做</view>
     <block wx:if="{{requiredTasks.length}}">

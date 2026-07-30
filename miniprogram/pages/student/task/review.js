@@ -145,15 +145,17 @@ Page({
         mode === "result"
           ? {
               show: true,
+              isComplete: !!review.passed,
               passed: !!review.passed,
-              headline: review.passed ? "这页可以折角了" : "还差一口气",
+              headline: review.passed ? "过关卡 · 可以折角了" : "还差一口气",
               line: review.passed
-                ? `${review.knowledgeName}，回访过关了。`
+                ? `${review.knowledgeName || "这一页"}，回访过关了。`
                 : "过几天会再来找你，慢慢练。",
               scoreText:
                 review.correctCount != null
                   ? `${review.correctCount}/${review.totalCount} 题正确`
                   : "",
+              passCard: !!review.passed,
             }
           : null,
     });

@@ -106,6 +106,7 @@
           bindtap="pickWrongReason"
         >{{r.label}}</view>
       </view>
+      <view class="stuck-link" data-index="{{qIdx}}" bindtap="reportStuck">还不会 · 告诉老师</view>
     </view>
   </view>
 

@@ -250,3 +250,10 @@
 }
 .success-btn { margin-top: 36rpx; }
 .success-btn-ghost { margin-top: 16rpx; }
+
+.stuck-link {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: var(--accent);
+  font-weight: 600;
+}

@@ -39,6 +39,7 @@ Page({
     summary: null,
     rateText: "—",
     requireCorrection: true,
+    topWrongs: [],
     loading: true,
     statusLabels: STATUS_LABEL,
     resultLabels: RESULT_LABEL,
@@ -64,7 +65,7 @@ Page({
   async load() {
     this.setData({ loading: true });
     try {
-      const [a, s, sum, qs, qst] = await Promise.all([
+      const [a, s, sum, qs, qst, top] = await Promise.all([
         request({ url: `/api/v1/assignments/${this.data.id}`, method: "GET" }),
         request({
           url: `/api/v1/assignments/${this.data.id}/submissions`,
@@ -80,6 +81,10 @@ Page({
         }).catch(() => ({ questions: [] })),
         request({
           url: `/api/v1/assignments/${this.data.id}/question-stats`,
+          method: "GET",
+        }).catch(() => ({ questions: [] })),
+        request({
+          url: `/api/v1/assignments/${this.data.id}/top-wrongs`,
           method: "GET",
         }).catch(() => ({ questions: [] })),
       ]);
@@ -121,6 +126,7 @@ Page({
         summary,
         rateText,
         requireCorrection,
+        topWrongs: top.questions || [],
         loading: false,
       });
     } catch (e) {
@@ -212,17 +218,28 @@ Page({
   async copyReminder() {
     try {
       const data = await request({
-        url: `/api/v1/assignments/${this.data.id}/reminder-text`,
+        url: `/api/v1/assignments/${this.data.id}/reminder-text?layered=1`,
         method: "GET",
       });
       wx.setClipboardData({
         data: data.text || "",
         success: () =>
-          wx.showToast({ title: "催交文案已复制", icon: "success" }),
+          wx.showToast({ title: "分层催交已复制", icon: "success" }),
       });
     } catch (e) {
       showError(e, { fallback: "复制失败" });
     }
+  },
+
+  goVariantDrill() {
+    // Jump to drill create with current class — teacher re-generates variants
+    const classId =
+      (this.data.assignment && this.data.assignment.classId) || "";
+    wx.navigateTo({
+      url: `/pages/teacher/assignments/create-drill${
+        classId ? `?classId=${classId}` : ""
+      }`,
+    });
   },
 
   goGrade(e) {

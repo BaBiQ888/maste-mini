@@ -1,0 +1,76 @@
+<view class="page">
+  <view class="toolbar">
+    <view class="title">师生互动</view>
+    <view class="filter muted" bindtap="pickClass">{{className}} ▾</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="muted tip">加载中…</view>
+
+  <block wx:elif="{{classId}}">
+    <!-- 班级共亮 -->
+    <view class="card" wx:if="{{mapProgress}}">
+      <view class="sec">班级算本树（无排名）</view>
+      <view class="stats">
+        <view class="st"><view class="n">{{mapProgress.studentCount}}</view><view class="l muted">同学</view></view>
+        <view class="st"><view class="n">{{mapProgress.litNodeCount}}</view><view class="l muted">过关点</view></view>
+        <view class="st"><view class="n">{{mapProgress.halfNodeCount}}</view><view class="l muted">待巩固</view></view>
+        <view class="st"><view class="n">{{mapProgress.passCountWeek}}</view><view class="l muted">本周过关</view></view>
+      </view>
+      <view class="muted sm" wx:if="{{mapProgress.dueReviewCount}}">今日到期回访 {{mapProgress.dueReviewCount}} 人次</view>
+    </view>
+
+    <!-- 今日焦点 -->
+    <view class="card">
+      <view class="sec">今日焦点</view>
+      <view class="muted sm" wx:if="{{focus}}">当前：{{focus.label}}</view>
+      <input class="input" placeholder="如：两位数进位加法" value="{{focusLabel}}" bindinput="onFocusLabel" />
+      <button class="btn btn-primary sm-btn" bindtap="saveFocus">钉到学生首页</button>
+    </view>
+
+    <!-- 卡住的人 -->
+    <view class="card">
+      <view class="sec">「还不会」上报 · {{stuck.length}}</view>
+      <view class="empty muted" wx:if="{{!stuck.length}}">暂无待处理</view>
+      <view class="row" wx:for="{{stuck}}" wx:key="id">
+        <view class="body">
+          <view class="name">{{item.studentNickname}} · {{item.assignmentTitle}}</view>
+          <view class="muted sm" wx:if="{{item.stem}}">{{item.stem}}</view>
+          <view class="muted sm" wx:if="{{item.note}}">学生说：{{item.note}}</view>
+        </view>
+        <view class="link" data-id="{{item.id}}" bindtap="replyStuck">回复</view>
+      </view>
+    </view>
+
+    <!-- 错因看板 -->
+    <view class="card" wx:if="{{reasons.length}}">
+      <view class="sec">本班错因（近 14 天）</view>
+      <view class="row" wx:for="{{reasons}}" wx:key="reason">
+        <view class="name">{{item.label}}</view>
+        <view class="muted">{{item.count}} 次</view>
+      </view>
+    </view>
+
+    <!-- 周小结 -->
+    <view class="card">
+      <view class="sec">学生周小结 · {{shares.length}}</view>
+      <view class="empty muted" wx:if="{{!shares.length}}">还没有同学发来</view>
+      <view class="share" wx:for="{{shares}}" wx:key="id">
+        <view class="name">{{item.studentNickname}} · {{item.weekLabel}}</view>
+        <view class="muted sm pre">{{item.copyText}}</view>
+        <view class="muted sm" wx:if="{{item.teacherReply}}">你的回复：{{item.teacherReply}}</view>
+        <view class="link" wx:else data-id="{{item.id}}" bindtap="replyShare">写下周重点</view>
+      </view>
+    </view>
+
+    <!-- 小纸条 -->
+    <view class="card">
+      <view class="sec">全班小纸条</view>
+      <textarea class="ta" placeholder="一句鼓励或今晚提醒…" value="{{noteBody}}" bindinput="onNoteBody" maxlength="200" />
+      <button class="btn btn-ghost sm-btn" bindtap="sendBroadcast">发给全班</button>
+    </view>
+  </block>
+
+  <view wx:else class="empty-box">
+    <view class="title">先选一个班级</view>
+  </view>
+</view>

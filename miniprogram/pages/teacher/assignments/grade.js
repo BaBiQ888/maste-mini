@@ -20,6 +20,13 @@ Page({
     comment: "",
     requireResubmit: false,
     loading: false,
+    stampTypes: [
+      { id: "careful", label: "认真" },
+      { id: "progress", label: "进步" },
+      { id: "retry", label: "再练一遍" },
+      { id: "passed", label: "已过关" },
+    ],
+    stamps: [],
   },
 
   onLoad(q) {
@@ -59,6 +66,16 @@ Page({
       const photoDisplay = await resolveImageSrcs(
         (submission.photos || []).map((p) => p.url),
       );
+      let stamps = [];
+      try {
+        const st = await request({
+          url: `/api/v1/submissions/${this.data.submissionId}/stamps`,
+          method: "GET",
+        });
+        stamps = st.stamps || [];
+      } catch (_) {
+        /* ignore */
+      }
       this.setData({
         submission,
         photoDisplay,
@@ -71,9 +88,30 @@ Page({
         requireResubmit: !!(
           submission.grade && submission.grade.requireResubmit
         ),
+        stamps,
       });
     } catch (e) {
       showError(e, { fallback: "加载失败" });
+    }
+  },
+
+  async putStamp(e) {
+    const stampType = e.currentTarget.dataset.id;
+    if (!this.data.submissionId || !stampType) return;
+    try {
+      await request({
+        url: `/api/v1/submissions/${this.data.submissionId}/stamps`,
+        method: "POST",
+        data: { stampType },
+      });
+      wx.showToast({ title: "已盖章", icon: "success" });
+      const st = await request({
+        url: `/api/v1/submissions/${this.data.submissionId}/stamps`,
+        method: "GET",
+      });
+      this.setData({ stamps: st.stamps || [] });
+    } catch (err) {
+      showError(err, { tag: "grade.stamp", fallback: "盖章失败" });
     }
   },
 

@@ -35,5 +35,20 @@
     <text>要求学生重交</text>
   </view>
 
+  <view class="label">印章（给学生看）</view>
+  <view class="chips">
+    <view
+      class="chip"
+      wx:for="{{stampTypes}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="putStamp"
+    >{{item.label}}</view>
+  </view>
+  <view class="muted sm" wx:if="{{stamps.length}}">
+    已盖：
+    <text wx:for="{{stamps}}" wx:key="id">{{item.label}} </text>
+  </view>
+
   <button class="btn btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="submit">保存批改</button>
 </view>

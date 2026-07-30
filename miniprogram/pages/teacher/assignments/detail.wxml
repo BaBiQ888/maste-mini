@@ -45,6 +45,15 @@
     <view class="incomplete muted" wx:else>全员已完成</view>
   </view>
 
+  <view class="card" wx:if="{{!isPhoto && topWrongs.length}}">
+    <view class="section muted" style="margin:0 0 12rpx">本班最易错（前 {{topWrongs.length}}）</view>
+    <view class="sub" wx:for="{{topWrongs}}" wx:key="assignmentQuestionId">
+      <view class="sn">{{index + 1}}. {{item.stem}}</view>
+      <view class="ss muted">错 {{item.wrongCount}} / 作答 {{item.answeredCount}}</view>
+    </view>
+    <view class="op accent" style="margin-top:12rpx" bindtap="goVariantDrill">布置变式再练 →</view>
+  </view>
+
   <block wx:if="{{!isPhoto && questionStats.length}}">
     <view class="section muted">逐题正确率</view>
     <view class="card list">

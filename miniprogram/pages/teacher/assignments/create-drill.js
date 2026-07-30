@@ -30,6 +30,7 @@ Page({
     ],
     /** 老师决定：有错是否必须订正（默认开） */
     requireCorrection: true,
+    allowStuckReport: true,
     title: "",
     preview: [],
     seed: null,
@@ -249,6 +250,7 @@ Page({
             timeLimitSec: this.data.timeLimitSec || null,
             seed: this.data.seed,
             requireCorrection: !!this.data.requireCorrection,
+            allowStuckReport: !!this.data.allowStuckReport,
           },
         },
       });
@@ -277,5 +279,8 @@ Page({
 
   toggleRequireCorrection() {
     this.setData({ requireCorrection: !this.data.requireCorrection });
+  },
+  toggleAllowStuck() {
+    this.setData({ allowStuckReport: !this.data.allowStuckReport });
   },
 });

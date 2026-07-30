@@ -27,6 +27,7 @@ Page({
     typeLabels: TYPE_LABEL,
     loading: false,
     requireCorrection: true,
+    allowStuckReport: true,
   },
 
   onShow() {
@@ -129,6 +130,7 @@ Page({
           publish,
           config: {
             requireCorrection: !!this.data.requireCorrection,
+            allowStuckReport: !!this.data.allowStuckReport,
           },
         },
       });
