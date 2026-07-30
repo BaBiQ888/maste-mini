@@ -673,6 +673,16 @@ export function createApp(
     }
   });
 
+  /** Delete draft only (published/revoked rejected). */
+  authed.delete("/assignments/:id", async (c) => {
+    try {
+      await assignments.deleteDraft(c.req.param("id"), c.get("user").id);
+      return c.json({ ok: true });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
   authed.post("/assignments/:id/duplicate", async (c) => {
     try {
       const assignment = await assignments.duplicate(

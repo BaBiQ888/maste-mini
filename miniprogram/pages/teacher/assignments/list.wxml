@@ -8,22 +8,42 @@
   </view>
 
   <view class="pending muted" wx:if="{{pendingGrade}}">待批改 {{pendingGrade}} 份 · 优先处理</view>
+  <view class="hint muted" wx:if="{{hasDraft}}">草稿可左滑删除</view>
 
   <view wx:if="{{loading}}" class="muted tip">加载中…</view>
 
   <block wx:elif="{{assignments.length}}">
     <view
-      class="card item"
+      class="swipe-row"
       wx:for="{{assignments}}"
       wx:key="id"
-      bindtap="goDetail"
-      data-id="{{item.id}}"
     >
-      <view class="row">
-        <view class="name">{{item.title}}</view>
-        <view class="st">{{statusLabels[item.status]}}</view>
+      <!-- delete button under the sliding card (draft only) -->
+      <view
+        class="swipe-actions"
+        wx:if="{{item.status === 'draft'}}"
+        catchtap="confirmDelete"
+        data-id="{{item.id}}"
+        data-title="{{item.title}}"
+      >删除</view>
+      <view
+        class="swipe-panel {{item.open ? 'open' : ''}}"
+        data-id="{{item.id}}"
+        data-status="{{item.status}}"
+        data-index="{{index}}"
+        bindtouchstart="onTouchStart"
+        bindtouchmove="onTouchMove"
+        bindtouchend="onTouchEnd"
+        bindtap="goDetail"
+      >
+        <view class="card item">
+          <view class="row">
+            <view class="name">{{item.title}}</view>
+            <view class="st">{{statusLabels[item.status]}}</view>
+          </view>
+          <view class="meta muted">{{item.className}} · {{item.typeLabel}}{{item.questionCount ? ' · ' + item.questionCount + ' 题' : ''}}</view>
+        </view>
       </view>
-      <view class="meta muted">{{item.className}} · {{item.typeLabel}}{{item.questionCount ? ' · ' + item.questionCount + ' 题' : ''}}</view>
     </view>
   </block>
 

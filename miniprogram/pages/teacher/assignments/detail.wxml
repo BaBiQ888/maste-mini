@@ -9,6 +9,7 @@
     <view class="desc" wx:if="{{assignment.description}}">{{assignment.description}}</view>
     <view class="ops">
       <text class="op accent" wx:if="{{assignment.status === 'draft'}}" bindtap="publish">发布</text>
+      <text class="op danger" wx:if="{{assignment.status === 'draft'}}" bindtap="deleteDraft">删除草稿</text>
       <text class="op danger" wx:if="{{assignment.status === 'published'}}" bindtap="revoke">下架</text>
       <text class="op accent" wx:if="{{assignment.status === 'published'}}" bindtap="copyReminder">复制催交</text>
       <text class="op" bindtap="duplicate">复制为草稿</text>
@@ -21,7 +22,7 @@
         <view class="rate">{{rateText}}</view>
         <view class="muted sm">完成率 · {{summary.completedCount}}/{{summary.totalStudents}}</view>
       </view>
-      <view class="copy-btn" bindtap="copyReminder">催交文案</view>
+      <view class="copy-btn" bindtap="copyReminder" wx:if="{{assignment.status === 'published'}}">催交文案</view>
     </view>
     <view class="buckets">
       <view class="b"><view class="bn">{{summary.completedCount}}</view><view class="bl muted">已完成</view></view>
@@ -29,7 +30,10 @@
       <view class="b"><view class="bn">{{summary.notStartedCount}}</view><view class="bl muted">未开始</view></view>
       <view class="b"><view class="bn">{{summary.overdueCount}}</view><view class="bl muted">逾期</view></view>
     </view>
-    <view class="incomplete" wx:if="{{summary.incomplete.length}}">
+    <view class="incomplete" wx:if="{{summary.totalStudents === 0}}">
+      <view class="il muted">班级暂无学生，完成率待入班后统计</view>
+    </view>
+    <view class="incomplete" wx:elif="{{summary.incomplete.length}}">
       <view class="il muted">未完成</view>
       <view class="names">
         <text wx:for="{{summary.incomplete}}" wx:key="userId">{{item.nickname || '未命名'}}{{index < summary.incomplete.length - 1 ? '、' : ''}}</text>

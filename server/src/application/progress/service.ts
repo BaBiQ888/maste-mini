@@ -154,25 +154,59 @@ export class ProgressService {
       throw new AppError("FORBIDDEN", "无权查看该作业汇总", 403);
     }
 
-    const students = await this.db.all(`
-        SELECT u.id, u.nickname
+    // Roster: current student members (role match is case-insensitive)
+    const members = (await this.db.all(
+      `
+        SELECT u.id, u.nickname, m.joined_at
         FROM class_memberships m
         JOIN users u ON u.id = m.user_id
-        WHERE m.class_id = ? AND m.role = 'student'
+        WHERE m.class_id = ? AND LOWER(m.role) = 'student'
         ORDER BY m.joined_at ASC
-        `, asg.class_id) as Array<{ id: string; nickname: string | null }>;
+        `,
+      asg.class_id,
+    )) as Array<{ id: string; nickname: string | null; joined_at: string }>;
 
-    const submissions = await this.db.all(`
-        SELECT student_id, status, overdue
-        FROM submissions
-        WHERE assignment_id = ?
-        `, assignmentId) as Array<{
+    const submissions = (await this.db.all(
+      `
+        SELECT s.student_id, s.status, s.overdue, u.nickname
+        FROM submissions s
+        LEFT JOIN users u ON u.id = s.student_id
+        WHERE s.assignment_id = ?
+        `,
+      assignmentId,
+    )) as Array<{
       student_id: string;
       status: string;
       overdue: number;
+      nickname: string | null;
     }>;
 
     const subMap = new Map(submissions.map((s) => [s.student_id, s]));
+    // Prefer current roster. If roster is empty but submissions exist (role
+    // drift / all left), fall back to submitters so we never show 0/0 +「全员已完成」
+    // while 逐题正确率 still has 1/1 人作答.
+    const studentMap = new Map<string, { id: string; nickname: string | null }>();
+    if (members.length > 0) {
+      for (const st of members) {
+        studentMap.set(st.id, { id: st.id, nickname: st.nickname });
+      }
+    } else {
+      for (const s of submissions) {
+        studentMap.set(s.student_id, {
+          id: s.student_id,
+          nickname: s.nickname,
+        });
+      }
+      if (submissions.length > 0) {
+        console.warn("[progress.summary.fallbackSubmitters]", {
+          assignmentId,
+          classId: asg.class_id,
+          submissionCount: submissions.length,
+        });
+      }
+    }
+    const students = [...studentMap.values()];
+
     const duePast =
       !!asg.due_at && new Date(asg.due_at).getTime() < Date.now();
 

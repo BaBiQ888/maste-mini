@@ -18,7 +18,41 @@
   font-size: 24rpx;
   color: var(--accent);
 }
-.item { margin-bottom: 16rpx; }
+.hint {
+  font-size: 22rpx;
+  margin-bottom: 12rpx;
+}
+.swipe-row {
+  position: relative;
+  margin-bottom: 16rpx;
+  overflow: hidden;
+  border-radius: 16rpx;
+}
+.swipe-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 160rpx;
+  background: #a63d3d;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+  font-weight: 600;
+  z-index: 0;
+}
+.swipe-panel {
+  position: relative;
+  z-index: 1;
+  transition: transform 0.18s ease-out;
+  will-change: transform;
+}
+.swipe-panel.open {
+  transform: translateX(-160rpx);
+}
+.item { margin-bottom: 0; }
 .row {
   display: flex;
   justify-content: space-between;

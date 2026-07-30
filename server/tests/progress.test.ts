@@ -231,6 +231,25 @@ describe("Progress & NudgeCopy", () => {
     expect(pending.incompleteCount).toBe(1);
   });
 
+  it("summary falls back to submitters when roster empty but answers exist", async () => {
+    const { teacher, s1, s2, asg, cls } = await setupTwoStudentsOneDone();
+    // Remove all students — submissions remain (matches 0/0 roster bug case)
+    await db.run(
+      `DELETE FROM class_memberships WHERE class_id = ? AND role = 'student'`,
+      cls.class.id,
+    );
+    const res = await app.request(`/api/v1/assignments/${asg.id}/summary`, {
+      headers: auth(teacher.token),
+    });
+    expect(res.status).toBe(200);
+    const { summary } = await res.json();
+    expect(summary.totalStudents).toBeGreaterThanOrEqual(1);
+    expect(summary.completedCount).toBeGreaterThanOrEqual(1);
+    expect(summary.completionRate).not.toBeNull();
+    void s1;
+    void s2;
+  });
+
   it("student list includes myStatus without getOrCreate side effects", async () => {
     const { s1, s2, asg, cls } = await setupTwoStudentsOneDone();
     const done = await (

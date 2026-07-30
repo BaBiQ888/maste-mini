@@ -115,6 +115,28 @@ describe("Photo homework", () => {
     expect(after.assignments).toHaveLength(1);
   });
 
+  it("teacher can delete draft; cannot delete published", async () => {
+    const { teacher, asg } = await setupClassAndPublish(false);
+    const del = await app.request(`/api/v1/assignments/${asg.id}`, {
+      method: "DELETE",
+      headers: auth(teacher.token),
+    });
+    expect(del.status).toBe(200);
+    const gone = await app.request(`/api/v1/assignments/${asg.id}`, {
+      headers: auth(teacher.token),
+    });
+    expect(gone.status).toBe(404);
+
+    const { teacher: t2, asg: pub } = await setupClassAndPublish(true);
+    const bad = await app.request(`/api/v1/assignments/${pub.id}`, {
+      method: "DELETE",
+      headers: auth(t2.token),
+    });
+    expect(bad.status).toBe(400);
+    const body = await bad.json();
+    expect(body.code).toBe("INVALID_STATUS");
+  });
+
   it("student submits photos then teacher grades completed", async () => {
     const { teacher, student, asg } = await setupClassAndPublish(true);
 

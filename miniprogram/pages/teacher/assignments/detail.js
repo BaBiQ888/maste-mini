@@ -159,6 +159,34 @@ Page({
     });
   },
 
+  deleteDraft() {
+    wx.showModal({
+      title: "删除草稿",
+      content: "删除后不可恢复，确定？",
+      confirmColor: "#A63D3D",
+      success: async (res) => {
+        if (!res.confirm) return;
+        try {
+          await request({
+            url: `/api/v1/assignments/${this.data.id}`,
+            method: "DELETE",
+          });
+          wx.showToast({ title: "已删除", icon: "success" });
+          setTimeout(() => {
+            wx.navigateBack({ fail: () => {
+              wx.reLaunch({ url: "/pages/teacher/assignments/list" });
+            }});
+          }, 400);
+        } catch (e) {
+          showError(e, {
+            tag: "assignment.deleteDraft",
+            fallback: "删除失败",
+          });
+        }
+      },
+    });
+  },
+
   async duplicate() {
     try {
       const data = await request({

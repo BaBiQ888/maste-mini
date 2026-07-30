@@ -379,6 +379,46 @@ export class AssignmentService {
     const __v = await this.getAssignment(assignmentId, teacherId); if (!__v) throw new Error("not found"); return __v;
   }
 
+  /**
+   * Permanently delete a draft assignment (and its questions / empty submissions).
+   * Published or revoked assignments must be revoked/left as history — not deleted.
+   */
+  async deleteDraft(assignmentId: string, teacherId: string): Promise<void> {
+    const row = await this.getAssignmentRowOwned(assignmentId, teacherId);
+    if (row.status !== "draft") {
+      throw new AppError(
+        "INVALID_STATUS",
+        "只能删除草稿作业；已发布的请先下架",
+        400,
+      );
+    }
+    await this.db.transaction(async () => {
+      const subs = (await this.db.all(
+        `SELECT id FROM submissions WHERE assignment_id = ?`,
+        assignmentId,
+      )) as Array<{ id: string }>;
+      for (const s of subs) {
+        await this.db.run(`DELETE FROM photo_grades WHERE submission_id = ?`, s.id);
+        await this.db.run(`DELETE FROM photo_assets WHERE submission_id = ?`, s.id);
+        await this.db.run(`DELETE FROM answer_items WHERE submission_id = ?`, s.id);
+      }
+      await this.db.run(
+        `DELETE FROM submissions WHERE assignment_id = ?`,
+        assignmentId,
+      );
+      await this.db.run(
+        `DELETE FROM assignment_questions WHERE assignment_id = ?`,
+        assignmentId,
+      );
+      await this.db.run(`DELETE FROM assignments WHERE id = ?`, assignmentId);
+    });
+    console.info("[assignment.deleteDraft]", {
+      assignmentId,
+      teacherId,
+      title: row.title,
+    });
+  }
+
   async listForTeacher(
     teacherId: string,
     opts?: { classId?: string; status?: AssignmentStatus; limit?: number },
