@@ -67,6 +67,15 @@ describe("mastery rules", () => {
         recentAnswered: 4,
       }),
     ).toBe("lit");
+    // formal pass wins over stale low assignment accuracy
+    expect(
+      computeMapNodeState({
+        hasCompletion: true,
+        masteryStatus: "passed",
+        recentCorrectRate: 40,
+        recentAnswered: 10,
+      }),
+    ).toBe("lit");
   });
 
   it("calendar day states", () => {

@@ -156,10 +156,22 @@ Page({
         wx.navigateTo({
           url: `/pages/student/task/review?reviewId=${rid}`,
         });
+      } else {
+        logError("knowledge.selfPractice.noId", new Error("missing review id"), {
+          knowledgeNodeId,
+          hasReview: !!(data && data.review),
+        });
+        showError(new Error("出题结果异常"), {
+          tag: "knowledge.selfPractice.noId",
+          fallback: "出题失败，请重试",
+        });
       }
     } catch (e) {
       wx.hideLoading();
-      showError(e, { fallback: "出题失败" });
+      showError(e, {
+        tag: "knowledge.selfPractice",
+        fallback: "出题失败",
+      });
     }
   },
 

@@ -45,6 +45,8 @@ export function computeMapNodeState(input: {
     st === "failed" ||
     (st === "open" && miss > 0);
   if (queueActive) return "half";
+  // Formal review pass wins over stale assignment accuracy window
+  if (st === "passed") return "lit";
   if (
     input.recentAnswered > 0 &&
     input.recentCorrectRate != null &&
@@ -52,7 +54,7 @@ export function computeMapNodeState(input: {
   ) {
     return "half";
   }
-  if (st === "passed" || input.hasCompletion) return "lit";
+  if (input.hasCompletion) return "lit";
   return "dark";
 }
 

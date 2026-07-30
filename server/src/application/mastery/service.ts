@@ -159,6 +159,9 @@ export class MasteryService {
       return { enqueued: 0, skipped: "no_misses" };
     }
 
+    // Promote open→due before merge so past review_at is not re-delayed +3d
+    await this.promoteDue(userId);
+
     const byKey = new Map<
       string,
       {
@@ -291,6 +294,20 @@ export class MasteryService {
           enqueued += 1;
           if (merge.newSlot) newSlots += 1;
         }
+      }
+    }
+
+    // Soft overshoot possible under concurrent multi-key enqueue — log for ops
+    if (newSlots > 0) {
+      const finalOpen = await this.countOpenDue(userId);
+      if (finalOpen > MASTERY_MAX_OPEN_PER_USER) {
+        console.warn("[mastery.enqueue.cap_overshoot]", {
+          userId,
+          openCount: finalOpen,
+          cap: MASTERY_MAX_OPEN_PER_USER,
+          newSlots,
+          enqueued,
+        });
       }
     }
 
@@ -568,6 +585,7 @@ export class MasteryService {
       string,
       { count: number; last: string | null }
     >();
+    let mapSnapSkip = 0;
     for (const r of doneRows) {
       try {
         const snap = JSON.parse(r.question_snapshot) as QuestionSnapshot;
@@ -578,7 +596,7 @@ export class MasteryService {
         if (!prev.last || r.updated_at > prev.last) prev.last = r.updated_at;
         completionByKn.set(kid, prev);
       } catch {
-        /* skip */
+        mapSnapSkip += 1;
       }
     }
 
@@ -606,7 +624,7 @@ export class MasteryService {
           completionByKn.set(id, prev);
         }
       } catch {
-        /* skip */
+        mapSnapSkip += 1;
       }
     }
 
@@ -633,8 +651,14 @@ export class MasteryService {
         if (r.is_correct === 1) prev.correct += 1;
         accByKn.set(kid, prev);
       } catch {
-        /* skip */
+        mapSnapSkip += 1;
       }
+    }
+    if (mapSnapSkip > 0) {
+      console.warn("[mastery.map.snap.parse]", {
+        userId,
+        skipped: mapSnapSkip,
+      });
     }
 
     const summary = { dark: 0, half: 0, lit: 0 };
@@ -901,6 +925,13 @@ export class MasteryService {
     answers: Array<{ questionIndex: number; response: unknown }>,
   ): Promise<PublicMasteryReview> {
     const row = await this.getReviewRow(reviewId, userId);
+    if (row.status === "abandoned") {
+      throw new AppError(
+        "REVIEW_ABANDONED",
+        "这次回访已失效（可能重复打开了），请从首页重新进入",
+        400,
+      );
+    }
     if (row.status !== "in_progress") {
       throw new AppError("INVALID_STATUS", "该回访已提交", 400);
     }
@@ -1162,30 +1193,51 @@ export class MasteryService {
     knowledge_node_id: string | null;
     skill_key: string | null;
   }): Promise<QuestionSnapshot[]> {
-    // Snapshots from completed online submissions for this student
-    let rows: Array<{ question_snapshot: string; is_correct: number | null }>;
+    // Snapshots from graded answers for this student (prefer wrongs)
     if (item.knowledge_node_id) {
-      rows = (await this.db.all(
+      const kn = item.knowledge_node_id;
+      // Portable filter (SQLite + MySQL): match kn id inside snapshot JSON.
+      // Avoid global LIMIT-then-JS-filter which starves active multi-topic students.
+      // kn ids are controlled (e.g. g3-u-…); no LIKE wildcards.
+      const likePat = `%"knowledgeNodeId":"${kn}"%`;
+      const rows = (await this.db.all(
         `SELECT aq.question_snapshot, ai.is_correct
          FROM answer_items ai
          JOIN submissions s ON s.id = ai.submission_id
          JOIN assignment_questions aq ON aq.id = ai.assignment_question_id
          WHERE s.student_id = ?
            AND ai.is_correct IS NOT NULL
+           AND aq.question_snapshot LIKE ?
          ORDER BY CASE WHEN ai.is_correct = 0 THEN 0 ELSE 1 END, ai.updated_at DESC
          LIMIT 40`,
         item.user_id,
+        likePat,
       )) as Array<{ question_snapshot: string; is_correct: number | null }>;
-      const kn = item.knowledge_node_id;
-      return rows
-        .map((r) => {
-          try {
-            return JSON.parse(r.question_snapshot) as QuestionSnapshot;
-          } catch {
-            return null;
-          }
-        })
-        .filter((s): s is QuestionSnapshot => !!s && s.knowledgeNodeId === kn);
+      const out: QuestionSnapshot[] = [];
+      let parseSkip = 0;
+      for (const r of rows) {
+        try {
+          const snap = JSON.parse(r.question_snapshot) as QuestionSnapshot;
+          if (snap.knowledgeNodeId === kn) out.push(snap);
+        } catch {
+          parseSkip += 1;
+        }
+      }
+      if (parseSkip > 0) {
+        console.warn("[mastery.review.hist.parse]", {
+          userId: item.user_id,
+          knowledgeNodeId: kn,
+          skipped: parseSkip,
+        });
+      }
+      if (!out.length) {
+        console.info("[mastery.review.hist.empty]", {
+          userId: item.user_id,
+          knowledgeNodeId: kn,
+          matchedRows: rows.length,
+        });
+      }
+      return out;
     }
 
     // skill_key question:xxx → try load that bank question
@@ -1372,8 +1424,14 @@ export class MasteryService {
       }
     }
 
-    const keepDue = prev?.status === "due";
-    // Keep due + existing review_at so home card is not pushed +3d
+    // Keep due (or open-but-already-past) so home card is not pushed +3d
+    const pastOpen =
+      !!prev &&
+      prev.status === "open" &&
+      Number(prev.miss_count) > 0 &&
+      !!prev.review_at &&
+      prev.review_at <= ts;
+    const keepDue = prev?.status === "due" || pastOpen;
     const nextStatus = keepDue ? "due" : "open";
     const nextReviewAt = keepDue
       ? prev!.review_at || reviewAt

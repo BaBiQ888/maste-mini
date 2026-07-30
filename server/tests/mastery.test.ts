@@ -649,6 +649,91 @@ describe("Mastery S2 enqueue + S3 review", () => {
     expect(Number(row.miss_count)).toBe(2);
   });
 
+  it("merge into open+past review_at promotes/keeps due without +3d push", async () => {
+    const { student, asg, knId, classId } = await setupWithKnowledge();
+    const mastery = new MasteryService(db);
+    const input = {
+      userId: student.userId,
+      classId,
+      assignmentId: asg.id as string,
+      assignmentType: "knowledge_checkin",
+      misses: [
+        {
+          knowledgeNodeId: knId,
+          sourceQuestionId: null,
+          stem: "5+6=",
+          wrongReason: "careless" as const,
+        },
+      ],
+    };
+    await mastery.enqueueAfterCorrection(input);
+    const pastAt = "2020-06-01T00:00:00.000Z";
+    // Simulate never-hit-home path: still open but already past review_at
+    await db.run(
+      `UPDATE mastery_items SET status = 'open', review_at = ? WHERE user_id = ?`,
+      pastAt,
+      student.userId,
+    );
+
+    await mastery.enqueueAfterCorrection(input);
+
+    const row = (await db.get(
+      `SELECT status, review_at, miss_count FROM mastery_items WHERE user_id = ?`,
+      student.userId,
+    )) as { status: string; review_at: string; miss_count: number };
+    expect(row.status).toBe("due");
+    // must not be pushed to a future +3d review_at
+    expect(new Date(row.review_at).getTime()).toBeLessThanOrEqual(Date.now());
+    expect(Number(row.miss_count)).toBe(2);
+  });
+
+  it("abandoned review submit returns REVIEW_ABANDONED", async () => {
+    const { student, asg, aqIds } = await setupWithKnowledge();
+    await wrongThenCorrect(student.token, asg.id, aqIds);
+    await db.run(
+      `UPDATE mastery_items SET review_at = ? WHERE user_id = ?`,
+      "2020-01-01T00:00:00.000Z",
+      student.userId,
+    );
+    const start = await (
+      await app.request(`/api/v1/me/mastery/due`, {
+        headers: auth(student.token),
+      })
+    ).json();
+    const itemId = start.review.masteryItemId as string;
+    const first = await (
+      await app.request(`/api/v1/me/mastery/${itemId}/start-review`, {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({}),
+      })
+    ).json();
+    const abandonedId = first.review.id as string;
+    // Simulate concurrent race orphan (abandon path before second insert)
+    await db.run(
+      `UPDATE mastery_reviews SET status = 'abandoned', completed_at = ? WHERE id = ?`,
+      new Date().toISOString(),
+      abandonedId,
+    );
+    const bad = await app.request(
+      `/api/v1/me/mastery/reviews/${abandonedId}/submit`,
+      {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({
+          answers: [
+            { questionIndex: 0, response: "1" },
+            { questionIndex: 1, response: "1" },
+            { questionIndex: 2, response: "1" },
+          ],
+        }),
+      },
+    );
+    expect(bad.status).toBe(400);
+    const body = await bad.json();
+    expect(body.code).toBe("REVIEW_ABANDONED");
+  });
+
   it("photo homework does not create mastery", async () => {
     const teacher = await loginAs(app, "pt", "teacher", "李老师");
     const student = await loginAs(app, "ps", "student", "小红");
