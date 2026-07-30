@@ -773,7 +773,9 @@ export class MasteryService {
     if (existing) return existing.id;
     const id = createId("mst");
     const ts = nowIso();
-    // review_at = now so self-practice is available; status open (not due unless promote)
+    // Scaffold only: open + far-future review_at so promoteDue never makes a
+    // false home「回访」for map self-practice. Real misses set review_at = +3d.
+    const reviewAt = computeReviewAt(new Date(), 3650);
     try {
       await this.db.run(
         `INSERT INTO mastery_items (
@@ -784,7 +786,7 @@ export class MasteryService {
         id,
         userId,
         knowledgeNodeId,
-        ts,
+        reviewAt,
         ts,
         ts,
       );
@@ -793,7 +795,7 @@ export class MasteryService {
         id,
         knowledgeNodeId,
         skillKey: null,
-        reviewAt: ts,
+        reviewAt,
         merged: false,
         source: "self_practice_ensure",
       });
@@ -861,20 +863,24 @@ export class MasteryService {
     const itemId = String(row.mastery_item_id);
 
     await this.db.transaction(async () => {
-      await this.db.run(
+      // CAS: only one concurrent submit wins
+      const cas = await this.db.run(
         `UPDATE mastery_reviews
            SET status = 'completed',
                answers_json = ?,
                correct_count = ?,
                passed = ?,
                completed_at = ?
-           WHERE id = ?`,
+           WHERE id = ? AND status = 'in_progress'`,
         JSON.stringify(graded),
         correctCount,
         passed ? 1 : 0,
         ts,
         reviewId,
       );
+      if ((cas.changes ?? 0) === 0) {
+        throw new AppError("INVALID_STATUS", "该回访已提交", 400);
+      }
 
       if (passed) {
         await this.db.run(

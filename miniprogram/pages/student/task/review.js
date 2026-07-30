@@ -15,7 +15,10 @@ Page({
     success: null,
   },
 
+  _bootstrapped: false,
+
   onLoad(q) {
+    this._bootstrapped = false;
     this.setData({
       itemId: q.itemId || "",
       reviewId: q.reviewId || "",
@@ -30,6 +33,10 @@ Page({
     const user = getUser();
     if (!user || user.role !== "student") {
       routeByUser(user);
+      return;
+    }
+    // Do not re-fetch on every show — that wipes in-progress answers.
+    if (this._bootstrapped && this.data.review && !this.data.loadError) {
       return;
     }
     this.bootstrap();
@@ -56,8 +63,10 @@ Page({
         throw new Error("缺少回访参数");
       }
       this.applyReview(review);
+      this._bootstrapped = true;
       this.setData({ loadError: false });
     } catch (e) {
+      this._bootstrapped = false;
       this.setData({ loading: false, loadError: true });
       showError(e, { fallback: "加载回访失败" });
     }

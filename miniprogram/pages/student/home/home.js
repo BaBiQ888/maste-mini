@@ -1,7 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { STATUS_LABEL, assignmentTypeLabel } = require("../../../utils/media");
-const { showError } = require("../../../utils/errors");
+const { showError, logError } = require("../../../utils/errors");
 
 Page({
   data: {
@@ -48,11 +48,17 @@ Page({
         request({
           url: `/api/v1/me/calendar?year=${year}&month=${month}`,
           method: "GET",
-        }).catch(() => null),
+        }).catch((err) => {
+          logError("home.calendar", err, { year, month });
+          return null;
+        }),
         request({
           url: "/api/v1/me/mastery/due",
           method: "GET",
-        }).catch(() => ({ review: null })),
+        }).catch((err) => {
+          logError("home.masteryDue", err, {});
+          return { review: null };
+        }),
       ]);
       const classes = cls.classes || [];
       const assignments = asg.assignments || [];
@@ -60,10 +66,11 @@ Page({
 
       const calendar = (cal && cal.calendar) || {};
       const streakDays = Number(calendar.streakDays) || 0;
+      // monthLitDays: 0 is valid — do not fall through with ||
       const monthLitDays =
-        Number(calendar.monthLitDays) ||
-        (calendar.days && calendar.days.length) ||
-        0;
+        calendar.monthLitDays != null
+          ? Number(calendar.monthLitDays)
+          : (calendar.days && calendar.days.length) || 0;
       const streakLabel =
         streakDays <= 0
           ? "今天点亮一格就好"
@@ -79,7 +86,11 @@ Page({
             method: "GET",
           });
           tasks.push(this.mapTask(a, s.submission));
-        } catch (_) {
+        } catch (err) {
+          logError("home.mySubmission", err, {
+            assignmentId: a.id,
+            type: a.type,
+          });
           tasks.push(
             this.mapTask(a, {
               status: "not_started",

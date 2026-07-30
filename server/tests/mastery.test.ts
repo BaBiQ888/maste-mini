@@ -273,6 +273,89 @@ describe("Mastery S2 enqueue + S3 review", () => {
     expect(list.items[0].missCount).toBe(1);
   });
 
+  it("multi-round correction enqueues all ever-wrong items", async () => {
+    const { student, asg, aqIds, knId } = await setupWithKnowledge();
+    const mine = await (
+      await app.request(`/api/v1/assignments/${asg.id}/my-submission`, {
+        headers: auth(student.token),
+      })
+    ).json();
+    // both wrong
+    await app.request(`/api/v1/submissions/${mine.submission.id}/answers`, {
+      method: "POST",
+      headers: auth(student.token),
+      body: JSON.stringify({
+        answers: [
+          { assignmentQuestionId: aqIds[0], response: "0" },
+          { assignmentQuestionId: aqIds[1], response: "0" },
+        ],
+      }),
+    });
+    // round 1: fix only first
+    let sub = await (
+      await app.request(`/api/v1/submissions/${mine.submission.id}/correct`, {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({
+          answers: [{ assignmentQuestionId: aqIds[0], response: "11" }],
+        }),
+      })
+    ).json();
+    expect(sub.submission.status).toBe("pending_correction");
+    // round 2: fix second → complete
+    sub = await (
+      await app.request(`/api/v1/submissions/${mine.submission.id}/correct`, {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({
+          answers: [{ assignmentQuestionId: aqIds[1], response: "15" }],
+        }),
+      })
+    ).json();
+    expect(sub.submission.status).toBe("completed");
+
+    const rows = await db.all<{
+      knowledge_node_id: string | null;
+      miss_count: number;
+    }>(
+      `SELECT knowledge_node_id, miss_count FROM mastery_items WHERE user_id = ?`,
+      student.userId,
+    );
+    // same kn merges to one row; both questions had correction_round > 0
+    expect(rows.length).toBe(1);
+    expect(rows[0].knowledge_node_id).toBe(knId);
+    expect(Number(rows[0].miss_count)).toBeGreaterThanOrEqual(1);
+  });
+
+  it("self-practice ensure does not create home due slot", async () => {
+    const { student, knId } = await setupWithKnowledge();
+    const sp = await (
+      await app.request("/api/v1/me/mastery/self-practice", {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ knowledgeNodeId: knId }),
+      })
+    ).json();
+    expect(sp.review.source).toBe("self_practice");
+    expect(sp.review.status).toBe("in_progress");
+
+    const due = await (
+      await app.request("/api/v1/me/mastery/due", {
+        headers: auth(student.token),
+      })
+    ).json();
+    expect(due.review).toBeNull();
+
+    const row = (await db.get(
+      `SELECT status, miss_count, review_at FROM mastery_items WHERE user_id = ?`,
+      student.userId,
+    )) as { status: string; miss_count: number; review_at: string };
+    expect(row.status).toBe("open");
+    expect(Number(row.miss_count)).toBe(0);
+    // far future — not promotable
+    expect(new Date(row.review_at).getTime()).toBeGreaterThan(Date.now());
+  });
+
   it("enqueue twice same knowledge stays one row; miss_count merges", async () => {
     const { student, asg, knId, classId } = await setupWithKnowledge();
     const mastery = new MasteryService(db);

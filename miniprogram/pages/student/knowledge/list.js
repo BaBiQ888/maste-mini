@@ -1,6 +1,6 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
-const { showError } = require("../../../utils/errors");
+const { showError, logError } = require("../../../utils/errors");
 
 const REASON_LABEL = {
   careless: "粗心",
@@ -47,7 +47,10 @@ Page({
         request({
           url: "/api/v1/me/mastery?status=open,due",
           method: "GET",
-        }).catch(() => ({ items: [] })),
+        }).catch((err) => {
+          logError("knowledge.masteryList", err, { grade });
+          return { items: [] };
+        }),
       ]);
       const map = mapRes.map || { units: [], summary: {}, grade };
       const units = (map.units || []).map((u) => ({
@@ -61,14 +64,21 @@ Page({
           canReview: n.masteryStatus === "due",
         })),
       }));
-      const pending = (mastery.items || []).map((it) => ({
-        ...it,
-        reasonLabel: it.lastWrongReason
-          ? REASON_LABEL[it.lastWrongReason] || it.lastWrongReason
-          : "",
-        statusLabel: it.status === "due" ? "可回访" : "待巩固",
-        canReview: it.status === "due",
-      }));
+      // Hide self-practice scaffold rows (open + missCount 0, far review_at)
+      const pending = (mastery.items || [])
+        .filter(
+          (it) =>
+            it.status === "due" ||
+            (it.status === "open" && (it.missCount || 0) > 0),
+        )
+        .map((it) => ({
+          ...it,
+          reasonLabel: it.lastWrongReason
+            ? REASON_LABEL[it.lastWrongReason] || it.lastWrongReason
+            : "",
+          statusLabel: it.status === "due" ? "可回访" : "待巩固",
+          canReview: it.status === "due",
+        }));
       const stamps = (map.stamps || []).map((s) => ({
         ...s,
         progressText: `${s.litCount}/${s.total}`,

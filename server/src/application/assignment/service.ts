@@ -801,9 +801,6 @@ export class AssignmentService {
       );
     }
 
-    // Snapshot of misses for mastery enqueue after success
-    const missAqIds = [...wrongIds];
-
     const ts = nowIso();
     let becameCompleted = false;
     await this.db.transaction(async () => {
@@ -852,6 +849,12 @@ export class AssignmentService {
 
     if (becameCompleted) {
       try {
+        // Multi-round correction: any item with correction_round > 0 was wrong
+        // at least once (not only the last POST's still-wrong set).
+        const finalRows = await this.loadAnswerRows(submissionId);
+        const missAqIds = finalRows
+          .filter((r) => (r.correction_round || 0) > 0)
+          .map((r) => r.assignment_question_id);
         const asg = (await this.db.get(
           `SELECT class_id, type FROM assignments WHERE id = ?`,
           sub.assignment_id,
@@ -860,10 +863,14 @@ export class AssignmentService {
           .map((aqId) => {
             const snap = qMap.get(aqId);
             if (!snap) return null;
+            const row = finalRows.find(
+              (r) => r.assignment_question_id === aqId,
+            );
             return {
               snapshot: snap,
               sourceQuestionId: sourceMap.get(aqId) ?? snap.id ?? null,
-              wrongReason: reasonMap.get(aqId) ?? null,
+              wrongReason:
+                reasonMap.get(aqId) ?? row?.wrong_reason ?? null,
             };
           })
           .filter((x): x is NonNullable<typeof x> => !!x);
