@@ -28,7 +28,13 @@ Page({
         url: "/api/v1/me/mastery/week-summary",
         method: "GET",
       });
-      this.setData({ summary: data.summary || null, loading: false });
+      const summary = data.summary || null;
+      if (summary) {
+        // WXML cannot call Array methods — precompute display text
+        const names = summary.knowledgeNames || [];
+        summary.knowledgeNamesText = names.length ? names.join("、") : "";
+      }
+      this.setData({ summary, loading: false });
     } catch (e) {
       this.setData({ loading: false });
       showError(e, { fallback: "加载失败" });

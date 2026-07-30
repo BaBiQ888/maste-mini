@@ -468,6 +468,187 @@ describe("Mastery S2 enqueue + S3 review", () => {
     expect(Number(rows[0].miss_count)).toBe(2);
   });
 
+  it("cap: merges of open rows leave room for one new key at openCount=19", async () => {
+    const { student, asg, knId, classId } = await setupWithKnowledge();
+    const mastery = new MasteryService(db);
+    const base = {
+      userId: student.userId,
+      classId,
+      assignmentId: asg.id as string,
+      assignmentType: "knowledge_checkin" as const,
+    };
+
+    // 18 skill slots + 1 kn = 19 open
+    for (let i = 0; i < 18; i++) {
+      await mastery.enqueueAfterCorrection({
+        ...base,
+        misses: [
+          {
+            knowledgeNodeId: null,
+            sourceQuestionId: null,
+            stem: `seed-open-${i}`,
+            wrongReason: "careless",
+          },
+        ],
+      });
+    }
+    await mastery.enqueueAfterCorrection({
+      ...base,
+      misses: [
+        {
+          knowledgeNodeId: knId,
+          sourceQuestionId: null,
+          stem: "5+6=",
+          wrongReason: "careless",
+        },
+      ],
+    });
+
+    // 15 merges of kn must not push newSlots over cap and block the next new insert
+    for (let i = 0; i < 15; i++) {
+      await mastery.enqueueAfterCorrection({
+        ...base,
+        misses: [
+          {
+            knowledgeNodeId: knId,
+            sourceQuestionId: null,
+            stem: "5+6=",
+            wrongReason: "careless",
+          },
+        ],
+      });
+    }
+
+    const fresh = await mastery.enqueueAfterCorrection({
+      ...base,
+      misses: [
+        {
+          knowledgeNodeId: null,
+          sourceQuestionId: null,
+          stem: "brand-new-at-19",
+          wrongReason: "concept",
+        },
+      ],
+    });
+    expect(fresh.enqueued).toBe(1);
+    const open = (await db.get(
+      `SELECT COUNT(*) AS n FROM mastery_items
+       WHERE user_id = ? AND (status = 'due' OR (status = 'open' AND miss_count > 0))`,
+      student.userId,
+    )) as { n: number };
+    expect(Number(open.n)).toBe(20);
+  });
+
+  it("cap_reopen skip does not count as enqueued", async () => {
+    const { student, asg, classId } = await setupWithKnowledge();
+    const mastery = new MasteryService(db);
+    const base = {
+      userId: student.userId,
+      classId,
+      assignmentId: asg.id as string,
+      assignmentType: "knowledge_checkin" as const,
+    };
+
+    // Fill cap with 20 open skill rows
+    for (let i = 0; i < 20; i++) {
+      await mastery.enqueueAfterCorrection({
+        ...base,
+        misses: [
+          {
+            knowledgeNodeId: null,
+            sourceQuestionId: null,
+            stem: `cap-full-${i}`,
+            wrongReason: "careless",
+          },
+        ],
+      });
+    }
+
+    // Passed row outside the queue — reopen must be blocked and enqueued stay 0
+    const stem = "passed-reopen-target";
+    const assignmentType = "knowledge_checkin";
+    // Must match resolveMasteryKey: type is sliced to 16 chars
+    const skillKey = (() => {
+      let h = 0;
+      for (let i = 0; i < stem.length; i++) {
+        h = (Math.imul(31, h) + stem.charCodeAt(i)) | 0;
+      }
+      return `stem:${assignmentType.slice(0, 16)}:${(h >>> 0).toString(16)}`;
+    })();
+    const ts = new Date().toISOString();
+    await db.run(
+      `INSERT INTO mastery_items (
+         id, user_id, class_id, knowledge_node_id, skill_key,
+         status, miss_count, pass_count, review_at, last_result_at,
+         last_wrong_reason, source_assignment_id, created_at, updated_at
+       ) VALUES (?, ?, ?, NULL, ?, 'passed', 0, 1, ?, NULL, NULL, ?, ?, ?)`,
+      `mst_pass_${Date.now()}`,
+      student.userId,
+      classId,
+      skillKey,
+      ts,
+      asg.id,
+      ts,
+      ts,
+    );
+
+    const r = await mastery.enqueueAfterCorrection({
+      ...base,
+      misses: [
+        {
+          knowledgeNodeId: null,
+          sourceQuestionId: null,
+          stem,
+          wrongReason: "concept",
+        },
+      ],
+    });
+    expect(r.enqueued).toBe(0);
+    expect(r.skipped).toBe("cap_or_empty");
+    const still = (await db.get(
+      `SELECT status, miss_count FROM mastery_items WHERE skill_key = ?`,
+      skillKey,
+    )) as { status: string; miss_count: number };
+    expect(still.status).toBe("passed");
+    expect(Number(still.miss_count)).toBe(0);
+  });
+
+  it("merge into due keeps status due and does not push review_at", async () => {
+    const { student, asg, knId, classId } = await setupWithKnowledge();
+    const mastery = new MasteryService(db);
+    const input = {
+      userId: student.userId,
+      classId,
+      assignmentId: asg.id as string,
+      assignmentType: "knowledge_checkin",
+      misses: [
+        {
+          knowledgeNodeId: knId,
+          sourceQuestionId: null,
+          stem: "5+6=",
+          wrongReason: "careless" as const,
+        },
+      ],
+    };
+    await mastery.enqueueAfterCorrection(input);
+    const dueAt = "2020-01-01T00:00:00.000Z";
+    await db.run(
+      `UPDATE mastery_items SET status = 'due', review_at = ? WHERE user_id = ?`,
+      dueAt,
+      student.userId,
+    );
+
+    await mastery.enqueueAfterCorrection(input);
+
+    const row = (await db.get(
+      `SELECT status, review_at, miss_count FROM mastery_items WHERE user_id = ?`,
+      student.userId,
+    )) as { status: string; review_at: string; miss_count: number };
+    expect(row.status).toBe("due");
+    expect(row.review_at).toBe(dueAt);
+    expect(Number(row.miss_count)).toBe(2);
+  });
+
   it("photo homework does not create mastery", async () => {
     const teacher = await loginAs(app, "pt", "teacher", "李老师");
     const student = await loginAs(app, "ps", "student", "小红");

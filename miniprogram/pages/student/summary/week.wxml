@@ -26,8 +26,8 @@
     <view class="card bullets">
       <view class="sec">本周学会了什么</view>
       <view class="line" wx:for="{{summary.bullets}}" wx:key="*this">· {{item}}</view>
-      <view class="names muted" wx:if="{{summary.knowledgeNames.length}}">
-        知识点：{{summary.knowledgeNames.join('、')}}
+      <view class="names muted" wx:if="{{summary.knowledgeNamesText}}">
+        知识点：{{summary.knowledgeNamesText}}
       </view>
     </view>
 

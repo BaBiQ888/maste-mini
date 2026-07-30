@@ -653,14 +653,18 @@ export class ProgressService {
       }
     }
 
-    // Review-due markers: due items always mark "today"; also mark review_at YMD
+    // Review-due markers: align with promoteDue / countOpenDue (miss_count > 0)
     const today = shanghaiYmd();
     const reviewDays = new Set<string>();
     const masteryDue = (await this.db.all(
-      `SELECT status, review_at FROM mastery_items
-       WHERE user_id = ? AND status IN ('due', 'open')`,
+      `SELECT status, review_at, miss_count FROM mastery_items
+       WHERE user_id = ?
+         AND (
+           status = 'due'
+           OR (status = 'open' AND miss_count > 0)
+         )`,
       studentId,
-    )) as Array<{ status: string; review_at: string }>;
+    )) as Array<{ status: string; review_at: string; miss_count: number }>;
     for (const m of masteryDue) {
       if (m.status === "due") {
         reviewDays.add(today);
@@ -671,7 +675,7 @@ export class ProgressService {
           }
         }
       } else if (m.review_at && m.review_at <= new Date().toISOString()) {
-        // open but past review_at (not yet promoted in this path)
+        // open + real miss, past review_at (not yet promoted in this path)
         reviewDays.add(today);
       }
     }

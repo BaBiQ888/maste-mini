@@ -68,7 +68,10 @@ Page({
     } catch (e) {
       this._bootstrapped = false;
       this.setData({ loading: false, loadError: true });
-      showError(e, { fallback: "加载回访失败" });
+      showError(e, {
+        tag: "mastery.review.bootstrap",
+        fallback: "加载回访失败",
+      });
     }
   },
 
@@ -180,7 +183,10 @@ Page({
       });
       this.applyReview(data.review);
     } catch (e) {
-      showError(e, { fallback: "提交失败" });
+      showError(e, {
+        tag: "mastery.review.submit",
+        fallback: "提交失败",
+      });
     } finally {
       this.setData({ busy: false });
     }

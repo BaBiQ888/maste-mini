@@ -186,7 +186,10 @@ export class MasteryService {
     }
 
     const openCount = await this.countOpenDue(userId);
+    /** Rows actually written (insert or merge applied). */
     let enqueued = 0;
+    /** New queue slots: inserts + successful reopens of non-queued rows. */
+    let newSlots = 0;
     const ts = nowIso();
     const reviewAt = computeReviewAt(new Date());
 
@@ -198,7 +201,7 @@ export class MasteryService {
       );
 
       if (existing) {
-        await this.mergeEnqueueHit({
+        const merge = await this.mergeEnqueueHit({
           id: existing.id,
           userId,
           knowledgeNodeId: item.knowledgeNodeId,
@@ -209,15 +212,20 @@ export class MasteryService {
           reviewAt,
           ts,
         });
-        enqueued += 1;
+        if (merge.applied) {
+          enqueued += 1;
+          if (merge.newSlot) newSlots += 1;
+        }
         continue;
       }
 
-      if (openCount + enqueued >= MASTERY_MAX_OPEN_PER_USER) {
+      if (openCount + newSlots >= MASTERY_MAX_OPEN_PER_USER) {
         console.info("[mastery.enqueue.skip]", {
           userId,
           reason: "cap",
           cap: MASTERY_MAX_OPEN_PER_USER,
+          openCount,
+          newSlots,
         });
         break;
       }
@@ -243,6 +251,7 @@ export class MasteryService {
           ts,
         );
         enqueued += 1;
+        newSlots += 1;
         console.info("[mastery.enqueue]", {
           userId,
           id,
@@ -266,7 +275,7 @@ export class MasteryService {
           item.skillKey,
         );
         if (!raced) throw err;
-        await this.mergeEnqueueHit({
+        const merge = await this.mergeEnqueueHit({
           id: raced.id,
           userId,
           knowledgeNodeId: item.knowledgeNodeId,
@@ -277,7 +286,10 @@ export class MasteryService {
           reviewAt,
           ts,
         });
-        enqueued += 1;
+        if (merge.applied) {
+          enqueued += 1;
+          if (merge.newSlot) newSlots += 1;
+        }
       }
     }
 
@@ -426,6 +438,26 @@ export class MasteryService {
 
     const id = createId("mrv");
     const ts = nowIso();
+    // Race: concurrent double-tap can both pass resume check — abandon orphans
+    // so only one in_progress session remains submittable for this item+source.
+    const abandoned = await this.db.run(
+      `UPDATE mastery_reviews
+         SET status = 'abandoned', completed_at = ?
+       WHERE mastery_item_id = ? AND user_id = ? AND status = 'in_progress'
+         AND source = ?`,
+      ts,
+      masteryItemId,
+      userId,
+      source,
+    );
+    if ((abandoned.changes ?? 0) > 0) {
+      console.info("[mastery.review.abandon]", {
+        userId,
+        itemId: masteryItemId,
+        source,
+        count: abandoned.changes,
+      });
+    }
     await this.db.run(
       `INSERT INTO mastery_reviews (
          id, mastery_item_id, user_id, source, status,
@@ -1278,7 +1310,11 @@ export class MasteryService {
     return undefined;
   }
 
-  /** Merge miss into an existing mastery row (enqueue hit / race fallback). */
+  /**
+   * Merge miss into an existing mastery row (enqueue hit / race fallback).
+   * - already due/open(miss>0): bump miss, keep due if already due (no demote)
+   * - reopen passed/expired/scaffold: counts as a new queue slot (cap checked)
+   */
   private async mergeEnqueueHit(input: {
     id: string;
     userId: string;
@@ -1289,7 +1325,7 @@ export class MasteryService {
     classId: string | null;
     reviewAt: string;
     ts: string;
-  }): Promise<void> {
+  }): Promise<{ applied: boolean; newSlot: boolean }> {
     const {
       id,
       userId,
@@ -1302,9 +1338,11 @@ export class MasteryService {
       ts,
     } = input;
     const prev = (await this.db.get(
-      `SELECT status, miss_count FROM mastery_items WHERE id = ?`,
+      `SELECT status, miss_count, review_at FROM mastery_items WHERE id = ?`,
       id,
-    )) as { status: string; miss_count: number } | undefined;
+    )) as
+      | { status: string; miss_count: number; review_at: string }
+      | undefined;
     const alreadyQueued =
       prev &&
       (prev.status === "due" ||
@@ -1319,12 +1357,20 @@ export class MasteryService {
           reason: "cap_reopen",
           cap: MASTERY_MAX_OPEN_PER_USER,
         });
-        return;
+        return { applied: false, newSlot: false };
       }
     }
+
+    const keepDue = prev?.status === "due";
+    // Keep due + existing review_at so home card is not pushed +3d
+    const nextStatus = keepDue ? "due" : "open";
+    const nextReviewAt = keepDue
+      ? prev!.review_at || reviewAt
+      : reviewAt;
+
     await this.db.run(
       `UPDATE mastery_items
-         SET status = 'open',
+         SET status = ?,
              miss_count = miss_count + 1,
              review_at = ?,
              last_result_at = ?,
@@ -1333,7 +1379,8 @@ export class MasteryService {
              class_id = COALESCE(?, class_id),
              updated_at = ?
          WHERE id = ?`,
-      reviewAt,
+      nextStatus,
+      nextReviewAt,
       ts,
       wrongReason,
       assignmentId,
@@ -1346,9 +1393,12 @@ export class MasteryService {
       id,
       knowledgeNodeId,
       skillKey,
-      reviewAt,
+      reviewAt: nextReviewAt,
       merged: true,
+      keepDue,
+      newSlot: !alreadyQueued,
     });
+    return { applied: true, newSlot: !alreadyQueued };
   }
 
   private toPublic(r: Record<string, unknown>): PublicMasteryItem {
