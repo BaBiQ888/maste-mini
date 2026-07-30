@@ -1,7 +1,13 @@
 <view class="page">
   <view class="greet-row">
     <view class="greet">今日</view>
-    <view class="badge-lg" wx:if="{{incompleteCount}}">{{incompleteCount}} 项未完成</view>
+    <view class="greet-actions">
+      <view class="badge-lg inbox" bindtap="goInbox">
+        消息
+        <text wx:if="{{inboxBadge}}"> · {{inboxBadge}}</text>
+      </view>
+      <view class="badge-lg" wx:if="{{incompleteCount}}">{{incompleteCount}} 项未完成</view>
+    </view>
   </view>
   <view class="sub muted">打开就算清楚今天练什么</view>
   <view class="streak-row" wx:if="{{!loading && classes.length}}">

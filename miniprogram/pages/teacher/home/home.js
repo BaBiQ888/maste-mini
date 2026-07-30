@@ -12,6 +12,7 @@ Page({
     classes: [],
     current: null,
     pendingGrade: 0,
+    interactBadge: 0,
     dashboard: null,
     recent: [],
     loading: true,
@@ -38,9 +39,12 @@ Page({
   async load() {
     this.setData({ loading: true });
     try {
-      const [clsData, asgData] = await Promise.all([
+      const [clsData, asgData, badgeData] = await Promise.all([
         request({ url: "/api/v1/classes", method: "GET" }),
         request({ url: "/api/v1/assignments", method: "GET" }),
+        request({ url: "/api/v1/me/interaction-badge", method: "GET" }).catch(
+          () => ({ badge: { total: 0 } }),
+        ),
       ]);
       const classes = clsData.classes || [];
       let currentId = getCurrentClassId();
@@ -77,6 +81,8 @@ Page({
         classes,
         current,
         pendingGrade: asgData.pendingGrade || 0,
+        interactBadge:
+          (badgeData && badgeData.badge && badgeData.badge.total) || 0,
         dashboard,
         recent,
         loading: false,

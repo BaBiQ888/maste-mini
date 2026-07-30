@@ -231,15 +231,29 @@ Page({
     }
   },
 
-  goVariantDrill() {
-    // Jump to drill create with current class — teacher re-generates variants
-    const classId =
-      (this.data.assignment && this.data.assignment.classId) || "";
-    wx.navigateTo({
-      url: `/pages/teacher/assignments/create-drill${
-        classId ? `?classId=${classId}` : ""
-      }`,
-    });
+  async goVariantDrill() {
+    if (!this.data.id) return;
+    wx.showLoading({ title: "生成变式…" });
+    try {
+      const data = await request({
+        url: `/api/v1/assignments/${this.data.id}/variant-drill`,
+        method: "POST",
+        data: { count: 10, publish: true },
+      });
+      wx.hideLoading();
+      wx.showToast({ title: "已发布变式", icon: "success" });
+      setTimeout(() => {
+        wx.redirectTo({
+          url: `/pages/teacher/assignments/detail?id=${data.assignment.id}`,
+        });
+      }, 400);
+    } catch (e) {
+      wx.hideLoading();
+      showError(e, {
+        tag: "assignment.variant",
+        fallback: "生成失败，可手动布置",
+      });
+    }
   },
 
   goGrade(e) {

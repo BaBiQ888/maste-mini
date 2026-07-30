@@ -13,6 +13,7 @@ import {
   missesFromSnapshots,
 } from "../mastery/service.js";
 import { isWrongReason } from "../../domain/mastery/rules.js";
+import { generateDrillQuestions } from "../../domain/drill/generator.js";
 
 export type AssignmentType =
   | "daily_drill"
@@ -377,6 +378,106 @@ export class AssignmentService {
     const ts = nowIso();
     await this.db.run(`UPDATE assignments SET status = 'revoked', updated_at = ? WHERE id = ?`, ts, assignmentId);
     const __v = await this.getAssignment(assignmentId, teacherId); if (!__v) throw new Error("not found"); return __v;
+  }
+
+  /**
+   * One-click variant drill from this assignment's top wrong knowledge/stems.
+   * Generates new daily_drill questions and optionally publishes.
+   */
+  async createVariantFromTopWrongs(
+    teacherId: string,
+    sourceAssignmentId: string,
+    opts?: { count?: number; publish?: boolean },
+  ): Promise<PublicAssignment> {
+    const row = await this.getAssignmentRowOwned(sourceAssignmentId, teacherId);
+    await this.assertClassActive(row.class_id);
+    const count = Math.min(Math.max(opts?.count ?? 10, 5), 30);
+    const publish = opts?.publish !== false;
+
+    // Aggregate wrongs → knowledge / ops
+    const wrongRows = (await this.db.all(
+      `SELECT aq.question_snapshot,
+              SUM(CASE WHEN ai.is_correct = 0 THEN 1 ELSE 0 END) AS wrong_c
+       FROM assignment_questions aq
+       LEFT JOIN answer_items ai ON ai.assignment_question_id = aq.id
+         AND ai.is_correct IS NOT NULL
+       WHERE aq.assignment_id = ?
+       GROUP BY aq.id, aq.question_snapshot
+       HAVING wrong_c > 0
+       ORDER BY wrong_c DESC
+       LIMIT 8`,
+      sourceAssignmentId,
+    )) as Array<{ question_snapshot: string; wrong_c: number }>;
+
+    const opIds = new Set<string>();
+    for (const r of wrongRows) {
+      try {
+        const snap = JSON.parse(r.question_snapshot) as {
+          knowledgeNodeId?: string | null;
+        };
+        const kn = snap.knowledgeNodeId
+          ? this.knowledge.getById(snap.knowledgeNodeId)
+          : null;
+        for (const op of kn?.suggestedDrillOps || []) {
+          opIds.add(op);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!opIds.size) {
+      opIds.add("int_add_2d");
+      opIds.add("int_sub_2d");
+    }
+
+    const ops = [...opIds].slice(0, 3);
+    const perOp = Math.ceil(count / ops.length);
+    const snapshots: QuestionSnapshot[] = [];
+    for (const opId of ops) {
+      if (snapshots.length >= count) break;
+      try {
+        const gen = generateDrillQuestions({
+          operationId: opId,
+          count: Math.min(perOp, count - snapshots.length),
+          difficulty: "basic",
+        });
+        for (const q of gen.questions) {
+          if (snapshots.length >= count) break;
+          snapshots.push(q);
+        }
+      } catch (err) {
+        console.warn("[assignment.variant.generate]", {
+          opId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    if (!snapshots.length) {
+      throw new AppError("NO_QUESTIONS", "无法根据错题生成变式，请手动布置", 400);
+    }
+
+    const titleBase = (row.title || "练习").slice(0, 60);
+    const title = `变式再练 · ${titleBase}`.slice(0, 80);
+    console.info("[assignment.variant.create]", {
+      sourceAssignmentId,
+      teacherId,
+      questionCount: snapshots.length,
+      ops,
+    });
+    return this.create(teacherId, {
+      classId: row.class_id,
+      type: "daily_drill",
+      title,
+      description: `根据「${titleBase}」易错点自动生成的变式练习`,
+      publish,
+      generatedSnapshots: snapshots,
+      config: {
+        requireCorrection: true,
+        allowStuckReport: true,
+        variantOf: sourceAssignmentId,
+        sourceOps: ops,
+      },
+    });
   }
 
   /**

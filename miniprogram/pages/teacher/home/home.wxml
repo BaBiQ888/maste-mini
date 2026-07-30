@@ -14,8 +14,8 @@
       <view class="l">布置作业</view>
     </view>
     <view class="stat" bindtap="goInteract">
-      <view class="n">互</view>
-      <view class="l">师生互动</view>
+      <view class="n">{{interactBadge || '互'}}</view>
+      <view class="l">{{interactBadge ? '待处理' : '师生互动'}}</view>
     </view>
   </view>
   <view class="quick muted">

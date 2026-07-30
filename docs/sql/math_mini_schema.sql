@@ -236,3 +236,8 @@ CREATE TABLE IF NOT EXISTS week_shares (
   created_at VARCHAR(40) NOT NULL,
   replied_at VARCHAR(40)
 );
+
+CREATE TABLE IF NOT EXISTS interaction_inbox_state (
+  user_id VARCHAR(64) PRIMARY KEY,
+  last_seen_at VARCHAR(40) NOT NULL
+);

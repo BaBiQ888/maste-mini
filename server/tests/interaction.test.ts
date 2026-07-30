@@ -309,4 +309,68 @@ describe("Teacher-student interactions", () => {
     ).json();
     expect(map.progress.studentCount).toBe(1);
   });
+
+  it("teacher badge and variant drill + student inbox ack", async () => {
+    const { teacher, student, asg, submissionId, aqId, cls } =
+      await setupClass();
+    await app.request(`/api/v1/submissions/${submissionId}/stuck`, {
+      method: "POST",
+      headers: auth(student.token),
+      body: JSON.stringify({ assignmentQuestionId: aqId, note: "不会" }),
+    });
+    const badge = await (
+      await app.request("/api/v1/me/interaction-badge", {
+        headers: auth(teacher.token),
+      })
+    ).json();
+    expect(badge.badge.total).toBeGreaterThanOrEqual(1);
+    expect(badge.badge.stuckOpen).toBeGreaterThanOrEqual(1);
+
+    const variant = await app.request(
+      `/api/v1/assignments/${asg.id}/variant-drill`,
+      {
+        method: "POST",
+        headers: auth(teacher.token),
+        body: JSON.stringify({ count: 6, publish: true }),
+      },
+    );
+    expect(variant.status).toBe(201);
+    const vbody = await variant.json();
+    expect(vbody.assignment.type).toBe("daily_drill");
+    expect(vbody.assignment.title).toContain("变式");
+    expect(vbody.assignment.status).toBe("published");
+    expect((vbody.assignment.questionCount || 0) >= 1).toBe(true);
+
+    await app.request(`/api/v1/submissions/${submissionId}/stamps`, {
+      method: "POST",
+      headers: auth(teacher.token),
+      body: JSON.stringify({ stampType: "careful" }),
+    });
+    const sBadge = await (
+      await app.request("/api/v1/me/interaction-badge", {
+        headers: auth(student.token),
+      })
+    ).json();
+    expect(sBadge.badge.total).toBeGreaterThanOrEqual(1);
+
+    const inbox = await (
+      await app.request("/api/v1/me/inbox", {
+        headers: auth(student.token),
+      })
+    ).json();
+    expect(inbox.items.length).toBeGreaterThanOrEqual(1);
+
+    await app.request("/api/v1/me/inbox/ack", {
+      method: "POST",
+      headers: auth(student.token),
+      body: JSON.stringify({}),
+    });
+    const afterAck = await (
+      await app.request("/api/v1/me/interaction-badge", {
+        headers: auth(student.token),
+      })
+    ).json();
+    expect(afterAck.badge.total).toBe(0);
+    void cls;
+  });
 });

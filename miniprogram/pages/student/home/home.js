@@ -20,6 +20,7 @@ Page({
     notes: [],
     teacherReplies: [],
     stuckReplies: [],
+    inboxBadge: 0,
     loading: true,
     loadError: false,
   },
@@ -47,7 +48,7 @@ Page({
       const now = new Date();
       const year = now.getFullYear();
       const month = now.getMonth() + 1;
-      const [cls, asg, cal, due, focus, stamps, notes, replies, stuck] =
+      const [cls, asg, cal, due, focus, stamps, notes, replies, stuck, badge] =
         await Promise.all([
           request({ url: "/api/v1/classes", method: "GET" }),
           request({ url: "/api/v1/assignments", method: "GET" }),
@@ -92,6 +93,13 @@ Page({
               return { reports: [] };
             },
           ),
+          request({
+            url: "/api/v1/me/interaction-badge",
+            method: "GET",
+          }).catch((err) => {
+            logError("home.inboxBadge", err, {});
+            return { badge: { total: 0 } };
+          }),
         ]);
       const classes = cls.classes || [];
       const assignments = asg.assignments || [];
@@ -151,6 +159,7 @@ Page({
         stuckReplies: ((stuck && stuck.reports) || [])
           .filter((r) => r.teacherReply)
           .slice(0, 5),
+        inboxBadge: (badge && badge.badge && badge.badge.total) || 0,
         loading: false,
         loadError: false,
       });
@@ -158,6 +167,10 @@ Page({
       this.setData({ loading: false, loadError: true });
       showError(e, { fallback: "加载失败" });
     }
+  },
+
+  goInbox() {
+    wx.navigateTo({ url: "/pages/student/inbox/inbox" });
   },
 
   mapTask(a, submission) {

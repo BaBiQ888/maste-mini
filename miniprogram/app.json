@@ -26,6 +26,7 @@
     "pages/student/calendar/calendar",
     "pages/student/knowledge/list",
     "pages/student/summary/week",
+    "pages/student/inbox/inbox",
     "pages/teacher/students/stats",
     "pages/profile/profile"
   ],

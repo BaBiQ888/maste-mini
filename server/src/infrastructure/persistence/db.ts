@@ -691,6 +691,11 @@ const SCHEMA_SQL = `
       created_at VARCHAR(40) NOT NULL,
       replied_at VARCHAR(40)
     );
+
+    CREATE TABLE IF NOT EXISTS interaction_inbox_state (
+      user_id VARCHAR(64) PRIMARY KEY,
+      last_seen_at VARCHAR(40) NOT NULL
+    );
 `;
 
 /**
@@ -734,10 +739,69 @@ const INDEX_SQL = [
   "CREATE INDEX idx_week_shares_student ON week_shares(student_id, created_at)",
 ];
 
+/** Tables required for full feature set (health/schema probe). */
+export const REQUIRED_TABLES = [
+  "users",
+  "sessions",
+  "classes",
+  "class_memberships",
+  "assignments",
+  "submissions",
+  "assignment_questions",
+  "answer_items",
+  "mastery_items",
+  "mastery_reviews",
+  "interaction_stamps",
+  "stuck_reports",
+  "class_focus",
+  "class_notes",
+  "week_shares",
+  "interaction_inbox_state",
+] as const;
+
 export function createId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, "")}`;
 }
 
 export function nowIso(): string {
   return new Date().toISOString();
+}
+
+/**
+ * Probe whether required feature tables exist (MySQL + SQLite).
+ * Used by GET /health/schema after DB is open.
+ */
+export async function probeRequiredTables(
+  db: AppDatabase,
+  driver: "sqlite" | "mysql",
+): Promise<{
+  ok: boolean;
+  missing: string[];
+  present: string[];
+}> {
+  const present: string[] = [];
+  const missing: string[] = [];
+  for (const name of REQUIRED_TABLES) {
+    try {
+      if (driver === "mysql") {
+        const rows = (await db.all(
+          `SELECT TABLE_NAME AS t FROM information_schema.TABLES
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+          name,
+        )) as Array<{ t: string }>;
+        if (rows.length) present.push(name);
+        else missing.push(name);
+      } else {
+        const row = (await db.get(
+          `SELECT name AS t FROM sqlite_master WHERE type='table' AND name = ?`,
+          name,
+        )) as { t: string } | undefined;
+        if (row?.t) present.push(name);
+        else missing.push(name);
+      }
+    } catch {
+      missing.push(name);
+    }
+  }
+  return { ok: missing.length === 0, missing, present };
 }

@@ -64,11 +64,19 @@ npm run predeploy
 空库可执行：`docs/sql/math_mini_schema.sql`  
 服务连上 MySQL 后也会自动 `CREATE TABLE IF NOT EXISTS`。
 
+**部署后请检查 schema 是否齐全：**
+
+```bash
+curl -s https://<你的域名>/health/schema
+# 期望: { "ok": true, "missing": [], ... }
+# 若 missing 含 interaction_* / mastery_*：重启实例触发 migrate，或手工执行 docs/sql/math_mini_schema.sql
+```
+
 ### 启动时自动做的 DB 维护（无需手工 SQL）
 
 每次进程启动（`openDatabase` → migrate）会：
 
-1. **建表**（已存在则跳过）  
+1. **建表**（已存在则跳过，含互动表 stamps/stuck/focus/notes/week_shares/inbox）  
 2. **建索引**（已存在则跳过 `ER_DUP_KEYNAME`，含复合索引）  
 3. **清理过期 sessions**（`expires_at <= now`）  
 4. 每 **6 小时** 再清一次过期会话  

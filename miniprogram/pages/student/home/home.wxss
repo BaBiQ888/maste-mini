@@ -10,6 +10,7 @@
   gap: 16rpx;
 }
 .greet { font-size: 40rpx; font-weight: 600; }
+.greet-actions { display: flex; gap: 12rpx; align-items: center; flex-wrap: wrap; }
 .badge-lg {
   font-size: 22rpx;
   color: var(--accent);
@@ -19,6 +20,7 @@
   padding: 6rpx 16rpx;
   font-weight: 600;
 }
+.badge-lg.inbox { color: var(--ink); }
 .sub { margin: 8rpx 0 16rpx; }
 .streak-row {
   display: flex;

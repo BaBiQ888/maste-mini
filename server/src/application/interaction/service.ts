@@ -898,4 +898,217 @@ export class InteractionService {
       },
     };
   }
+
+  // ── Badges + unified inbox ─────────────────────────────────────────────
+
+  private async getInboxLastSeen(userId: string): Promise<string> {
+    const row = (await this.db.get(
+      `SELECT last_seen_at FROM interaction_inbox_state WHERE user_id = ?`,
+      userId,
+    )) as { last_seen_at: string } | undefined;
+    return row?.last_seen_at || "1970-01-01T00:00:00.000Z";
+  }
+
+  async ackInbox(userId: string): Promise<{ lastSeenAt: string }> {
+    const ts = nowIso();
+    const existing = await this.db.get(
+      `SELECT user_id FROM interaction_inbox_state WHERE user_id = ?`,
+      userId,
+    );
+    if (existing) {
+      await this.db.run(
+        `UPDATE interaction_inbox_state SET last_seen_at = ? WHERE user_id = ?`,
+        ts,
+        userId,
+      );
+    } else {
+      await this.db.run(
+        `INSERT INTO interaction_inbox_state (user_id, last_seen_at) VALUES (?, ?)`,
+        userId,
+        ts,
+      );
+    }
+    console.info("[interaction.inbox.ack]", { userId });
+    return { lastSeenAt: ts };
+  }
+
+  async getBadge(
+    userId: string,
+    role: string | null,
+  ): Promise<{
+    total: number;
+    stuckOpen?: number;
+    weekSharesPending?: number;
+    stamps?: number;
+    notes?: number;
+    stuckReplies?: number;
+    weekReplies?: number;
+  }> {
+    if (role === "teacher") {
+      const stuck = (await this.db.get(
+        `SELECT COUNT(*) AS n FROM stuck_reports r
+         JOIN classes c ON c.id = r.class_id
+         WHERE c.teacher_id = ? AND r.status = 'open' AND c.archived = 0`,
+        userId,
+      )) as { n: number };
+      const shares = (await this.db.get(
+        `SELECT COUNT(*) AS n FROM week_shares w
+         JOIN classes c ON c.id = w.class_id
+         WHERE c.teacher_id = ? AND w.teacher_reply IS NULL AND c.archived = 0`,
+        userId,
+      )) as { n: number };
+      const stuckOpen = Number(stuck?.n) || 0;
+      const weekSharesPending = Number(shares?.n) || 0;
+      return {
+        total: stuckOpen + weekSharesPending,
+        stuckOpen,
+        weekSharesPending,
+      };
+    }
+
+    // student: items after last inbox ack
+    const since = await this.getInboxLastSeen(userId);
+    const stamps = (await this.db.get(
+      `SELECT COUNT(*) AS n FROM interaction_stamps
+       WHERE student_id = ? AND created_at > ?`,
+      userId,
+      since,
+    )) as { n: number };
+    const notes = (await this.db.get(
+      `SELECT COUNT(*) AS n FROM class_notes n
+       WHERE (n.student_id = ? OR (
+         n.student_id IS NULL AND n.class_id IN (
+           SELECT class_id FROM class_memberships WHERE user_id = ?
+         )
+       )) AND n.created_at > ?`,
+      userId,
+      userId,
+      since,
+    )) as { n: number };
+    const stuckReplies = (await this.db.get(
+      `SELECT COUNT(*) AS n FROM stuck_reports
+       WHERE student_id = ? AND teacher_reply IS NOT NULL AND updated_at > ?`,
+      userId,
+      since,
+    )) as { n: number };
+    const weekReplies = (await this.db.get(
+      `SELECT COUNT(*) AS n FROM week_shares
+       WHERE student_id = ? AND teacher_reply IS NOT NULL AND replied_at > ?`,
+      userId,
+      since,
+    )) as { n: number };
+    const s = Number(stamps?.n) || 0;
+    const n = Number(notes?.n) || 0;
+    const sr = Number(stuckReplies?.n) || 0;
+    const wr = Number(weekReplies?.n) || 0;
+    return {
+      total: s + n + sr + wr,
+      stamps: s,
+      notes: n,
+      stuckReplies: sr,
+      weekReplies: wr,
+    };
+  }
+
+  async getInbox(
+    userId: string,
+    role: string | null,
+  ): Promise<{ items: Array<Record<string, unknown>> }> {
+    if (role === "teacher") {
+      const stuck = await this.db.all(
+        `SELECT r.id, r.note, r.stem, r.created_at, r.status, u.nickname, a.title AS assignment_title, c.name AS class_name
+         FROM stuck_reports r
+         JOIN classes c ON c.id = r.class_id
+         JOIN users u ON u.id = r.student_id
+         JOIN assignments a ON a.id = r.assignment_id
+         WHERE c.teacher_id = ? AND r.status = 'open' AND c.archived = 0
+         ORDER BY r.created_at DESC LIMIT 40`,
+        userId,
+      );
+      const shares = await this.db.all(
+        `SELECT w.id, w.week_label, w.copy_text, w.created_at, u.nickname, c.name AS class_name
+         FROM week_shares w
+         JOIN classes c ON c.id = w.class_id
+         JOIN users u ON u.id = w.student_id
+         WHERE c.teacher_id = ? AND w.teacher_reply IS NULL AND c.archived = 0
+         ORDER BY w.created_at DESC LIMIT 40`,
+        userId,
+      );
+      const items: Array<Record<string, unknown>> = [];
+      for (const r of stuck as Array<Record<string, unknown>>) {
+        items.push({
+          kind: "stuck",
+          id: r.id,
+          title: `${r.nickname} · 还不会`,
+          body: r.stem || r.note || "学生上报了不会的题",
+          className: r.class_name,
+          createdAt: r.created_at,
+        });
+      }
+      for (const r of shares as Array<Record<string, unknown>>) {
+        items.push({
+          kind: "week_share",
+          id: r.id,
+          title: `${r.nickname} · 周小结`,
+          body: String(r.copy_text || "").slice(0, 120),
+          className: r.class_name,
+          createdAt: r.created_at,
+        });
+      }
+      items.sort((a, b) =>
+        String(b.createdAt).localeCompare(String(a.createdAt)),
+      );
+      return { items: items.slice(0, 50) };
+    }
+
+    // student feed
+    const stamps = await this.listStampsForStudent(userId, 20);
+    const notes = await this.listNotesForStudent(userId, 20);
+    const stuck = await this.listStuckForStudent(userId, 20);
+    const week = await this.listMyWeekShareReplies(userId);
+    const items: Array<Record<string, unknown>> = [];
+    for (const s of stamps) {
+      items.push({
+        kind: "stamp",
+        id: s.id,
+        title: `印章「${s.label}」`,
+        body: s.assignmentTitle || s.note || "",
+        createdAt: s.createdAt,
+      });
+    }
+    for (const n of notes) {
+      items.push({
+        kind: "note",
+        id: n.id,
+        title: n.broadcast ? "全班小纸条" : "老师小纸条",
+        body: n.body,
+        className: n.className,
+        createdAt: n.createdAt,
+      });
+    }
+    for (const s of stuck) {
+      if (!s.teacherReply) continue;
+      items.push({
+        kind: "stuck_reply",
+        id: s.id,
+        title: "老师答「还不会」",
+        body: s.teacherReply,
+        meta: s.stem,
+        createdAt: s.updatedAt || s.createdAt,
+      });
+    }
+    for (const w of week) {
+      items.push({
+        kind: "week_reply",
+        id: w.id,
+        title: "老师回周小结",
+        body: w.teacherReply,
+        createdAt: w.repliedAt,
+      });
+    }
+    items.sort((a, b) =>
+      String(b.createdAt || "").localeCompare(String(a.createdAt || "")),
+    );
+    return { items: items.slice(0, 60) };
+  }
 }

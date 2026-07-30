@@ -32,6 +32,7 @@ import {
   saveBase64Image,
 } from "../../infrastructure/storage/upload-store.js";
 import { AppError } from "../../domain/shared/errors.js";
+import { probeRequiredTables } from "../../infrastructure/persistence/db.js";
 import { z } from "zod";
 
 export type AppEnv = {
@@ -121,6 +122,28 @@ export function createApp(
       },
     }),
   );
+
+  /** Schema probe: missing interaction/mastery tables after deploy */
+  app.get("/health/schema", async (c) => {
+    try {
+      const probe = await probeRequiredTables(
+        db,
+        dbDriver === "mysql" ? "mysql" : "sqlite",
+      );
+      if (!probe.ok) {
+        console.warn("[health.schema.missing]", { missing: probe.missing });
+      }
+      return c.json({
+        ok: probe.ok,
+        driver: dbDriver,
+        missing: probe.missing,
+        presentCount: probe.present.length,
+        requiredCount: probe.present.length + probe.missing.length,
+      });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
 
   /** Uploads require session: Bearer or ?access_token= (for <image src>) */
   app.use("/uploads/*", async (c, next) => {
@@ -592,6 +615,55 @@ export function createApp(
         Number.isFinite(limit) ? limit : 3,
       );
       return c.json(data);
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  /** One-click variant drill from top wrongs */
+  authed.post("/assignments/:id/variant-drill", async (c) => {
+    try {
+      const body = z
+        .object({
+          count: z.number().int().min(5).max(30).optional(),
+          publish: z.boolean().optional(),
+        })
+        .parse(await c.req.json().catch(() => ({})));
+      const assignment = await assignments.createVariantFromTopWrongs(
+        c.get("user").id,
+        c.req.param("id"),
+        body,
+      );
+      return c.json({ assignment }, 201);
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/me/interaction-badge", async (c) => {
+    try {
+      const user = c.get("user");
+      const badge = await interaction.getBadge(user.id, user.role);
+      return c.json({ badge });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/me/inbox", async (c) => {
+    try {
+      const user = c.get("user");
+      const data = await interaction.getInbox(user.id, user.role);
+      return c.json(data);
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.post("/me/inbox/ack", async (c) => {
+    try {
+      const result = await interaction.ackInbox(c.get("user").id);
+      return c.json(result);
     } catch (e) {
       return handleError(c, e);
     }
