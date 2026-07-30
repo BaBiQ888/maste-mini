@@ -21,6 +21,9 @@ describe("mastery rules", () => {
     expect(isReviewPassed(3, 3)).toBe(true);
     expect(isReviewPassed(2, 3)).toBe(false);
     expect(isReviewPassed(2, 2, 2)).toBe(true);
+    // self-practice: all 5 required
+    expect(isReviewPassed(3, 5, 5)).toBe(false);
+    expect(isReviewPassed(5, 5, 5)).toBe(true);
   });
 
   it("map node states", () => {

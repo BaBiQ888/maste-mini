@@ -10,6 +10,7 @@ import {
   MASTERY_MAP_COMPLETION_DAYS,
   MASTERY_MAP_WINDOW_DAYS,
   MASTERY_MAX_OPEN_PER_USER,
+  MASTERY_PASS_MIN_CORRECT,
   MASTERY_REVIEW_QUESTION_COUNT,
   MASTERY_SELF_PRACTICE_COUNT,
   resolveMasteryKey,
@@ -418,8 +419,7 @@ export class MasteryService {
     await this.promoteDue(userId);
     const item = await this.getItemRow(masteryItemId, userId);
 
-    // Resume first — due gate must not block an already open session
-    // (e.g. after merge demotes item open while review is still in_progress).
+    // Fast-path resume (same source) — due gate must not block an open session
     const existing = (await this.db.get(
       `SELECT * FROM mastery_reviews
        WHERE mastery_item_id = ? AND user_id = ? AND status = 'in_progress'
@@ -458,51 +458,100 @@ export class MasteryService {
 
     const id = createId("mrv");
     const ts = nowIso();
-    // Abandon any other in_progress for this item (same or other source).
-    // Prevents review + self_practice double-apply on mastery_items, and
-    // concurrent double-tap orphans for the same source.
-    const abandoned = await this.db.run(
-      `UPDATE mastery_reviews
-         SET status = 'abandoned', completed_at = ?
-       WHERE mastery_item_id = ? AND user_id = ? AND status = 'in_progress'`,
-      ts,
-      masteryItemId,
-      userId,
-    );
-    if ((abandoned.changes ?? 0) > 0) {
-      console.info("[mastery.review.abandon]", {
+    // Transaction: re-check resume + abandon all + insert (shrink concurrent race).
+    const started = await this.db.transaction(async () => {
+      const again = (await this.db.get(
+        `SELECT * FROM mastery_reviews
+         WHERE mastery_item_id = ? AND user_id = ? AND status = 'in_progress'
+           AND source = ?
+         ORDER BY started_at DESC LIMIT 1`,
+        masteryItemId,
         userId,
-        itemId: masteryItemId,
         source,
-        count: abandoned.changes,
-      });
-    }
-    await this.db.run(
-      `INSERT INTO mastery_reviews (
-         id, mastery_item_id, user_id, source, status,
-         question_snapshots_json, answers_json, correct_count, total_count,
-         passed, started_at, completed_at
-       ) VALUES (?, ?, ?, ?, 'in_progress', ?, NULL, NULL, ?, NULL, ?, NULL)`,
-      id,
-      masteryItemId,
-      userId,
-      source,
-      JSON.stringify(snapshots),
-      snapshots.length,
-      ts,
-    );
-    console.info("[mastery.review.start]", {
-      userId,
-      reviewId: id,
-      itemId: masteryItemId,
-      questionCount: snapshots.length,
-      source,
+      )) as Record<string, unknown> | undefined;
+      if (again) {
+        return { kind: "resume" as const, row: again };
+      }
+
+      const abandoned = await this.db.run(
+        `UPDATE mastery_reviews
+           SET status = 'abandoned', completed_at = ?
+         WHERE mastery_item_id = ? AND user_id = ? AND status = 'in_progress'`,
+        ts,
+        masteryItemId,
+        userId,
+      );
+      if ((abandoned.changes ?? 0) > 0) {
+        console.info("[mastery.review.abandon]", {
+          userId,
+          itemId: masteryItemId,
+          source,
+          count: abandoned.changes,
+        });
+      }
+      await this.db.run(
+        `INSERT INTO mastery_reviews (
+           id, mastery_item_id, user_id, source, status,
+           question_snapshots_json, answers_json, correct_count, total_count,
+           passed, started_at, completed_at
+         ) VALUES (?, ?, ?, ?, 'in_progress', ?, NULL, NULL, ?, NULL, ?, NULL)`,
+        id,
+        masteryItemId,
+        userId,
+        source,
+        JSON.stringify(snapshots),
+        snapshots.length,
+        ts,
+      );
+      return { kind: "new" as const };
     });
 
+    if (started.kind === "resume") {
+      return this.toPublicReview(started.row, item);
+    }
+
+    // After concurrent txs: keep only the latest live session for this item
+    const winner = (await this.db.get(
+      `SELECT id FROM mastery_reviews
+       WHERE mastery_item_id = ? AND user_id = ? AND status = 'in_progress'
+       ORDER BY started_at DESC, id DESC
+       LIMIT 1`,
+      masteryItemId,
+      userId,
+    )) as { id: string } | undefined;
+    if (winner) {
+      const pruned = await this.db.run(
+        `UPDATE mastery_reviews
+           SET status = 'abandoned', completed_at = ?
+         WHERE mastery_item_id = ? AND user_id = ? AND status = 'in_progress'
+           AND id != ?`,
+        ts,
+        masteryItemId,
+        userId,
+        winner.id,
+      );
+      if ((pruned.changes ?? 0) > 0) {
+        console.info("[mastery.review.prune]", {
+          userId,
+          itemId: masteryItemId,
+          keepId: winner.id,
+          count: pruned.changes,
+        });
+      }
+    }
+
+    const keepId = winner?.id || id;
     const row = (await this.db.get(
       `SELECT * FROM mastery_reviews WHERE id = ?`,
-      id,
+      keepId,
     )) as Record<string, unknown>;
+    console.info("[mastery.review.start]", {
+      userId,
+      reviewId: keepId,
+      itemId: masteryItemId,
+      questionCount: Number(row.total_count) || snapshots.length,
+      source: String(row.source || source),
+    });
     return this.toPublicReview(row, item);
   }
 
@@ -959,7 +1008,11 @@ export class MasteryService {
       graded.push({ questionIndex: i, response: resp ?? null, isCorrect: correct });
     }
 
-    const passed = isReviewPassed(correctCount, total);
+    const source = String(row.source || "review");
+    // Formal: min 3 of N; self-practice: all generated questions correct
+    const passMin =
+      source === "self_practice" ? total : MASTERY_PASS_MIN_CORRECT;
+    const passed = isReviewPassed(correctCount, total, passMin);
     const ts = nowIso();
     const itemId = String(row.mastery_item_id);
 
@@ -996,7 +1049,6 @@ export class MasteryService {
         throw new AppError("INVALID_STATUS", "该回访已提交", 400);
       }
 
-      const source = String(row.source || "review");
       const itemRow = await this.getItemRow(itemId, userId);
 
       if (passed) {
@@ -1013,23 +1065,33 @@ export class MasteryService {
           userId,
         );
       } else if (source === "self_practice") {
-        // Optional consolidate: only schedule formal +3d if already a real miss/due
+        // Only schedule formal +3d if already a real miss; keep due if already due
         const wasRealMiss =
           Number(itemRow.miss_count) > 0 ||
           itemRow.status === "due" ||
           itemRow.status === "failed" ||
           !!itemRow.source_assignment_id;
         if (wasRealMiss) {
-          const nextReview = computeReviewAt(new Date());
+          const keepDue =
+            itemRow.status === "due" ||
+            (itemRow.status === "open" &&
+              Number(itemRow.miss_count) > 0 &&
+              !!itemRow.review_at &&
+              itemRow.review_at <= ts);
+          const nextStatus = keepDue ? "due" : "open";
+          const nextReviewAt = keepDue
+            ? itemRow.review_at || computeReviewAt(new Date())
+            : computeReviewAt(new Date());
           await this.db.run(
             `UPDATE mastery_items
-               SET status = 'open',
+               SET status = ?,
                    miss_count = CASE WHEN miss_count < 1 THEN 1 ELSE miss_count + 1 END,
                    review_at = ?,
                    last_result_at = ?,
                    updated_at = ?
                WHERE id = ? AND user_id = ?`,
-            nextReview,
+            nextStatus,
+            nextReviewAt,
             ts,
             ts,
             itemId,

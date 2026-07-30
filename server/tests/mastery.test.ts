@@ -407,6 +407,124 @@ describe("Mastery S2 enqueue + S3 review", () => {
     expect(new Date(row.review_at).getTime()).toBeGreaterThan(Date.now() + 86400000);
   });
 
+  it("self-practice 3/5 correct does not pass (requires all)", async () => {
+    const { student, asg, aqIds, knId } = await setupWithKnowledge();
+    await wrongThenCorrect(student.token, asg.id, aqIds);
+    // Item is open after enqueue — self-practice allowed
+    const sp = await (
+      await app.request("/api/v1/me/mastery/self-practice", {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ knowledgeNodeId: knId }),
+      })
+    ).json();
+    expect(sp.review.questions.length).toBe(5);
+    // Answer first 3 with correct keys from snapshots if fill_blank answer known
+    const answers = sp.review.questions.map(
+      (q: { answer?: string; type?: string }, questionIndex: number) => {
+        // 3 correct + 2 wrong
+        if (questionIndex < 3) {
+          return {
+            questionIndex,
+            response: q.answer != null ? q.answer : "1",
+          };
+        }
+        return { questionIndex, response: "__wrong__" };
+      },
+    );
+    // Prefer server grading: correct answers may not be on public review — use
+    // DB snapshots for first 3
+    const row = (await db.get(
+      `SELECT question_snapshots_json FROM mastery_reviews WHERE id = ?`,
+      sp.review.id,
+    )) as { question_snapshots_json: string };
+    const snaps = JSON.parse(row.question_snapshots_json) as Array<{
+      answer: string | boolean;
+    }>;
+    const gradedAnswers = snaps.map((s, questionIndex) => ({
+      questionIndex,
+      response: questionIndex < 3 ? s.answer : "__wrong__",
+    }));
+    const res = await (
+      await app.request(`/api/v1/me/mastery/reviews/${sp.review.id}/submit`, {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ answers: gradedAnswers }),
+      })
+    ).json();
+    expect(res.review.passed).toBe(false);
+    expect(res.review.correctCount).toBe(3);
+    const item = (await db.get(
+      `SELECT status, pass_count FROM mastery_items WHERE user_id = ?`,
+      student.userId,
+    )) as { status: string; pass_count: number };
+    expect(item.status).not.toBe("passed");
+    expect(Number(item.pass_count)).toBe(0);
+    void answers;
+  });
+
+  it("self-practice fail on due item keeps due (no +3d demote)", async () => {
+    const { student, asg, aqIds, knId } = await setupWithKnowledge();
+    await wrongThenCorrect(student.token, asg.id, aqIds);
+    const dueAt = "2020-01-01T00:00:00.000Z";
+    await db.run(
+      `UPDATE mastery_items SET status = 'due', review_at = ? WHERE user_id = ?`,
+      dueAt,
+      student.userId,
+    );
+    const sp = await (
+      await app.request("/api/v1/me/mastery/self-practice", {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ knowledgeNodeId: knId }),
+      })
+    ).json();
+    const wrongAnswers = sp.review.questions.map(
+      (_: unknown, questionIndex: number) => ({
+        questionIndex,
+        response: "__wrong__",
+      }),
+    );
+    await app.request(`/api/v1/me/mastery/reviews/${sp.review.id}/submit`, {
+      method: "POST",
+      headers: auth(student.token),
+      body: JSON.stringify({ answers: wrongAnswers }),
+    });
+    const item = (await db.get(
+      `SELECT status, review_at, miss_count FROM mastery_items WHERE user_id = ?`,
+      student.userId,
+    )) as { status: string; review_at: string; miss_count: number };
+    expect(item.status).toBe("due");
+    expect(item.review_at).toBe(dueAt);
+    expect(Number(item.miss_count)).toBeGreaterThanOrEqual(1);
+  });
+
+  it("concurrent startReview leaves a single in_progress session", async () => {
+    const { student, asg, aqIds } = await setupWithKnowledge();
+    await wrongThenCorrect(student.token, asg.id, aqIds);
+    await db.run(
+      `UPDATE mastery_items SET status = 'due', review_at = ? WHERE user_id = ?`,
+      "2020-01-01T00:00:00.000Z",
+      student.userId,
+    );
+    const item = (await db.get(
+      `SELECT id FROM mastery_items WHERE user_id = ?`,
+      student.userId,
+    )) as { id: string };
+    const mastery = new MasteryService(db);
+    await Promise.all([
+      mastery.startReview(student.userId, item.id, "review"),
+      mastery.startReview(student.userId, item.id, "review"),
+      mastery.startReview(student.userId, item.id, "review"),
+    ]);
+    const live = (await db.get(
+      `SELECT COUNT(*) AS n FROM mastery_reviews
+       WHERE mastery_item_id = ? AND status = 'in_progress'`,
+      item.id,
+    )) as { n: number };
+    expect(Number(live.n)).toBe(1);
+  });
+
   it("enqueue twice same knowledge stays one row; miss_count merges", async () => {
     const { student, asg, knId, classId } = await setupWithKnowledge();
     const mastery = new MasteryService(db);

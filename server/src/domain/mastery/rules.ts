@@ -7,7 +7,10 @@ export const MASTERY_REVIEW_DELAY_DAYS = 3;
 export const MASTERY_MAX_OPEN_PER_USER = 20;
 export const MASTERY_REVIEW_QUESTION_COUNT = 3;
 export const MASTERY_SELF_PRACTICE_COUNT = 5;
-/** All N questions correct to pass (default N=3). */
+/**
+ * Formal review pass bar (default 3 of 3).
+ * Self-practice uses total session size as min (all correct).
+ */
 export const MASTERY_PASS_MIN_CORRECT = 3;
 export const MASTERY_ITEM_EXPIRE_DAYS = 30;
 /** Recent window for map accuracy (days). */

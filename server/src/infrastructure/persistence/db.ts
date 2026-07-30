@@ -179,6 +179,10 @@ function openSqliteDatabase(dbPath: string): AppDatabase {
   raw.pragma("journal_mode = WAL");
   raw.pragma("foreign_keys = ON");
 
+  // Serialize transactions: better-sqlite3 is one connection; concurrent
+  // Promise.all → BEGIN inside BEGIN would throw.
+  let txTail: Promise<unknown> = Promise.resolve();
+
   return {
     async get<T>(sql: string, ...params: unknown[]) {
       return raw.prepare(sql).get(...params) as T | undefined;
@@ -194,15 +198,28 @@ function openSqliteDatabase(dbPath: string): AppDatabase {
       raw.exec(sql);
     },
     async transaction<T>(fn: () => Promise<T>) {
-      raw.exec("BEGIN");
-      try {
-        const result = await fn();
-        raw.exec("COMMIT");
-        return result;
-      } catch (e) {
-        raw.exec("ROLLBACK");
-        throw e;
-      }
+      const run = async (): Promise<T> => {
+        raw.exec("BEGIN");
+        try {
+          const result = await fn();
+          raw.exec("COMMIT");
+          return result;
+        } catch (e) {
+          try {
+            raw.exec("ROLLBACK");
+          } catch {
+            /* ignore */
+          }
+          throw e;
+        }
+      };
+      const next = txTail.then(run, run);
+      // Keep chain alive even if this tx fails
+      txTail = next.then(
+        () => undefined,
+        () => undefined,
+      );
+      return next;
     },
     async close() {
       raw.close();
