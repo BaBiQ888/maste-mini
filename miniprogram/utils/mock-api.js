@@ -1026,8 +1026,63 @@ async function handle(url, method = "GET", data) {
   if (path.indexOf("/api/v1/me/calendar") === 0 && m === "GET") {
     const day = nowIso().slice(0, 10);
     return {
-      days: [{ date: day, completed: 1, total: 2 }],
+      calendar: {
+        year: Number(day.slice(0, 4)),
+        month: Number(day.slice(5, 7)),
+        days: [{ date: day, completedCount: 1 }],
+        streakDays: 1,
+        monthLitDays: 1,
+      },
     };
+  }
+
+  if (path === "/api/v1/me/mastery/due" && m === "GET") {
+    return { review: null };
+  }
+  if (path.indexOf("/api/v1/me/mastery-map") === 0 && m === "GET") {
+    return {
+      map: {
+        grade: 3,
+        units: [],
+        stamps: [],
+        summary: { dark: 0, half: 0, lit: 0 },
+      },
+    };
+  }
+  if (path.indexOf("/api/v1/me/mastery/week-summary") === 0 && m === "GET") {
+    return {
+      summary: {
+        weekLabel: "本周",
+        startYmd: "",
+        endYmd: "",
+        completedTaskCount: 0,
+        litDays: 0,
+        reviewPassedCount: 0,
+        selfPracticeCount: 0,
+        knowledgeNames: [],
+        bullets: ["完成任务 0 次", "学习点亮 0 天", "本周暂无新巩固点，下周继续"],
+        copyText: "【算本本周小结】\n· 完成任务 0 次\n· 学习点亮 0 天\n· 点亮/巩固：本周暂无新巩固点",
+      },
+    };
+  }
+  if (path === "/api/v1/me/mastery/self-practice" && m === "POST") {
+    return {
+      review: {
+        id: "mrv_mock",
+        masteryItemId: "mst_mock",
+        source: "self_practice",
+        status: "in_progress",
+        title: "巩固：示例",
+        knowledgeName: "示例",
+        questions: [],
+        totalCount: 0,
+        correctCount: null,
+        passed: null,
+      },
+    };
+  }
+  if (path.indexOf("/api/v1/me/mastery") === 0 && m === "GET") {
+    return { items: [] };
   }
 
   p = matchRoute(path, "/api/v1/classes/:id/students/:userId/stats");

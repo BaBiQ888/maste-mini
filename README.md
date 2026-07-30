@@ -84,6 +84,7 @@ PORT=80
 | 架构分层 | [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) |
 | 实施计划 | [docs/architecture/math-mini-mvp.md](docs/architecture/math-mini-mvp.md) |
 | PRD | [docs/product/PRD.md](docs/product/PRD.md) |
+| 学生粘性/掌握感 | [docs/product/student-mastery-plan.md](docs/product/student-mastery-plan.md) |
 | 验收清单 | [docs/product/MVP-验收清单.md](docs/product/MVP-验收清单.md) |
 | 验收报告 | [docs/product/MVP-验收报告.md](docs/product/MVP-验收报告.md) |
 | 品牌设计 | [docs/design/brand-spec.md](docs/design/brand-spec.md) |

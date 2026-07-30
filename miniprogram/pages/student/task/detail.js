@@ -7,6 +7,7 @@ const {
   STATUS_LABEL,
   RESULT_LABEL,
 } = require("../../../utils/media");
+const { buildSuccessPanel } = require("../../../utils/mastery-copy");
 
 Page({
   data: {
@@ -16,10 +17,12 @@ Page({
     localUrls: [],
     displayUrls: [],
     loading: true,
+    loadError: false,
     busy: false,
     statusLabels: STATUS_LABEL,
     resultLabels: RESULT_LABEL,
     canEdit: false,
+    success: null,
   },
 
   onLoad(q) {
@@ -40,7 +43,7 @@ Page({
   },
 
   async load() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, loadError: false });
     try {
       const [a, s] = await Promise.all([
         request({ url: `/api/v1/assignments/${this.data.id}`, method: "GET" }),
@@ -63,9 +66,10 @@ Page({
         displayUrls,
         canEdit,
         loading: false,
+        loadError: false,
       });
     } catch (e) {
-      this.setData({ loading: false });
+      this.setData({ loading: false, loadError: true });
       showError(e, { fallback: "加载失败" });
     }
   },
@@ -132,6 +136,11 @@ Page({
       const submission = data.submission;
       const localUrls = (submission.photos || []).map((p) => p.url);
       const displayUrls = await resolveImageSrcs(localUrls);
+      const success = buildSuccessPanel({
+        assignment: this.data.assignment,
+        submission,
+        items: [],
+      });
       this.setData({
         submission,
         localUrls,
@@ -140,11 +149,19 @@ Page({
           submission.status === "not_started" ||
           submission.status === "resubmit_required",
         busy: false,
+        success,
       });
-      wx.showToast({ title: "已提交", icon: "success" });
     } catch (e) {
       this.setData({ busy: false });
       showError(e, { fallback: "提交失败" });
     }
+  },
+
+  goHome() {
+    wx.reLaunch({ url: "/pages/student/home/home" });
+  },
+
+  dismissSuccess() {
+    this.setData({ success: null });
   },
 });

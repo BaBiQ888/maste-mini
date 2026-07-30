@@ -40,6 +40,11 @@
   color: var(--accent);
   font-weight: 600;
 }
+.hint {
+  font-size: 22rpx;
+  margin: 8rpx 0 4rpx;
+  line-height: 1.4;
+}
 .input {
   height: 88rpx;
   border-radius: 20rpx;

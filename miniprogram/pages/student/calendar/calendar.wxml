@@ -1,26 +1,63 @@
 <view class="page">
   <view class="toolbar">
     <view class="nav" bindtap="prevMonth">‹</view>
-    <view class="title">{{title}}</view>
+    <view class="title">{{title || '打卡日历'}}</view>
     <view class="nav" bindtap="nextMonth">›</view>
   </view>
-  <view class="hint muted">本月有完成记录 {{totalDays}} 天 · 完成任务会点亮</view>
 
-  <view class="week">
-    <text>日</text><text>一</text><text>二</text><text>三</text><text>四</text><text>五</text><text>六</text>
+  <view wx:if="{{loading}}" class="muted tip">加载中…</view>
+
+  <view wx:elif="{{loadError}}" class="empty-box">
+    <view class="title">加载失败</view>
+    <view class="desc">网络或服务异常，请稍后重试</view>
+    <button class="btn btn-primary mt" bindtap="load">重试</button>
   </view>
-  <view class="grid">
-    <view class="cell {{item.empty ? 'empty' : ''}} {{item.done ? 'done' : ''}}" wx:for="{{cells}}" wx:key="index">
-      <block wx:if="{{!item.empty}}">
-        <view class="day">{{item.day}}</view>
-        <view class="check" wx:if="{{item.done}}">✓</view>
-      </block>
+
+  <block wx:else>
+    <view class="hint muted">本月点亮 {{totalDays}} 天 · 完成任务会点亮</view>
+    <view class="streak-bar" wx:if="{{streakLabel}}">
+      <text class="streak-chip">{{streakLabel}}</text>
     </view>
-  </view>
+    <view class="legend muted">
+      <text class="lg done">● 完成</text>
+      <text class="lg partial">● 含逾期</text>
+      <text class="lg review">● 回访</text>
+    </view>
 
-  <view class="links">
-    <view class="link" bindtap="goKnowledge">已掌握知识点 →</view>
-  </view>
+    <view class="week">
+      <text>日</text><text>一</text><text>二</text><text>三</text><text>四</text><text>五</text><text>六</text>
+    </view>
+    <view class="grid">
+      <view
+        class="cell {{item.empty ? 'empty' : ''}} {{item.done ? 'done' : ''}} {{item.partial ? 'partial' : ''}} {{item.reviewOnly ? 'review' : ''}}"
+        wx:for="{{cells}}"
+        wx:key="index"
+        data-date="{{item.date}}"
+        data-state="{{item.state}}"
+        data-count="{{item.count}}"
+        data-overdue="{{item.overdueCount}}"
+        data-review="{{item.hasReviewDue ? '1' : '0'}}"
+        bindtap="onDay"
+      >
+        <block wx:if="{{!item.empty}}">
+          <view class="day">{{item.day}}</view>
+          <view class="check" wx:if="{{item.done}}">✓</view>
+          <view class="check soft" wx:elif="{{item.partial}}">~</view>
+          <view class="review-dot" wx:if="{{item.hasReviewDue && !item.reviewOnly}}"></view>
+          <view class="check review-mark" wx:if="{{item.reviewOnly}}">·</view>
+        </block>
+      </view>
+    </view>
+
+    <view class="detail card" wx:if="{{selected}}">
+      <view class="detail-date">{{selected.date}}</view>
+      <view class="detail-tip muted">{{selected.tip}}</view>
+    </view>
+
+    <view class="links">
+      <view class="link" bindtap="goKnowledge">知识地图 →</view>
+    </view>
+  </block>
 
   <app-tabbar role="student" active="calendar" />
 </view>

@@ -1,4 +1,12 @@
-<view class="page" wx:if="{{assignment}}">
+<view class="page" wx:if="{{loadError}}">
+  <view class="empty-box">
+    <view class="title">加载失败</view>
+    <view class="desc">网络或服务异常，请稍后重试</view>
+    <button class="btn btn-primary mt" bindtap="load">重试</button>
+  </view>
+</view>
+<view class="page" wx:elif="{{loading}}"><view class="muted tip">加载中…</view></view>
+<view class="page" wx:elif="{{assignment}}">
   <view class="card hero">
     <view class="title">{{assignment.title}}</view>
     <view class="meta muted">{{assignment.className}} · {{statusLabels[submission.status]}}</view>
@@ -35,4 +43,13 @@
 
   <view class="done muted" wx:if="{{submission.status === 'completed'}}">已完成 · 无需再交</view>
 </view>
-<view class="page" wx:elif="{{loading}}"><view class="muted tip">加载中…</view></view>
+
+<view class="success-mask" wx:if="{{success && success.show}}" catchtouchmove="true">
+  <view class="success-card">
+    <view class="success-stamp soft">·</view>
+    <view class="success-headline">{{success.headline}}</view>
+    <view class="success-line">{{success.line}}</view>
+    <button class="btn btn-primary success-btn" bindtap="goHome">回今日</button>
+    <button class="btn btn-ghost success-btn-ghost" bindtap="dismissSuccess">留在本页</button>
+  </view>
+</view>

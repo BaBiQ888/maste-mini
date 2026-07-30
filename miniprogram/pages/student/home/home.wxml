@@ -1,13 +1,21 @@
 <view class="page">
   <view class="greet-row">
-    <view class="greet">今日任务</view>
+    <view class="greet">今日</view>
     <view class="badge-lg" wx:if="{{incompleteCount}}">{{incompleteCount}} 项未完成</view>
   </view>
   <view class="sub muted">打开就算清楚今天练什么</view>
-
-  <view class="label muted">待完成 / 进行中</view>
+  <view class="streak-row" wx:if="{{!loading && classes.length}}">
+    <view class="streak-chip">{{streakLabel}}</view>
+    <view class="streak-meta muted" wx:if="{{monthLitDays}}">本月点亮 {{monthLitDays}} 天</view>
+  </view>
 
   <view wx:if="{{loading}}" class="muted tip">加载中…</view>
+
+  <view wx:elif="{{loadError}}" class="empty-box lined">
+    <view class="title">加载失败</view>
+    <view class="desc">网络或服务异常，请稍后重试</view>
+    <button class="btn btn-primary mt" bindtap="load">重试</button>
+  </view>
 
   <view wx:elif="{{!classes.length}}" class="empty-box lined">
     <view class="title">还没有加入班级</view>
@@ -15,31 +23,87 @@
     <button class="btn btn-primary mt" bindtap="goJoin">输入邀请码加入</button>
   </view>
 
-  <block wx:elif="{{tasks.length}}">
-    <view
-      class="card task {{item.done ? '' : ''}} {{item.isWrong ? 'task-wrong' : ''}}"
-      wx:for="{{tasks}}"
-      wx:key="id"
-      bindtap="goTask"
-      data-id="{{item.id}}"
-      data-type="{{item.type}}"
-    >
-      <view class="t-row">
-        <view class="t-title-wrap">
-          <view class="done-box {{item.done ? 'on' : ''}}"></view>
-          <view class="dot" wx:if="{{item.needDot}}"></view>
-          <view class="t-title">{{item.title}}</view>
+  <block wx:else>
+    <!-- 必做：老师布置的未完成 -->
+    <view class="label muted">必做</view>
+    <block wx:if="{{requiredTasks.length}}">
+      <view
+        class="card task {{item.isWrong ? 'task-wrong' : ''}}"
+        wx:for="{{requiredTasks}}"
+        wx:key="id"
+        bindtap="goTask"
+        data-id="{{item.id}}"
+        data-type="{{item.type}}"
+      >
+        <view class="t-row">
+          <view class="t-title-wrap">
+            <view class="done-box"></view>
+            <view class="dot" wx:if="{{item.needDot}}"></view>
+            <view class="t-title">{{item.title}}</view>
+          </view>
+          <view class="t-st">{{item.statusLabel}}</view>
         </view>
-        <view class="t-st">{{item.statusLabel}}</view>
+        <view class="t-meta muted">{{item.className}} · {{item.typeLabel}}{{item.knowledgeHint || ''}}</view>
       </view>
-      <view class="t-meta muted">{{item.className}} · {{item.typeLabel}}{{item.knowledgeHint || ''}}</view>
+    </block>
+    <view wx:else class="empty-box soft lined">
+      <block wx:if="{{allClear}}">
+        <view class="stamp">✓</view>
+        <view class="title success-ink">今日必做已清</view>
+        <view class="desc">这页可以折角了。想巩固可翻知识地图或日历。</view>
+      </block>
+      <block wx:elif="{{reviewCard}}">
+        <view class="title">老师任务已清</view>
+        <view class="desc">还有下方回访可以走一遍。</view>
+      </block>
+      <block wx:else>
+        <view class="title">今日空页</view>
+        <view class="desc">{{emptyTip}}</view>
+      </block>
+      <view class="link-row">
+        <view class="link" bindtap="goKnowledge">知识地图 →</view>
+        <view class="link" bindtap="goCalendar">打卡日历 →</view>
+        <view class="link" bindtap="goWeekSummary">本周小结 →</view>
+      </view>
     </view>
-  </block>
 
-  <view wx:else class="empty-box lined">
-    <view class="title">今日暂无任务</view>
-    <view class="desc">已加入 {{classes.length}} 个班级 · 老师布置后会出现在这里</view>
-  </view>
+    <!-- 回访：独立槽，不进老师完成率 -->
+    <block wx:if="{{reviewCard}}">
+      <view class="label muted mt-sec">回访</view>
+      <view class="card task task-review" bindtap="goReview">
+        <view class="t-row">
+          <view class="t-title-wrap">
+            <view class="bookmark"></view>
+            <view class="t-title">{{reviewCard.title}}</view>
+          </view>
+          <view class="t-st">{{reviewCard.questionCount || 3}} 题</view>
+        </view>
+        <view class="t-meta muted">三天前那道坎，用几道题再走一遍</view>
+      </view>
+    </block>
+
+    <!-- 已完成：可回顾 -->
+    <block wx:if="{{doneTasks.length}}">
+      <view class="label muted mt-sec">已完成</view>
+      <view
+        class="card task task-done"
+        wx:for="{{doneTasks}}"
+        wx:key="id"
+        bindtap="goTask"
+        data-id="{{item.id}}"
+        data-type="{{item.type}}"
+      >
+        <view class="t-row">
+          <view class="t-title-wrap">
+            <view class="done-box on"></view>
+            <view class="t-title">{{item.title}}</view>
+          </view>
+          <view class="t-st done-st">{{item.statusLabel}}</view>
+        </view>
+        <view class="t-meta muted">{{item.className}} · {{item.typeLabel}}{{item.knowledgeHint || ''}}</view>
+      </view>
+    </block>
+  </block>
 
   <app-tabbar role="student" active="today" badge="{{incompleteCount}}" />
 </view>

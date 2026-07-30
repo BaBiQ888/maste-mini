@@ -1,4 +1,14 @@
-<view class="page" wx:if="{{assignment}}">
+<view class="page" wx:if="{{loadError}}">
+  <view class="empty-box">
+    <view class="title">加载失败</view>
+    <view class="desc">网络或服务异常，请稍后重试</view>
+    <button class="btn btn-primary mt" bindtap="load">重试</button>
+  </view>
+</view>
+
+<view class="page" wx:elif="{{loading}}"><view class="muted tip">加载中…</view></view>
+
+<view class="page" wx:elif="{{assignment}}">
   <view class="card hero">
     <view class="title">{{assignment.title}}</view>
     <view class="progress-row" wx:if="{{mode === 'answer' || mode === 'correct'}}">
@@ -21,11 +31,12 @@
   <view
     class="card q {{item.isCorrect === false ? 'q-wrong' : ''}} {{item.isCorrect === true ? 'q-ok' : ''}}"
     wx:for="{{items}}"
+    wx:for-index="qIdx"
     wx:key="assignmentQuestionId"
   >
     <view class="kp-tag muted" wx:if="{{item.knowledgeLabel}}">{{item.knowledgeLabel}}</view>
     <view class="q-head">
-      <view class="q-stem">{{index + 1}}. {{item.stem}}</view>
+      <view class="q-stem">{{qIdx + 1}}. {{item.stem}}</view>
       <view class="mark {{item.isCorrect === true ? 'ok' : (item.isCorrect === false ? 'bad' : '')}}" wx:if="{{item.mark}}">{{item.mark}}</view>
     </view>
 
@@ -35,7 +46,7 @@
         placeholder="填写答案"
         value="{{item.responseText}}"
         disabled="{{mode === 'result' || (mode === 'correct' && item.isCorrect !== false)}}"
-        data-index="{{index}}"
+        data-index="{{qIdx}}"
         bindinput="onFill"
       />
     </block>
@@ -46,7 +57,7 @@
         wx:for="{{item.options}}"
         wx:for-item="o"
         wx:key="id"
-        data-index="{{index}}"
+        data-index="{{qIdx}}"
         data-oid="{{o.id}}"
         bindtap="pickChoice"
       >{{o.letter || o.id}}. {{o.text}}</view>
@@ -56,13 +67,13 @@
       <view class="chips">
         <view
           class="chip {{item.responseText === 'true' ? 'on' : ''}} {{mode === 'result' || (mode === 'correct' && item.isCorrect !== false) ? 'disabled' : ''}}"
-          data-index="{{index}}"
+          data-index="{{qIdx}}"
           data-v="1"
           bindtap="pickTf"
         >正确</view>
         <view
           class="chip {{item.responseText === 'false' ? 'on' : ''}} {{mode === 'result' || (mode === 'correct' && item.isCorrect !== false) ? 'disabled' : ''}}"
-          data-index="{{index}}"
+          data-index="{{qIdx}}"
           data-v="0"
           bindtap="pickTf"
         >错误</view>
@@ -76,6 +87,22 @@
     <view class="key ok-text" wx:if="{{item.showKey && item.isCorrect === true && item.explanation}}">
       {{item.explanation}}
     </view>
+
+    <!-- S2: optional wrong-reason chips (订正时，可跳过) -->
+    <view class="reason-block" wx:if="{{mode === 'correct' && item.isCorrect === false}}">
+      <view class="reason-label muted">刚才错在哪？（可跳过）</view>
+      <view class="reason-chips">
+        <view
+          class="reason-chip {{item.wrongReason === r.value ? 'on' : ''}}"
+          wx:for="{{wrongReasonOptions}}"
+          wx:for-item="r"
+          wx:key="value"
+          data-index="{{qIdx}}"
+          data-reason="{{r.value}}"
+          bindtap="pickWrongReason"
+        >{{r.label}}</view>
+      </view>
+    </view>
   </view>
 
   <view class="actions" wx:if="{{mode === 'answer'}}">
@@ -84,14 +111,25 @@
   </view>
 
   <block wx:if="{{mode === 'correct'}}">
-    <view class="hint muted">请订正标「错」的题目，全部正确后才算完成</view>
+    <view class="hint muted">请订正标「错」的题目，全部正确后才算完成。错因可选，不影响提交。</view>
     <button class="btn btn-primary" loading="{{busy}}" disabled="{{busy}}" bindtap="submitCorrect">提交订正</button>
   </block>
 
-  <view class="done-banner" wx:if="{{mode === 'result'}}">
+  <view class="done-banner" wx:if="{{mode === 'result' && !success}}">
     <view class="done-title">本卷已完成</view>
     <view class="done-score">正确率 {{submission.score}}%</view>
   </view>
 </view>
 
-<view class="page" wx:elif="{{loading}}"><view class="muted tip">加载中…</view></view>
+<!-- S1 掌握感成功反馈 -->
+<view class="success-mask" wx:if="{{success && success.show}}" catchtouchmove="true">
+  <view class="success-card">
+    <view class="success-stamp {{success.isComplete ? 'ok' : 'soft'}}">{{success.isComplete ? '✓' : '·'}}</view>
+    <view class="success-headline">{{success.headline}}</view>
+    <view class="success-line">{{success.line}}</view>
+    <view class="success-score" wx:if="{{success.scoreText}}">{{success.scoreText}}</view>
+    <view class="success-streak muted" wx:if="{{success.streakText}}">{{success.streakText}}</view>
+    <button class="btn btn-primary success-btn" bindtap="goHome">回今日</button>
+    <button class="btn btn-ghost success-btn-ghost" bindtap="dismissSuccess">继续看题</button>
+  </view>
+</view>

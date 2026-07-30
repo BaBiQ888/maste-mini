@@ -79,7 +79,11 @@ export class ClassRoomService {
         ORDER BY c.created_at DESC
         `, userId) as ClassRow[];
 
-    return Promise.all(rows.map(async (r) => await this.toPublic(r)));
+    if (!rows.length) return [];
+    const countMap = await this.loadMemberCounts(rows.map((r) => r.id));
+    return rows.map((r) =>
+      this.mapToPublic(r, countMap.get(r.id) ?? { memberCount: 0, studentCount: 0 }),
+    );
   }
 
   async getClassForUser(classId: string, userId: string): Promise<PublicClass | null> {
@@ -242,15 +246,38 @@ export class ClassRoomService {
     throw new AppError("INTERNAL", "生成邀请码失败，请重试", 500);
   }
 
-  private async toPublic(row: ClassRow): Promise<PublicClass> {
-    const counts = await this.db.get(`
+  /** One GROUP BY query for all class ids (avoids N+1 on list). */
+  private async loadMemberCounts(
+    classIds: string[],
+  ): Promise<Map<string, { memberCount: number; studentCount: number }>> {
+    const map = new Map<string, { memberCount: number; studentCount: number }>();
+    if (!classIds.length) return map;
+    const placeholders = classIds.map(() => "?").join(",");
+    const rows = (await this.db.all(
+      `
         SELECT
+          class_id,
           COUNT(*) AS member_count,
           SUM(CASE WHEN role = 'student' THEN 1 ELSE 0 END) AS student_count
         FROM class_memberships
-        WHERE class_id = ?
-        `, row.id) as { member_count: number; student_count: number };
+        WHERE class_id IN (${placeholders})
+        GROUP BY class_id
+        `,
+      ...classIds,
+    )) as Array<{ class_id: string; member_count: number; student_count: number | null }>;
+    for (const r of rows) {
+      map.set(r.class_id, {
+        memberCount: Number(r.member_count) || 0,
+        studentCount: Number(r.student_count) || 0,
+      });
+    }
+    return map;
+  }
 
+  private mapToPublic(
+    row: ClassRow,
+    counts: { memberCount: number; studentCount: number },
+  ): PublicClass {
     return {
       id: row.id,
       name: row.name,
@@ -258,9 +285,17 @@ export class ClassRoomService {
       teacherId: row.teacher_id,
       inviteCode: row.invite_code,
       archived: row.archived === 1,
-      memberCount: counts.member_count,
-      studentCount: counts.student_count ?? 0,
+      memberCount: counts.memberCount,
+      studentCount: counts.studentCount,
       createdAt: row.created_at,
     };
+  }
+
+  private async toPublic(row: ClassRow): Promise<PublicClass> {
+    const countMap = await this.loadMemberCounts([row.id]);
+    return this.mapToPublic(
+      row,
+      countMap.get(row.id) ?? { memberCount: 0, studentCount: 0 },
+    );
   }
 }

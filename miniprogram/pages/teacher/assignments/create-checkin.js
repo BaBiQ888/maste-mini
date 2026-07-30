@@ -19,6 +19,13 @@ Page({
     selectedQCount: 0,
     search: "",
     loading: false,
+    /** Field-level validation messages (shown near inputs) */
+    errors: {
+      classId: "",
+      title: "",
+      knowledge: "",
+      questions: "",
+    },
   },
 
   onShow() {
@@ -91,6 +98,8 @@ Page({
           title: `${c.name} · 知识点打卡`,
           selectedKp: {},
           selectedKpCount: 0,
+          "errors.classId": "",
+          "errors.title": "",
         });
         await this.loadTree(c.grade);
       },
@@ -98,7 +107,10 @@ Page({
   },
 
   onTitle(e) {
-    this.setData({ title: e.detail.value });
+    this.setData({
+      title: e.detail.value,
+      "errors.title": "",
+    });
   },
 
   onSearch(e) {
@@ -149,6 +161,7 @@ Page({
       selectedKp,
       selectedKpCount: Object.keys(selectedKp).length,
       tree,
+      "errors.knowledge": "",
     });
     this.filterQuestionsByKp(selectedKp);
   },
@@ -177,6 +190,7 @@ Page({
     this.setData({
       selectedQ,
       selectedQCount: Object.keys(selectedQ).length,
+      "errors.questions": "",
     });
   },
 
@@ -184,27 +198,39 @@ Page({
     wx.navigateTo({ url: "/pages/teacher/questions/list" });
   },
 
+  /** Collect field errors; returns first toast message or "" if valid */
+  validateForm() {
+    const title = (this.data.title || "").trim();
+    const knowledgeNodeIds = Object.keys(this.data.selectedKp);
+    const questionIds = Object.keys(this.data.selectedQ);
+    const errors = {
+      classId: this.data.classId ? "" : "请选择班级",
+      title: title ? "" : "请填写标题",
+      knowledge: knowledgeNodeIds.length ? "" : "请选择知识点",
+      questions: questionIds.length
+        ? ""
+        : "请选择题目（可先在题库挂知识点）",
+    };
+    this.setData({ errors });
+    return (
+      errors.classId ||
+      errors.title ||
+      errors.knowledge ||
+      errors.questions ||
+      ""
+    );
+  },
+
   async submit(publish) {
     if (this.data.loading) return;
-    if (!this.data.classId) {
-      wx.showToast({ title: "请选择班级", icon: "none" });
+    const firstErr = this.validateForm();
+    if (firstErr) {
+      wx.showToast({ title: firstErr, icon: "none" });
       return;
     }
     const title = (this.data.title || "").trim();
-    if (!title) {
-      wx.showToast({ title: "请填写标题", icon: "none" });
-      return;
-    }
     const knowledgeNodeIds = Object.keys(this.data.selectedKp);
-    if (!knowledgeNodeIds.length) {
-      wx.showToast({ title: "请选择知识点", icon: "none" });
-      return;
-    }
     const questionIds = Object.keys(this.data.selectedQ);
-    if (!questionIds.length) {
-      wx.showToast({ title: "请选择题目（可先在题库挂知识点）", icon: "none" });
-      return;
-    }
     this.setData({ loading: true });
     try {
       const data = await request({

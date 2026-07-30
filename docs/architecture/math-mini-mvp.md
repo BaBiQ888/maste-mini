@@ -340,9 +340,28 @@ Durable decisions that apply across all phases:
 
 ---
 
+## Post-MVP：学生粘性与掌握感（S1–S5）
+
+MVP 闭环之后的**学生向**增量，不改变「无排行榜 / 无积分商城」原则。
+
+| 阶段 | 主题 | 规格 |
+|------|------|------|
+| S1 | 首页分层 + 完成成功页 + 连续天数 | |
+| S2 | 错因 + `mastery_items` 入队 | |
+| S3 | 3 日回访卷闭环（独立于 Assignment） | |
+| S4 | 知识地图 + 日历双态 | |
+| S5 | 周小结 + 单元印戳（可选） | |
+
+完整状态机、API、验收与日志约定见：
+
+**[docs/product/student-mastery-plan.md](../product/student-mastery-plan.md)**
+
+---
+
 ## Out of plan (明示不做)
 
-与 PRD Out of Scope 一致：家长端、订阅消息、排行榜/积分、AI/OCR 批改、多机构、教材版本身份树、导出 Excel、助教角色等。若变更须先改 PRD 再改本 plan。
+与 PRD Out of Scope 一致：家长端、订阅消息、排行榜/积分、AI/OCR 批改、多机构、教材版本身份树、导出 Excel、助教角色等。若变更须先改 PRD 再改本 plan。  
+学生掌握感计划中的「回访 / 知识地图」属 Post-MVP，不在上表禁止项内；仍禁止用排行榜/积分实现粘性。
 
 ---
 
@@ -364,3 +383,4 @@ Phase 8 / 9 实现时直接 seed 导入，批改约定以 `docs/content-seeds.md
 |------|------|
 | 2026-07-25 | 初版 12 阶段；先拍照后在线；写入 plans/math-mini-mvp.md |
 | 2026-07-25 | 内容种子确认定稿，挂接到本 plan |
+| 2026-07-29 | 增加 Post-MVP 学生粘性/掌握感 S1–S5，链到 student-mastery-plan.md |

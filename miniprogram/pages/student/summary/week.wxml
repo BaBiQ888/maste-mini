@@ -1,0 +1,50 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="muted tip">加载中…</view>
+
+  <block wx:elif="{{summary}}">
+    <view class="card hero">
+      <view class="eyebrow muted">本周 · 仅自己可见</view>
+      <view class="title">算本小结</view>
+      <view class="week">{{summary.weekLabel}}</view>
+    </view>
+
+    <view class="card stats">
+      <view class="stat">
+        <view class="num">{{summary.completedTaskCount}}</view>
+        <view class="lab muted">完成任务</view>
+      </view>
+      <view class="stat">
+        <view class="num">{{summary.litDays}}</view>
+        <view class="lab muted">点亮天数</view>
+      </view>
+      <view class="stat">
+        <view class="num">{{summary.reviewPassedCount + summary.selfPracticeCount}}</view>
+        <view class="lab muted">巩固通过</view>
+      </view>
+    </view>
+
+    <view class="card bullets">
+      <view class="sec">本周学会了什么</view>
+      <view class="line" wx:for="{{summary.bullets}}" wx:key="*this">· {{item}}</view>
+      <view class="names muted" wx:if="{{summary.knowledgeNames.length}}">
+        知识点：{{summary.knowledgeNames.join('、')}}
+      </view>
+    </view>
+
+    <view class="card copy-box">
+      <view class="sec">发给家长（可选）</view>
+      <view class="copy-text">{{summary.copyText}}</view>
+      <button class="btn btn-primary" bindtap="onCopy">复制文案</button>
+    </view>
+
+    <view class="links">
+      <view class="link" bindtap="goMap">看知识地图 →</view>
+      <view class="link" bindtap="goHome">回今日 →</view>
+    </view>
+  </block>
+
+  <view wx:else class="empty-box">
+    <view class="title">暂无小结</view>
+    <view class="desc muted">完成一些练习后再来看</view>
+  </view>
+</view>

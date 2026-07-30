@@ -9,7 +9,8 @@ Page({
     assignmentId: "",
     submission: null,
     photoDisplay: [],
-    result: "correct",
+    /** Empty until teacher picks — do not default to correct (miss-grade risk) */
+    result: "",
     results: [
       { id: "correct", label: "正确" },
       { id: "partial", label: "部分正确" },
@@ -61,7 +62,7 @@ Page({
       this.setData({
         submission,
         photoDisplay,
-        result: (submission.grade && submission.grade.result) || "correct",
+        result: (submission.grade && submission.grade.result) || "",
         score:
           submission.grade && submission.grade.score != null
             ? String(submission.grade.score)
@@ -97,6 +98,11 @@ Page({
 
   async submit() {
     if (this.data.loading) return;
+    const allowed = ["correct", "partial", "incorrect"];
+    if (!allowed.includes(this.data.result)) {
+      wx.showToast({ title: "请选择批改结果", icon: "none" });
+      return;
+    }
     this.setData({ loading: true });
     try {
       let score = null;

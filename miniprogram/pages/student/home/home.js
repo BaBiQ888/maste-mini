@@ -6,9 +6,17 @@ const { showError } = require("../../../utils/errors");
 Page({
   data: {
     classes: [],
-    tasks: [],
+    requiredTasks: [],
+    doneTasks: [],
+    reviewCard: null,
     incompleteCount: 0,
+    streakDays: 0,
+    monthLitDays: 0,
+    streakLabel: "",
+    allClear: false,
+    emptyTip: "今日空页。可翻翻知识地图，或等老师布置。",
     loading: true,
+    loadError: false,
   },
 
   onShow() {
@@ -29,15 +37,40 @@ Page({
   },
 
   async load() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, loadError: false });
     try {
-      const [cls, asg] = await Promise.all([
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      const [cls, asg, cal, due] = await Promise.all([
         request({ url: "/api/v1/classes", method: "GET" }),
         request({ url: "/api/v1/assignments", method: "GET" }),
+        request({
+          url: `/api/v1/me/calendar?year=${year}&month=${month}`,
+          method: "GET",
+        }).catch(() => null),
+        request({
+          url: "/api/v1/me/mastery/due",
+          method: "GET",
+        }).catch(() => ({ review: null })),
       ]);
       const classes = cls.classes || [];
       const assignments = asg.assignments || [];
       const incompleteCount = asg.incompleteCount || 0;
+
+      const calendar = (cal && cal.calendar) || {};
+      const streakDays = Number(calendar.streakDays) || 0;
+      const monthLitDays =
+        Number(calendar.monthLitDays) ||
+        (calendar.days && calendar.days.length) ||
+        0;
+      const streakLabel =
+        streakDays <= 0
+          ? "今天点亮一格就好"
+          : streakDays === 1
+            ? "今天已点亮"
+            : `连续点亮 ${streakDays} 天`;
+
       const tasks = [];
       for (const a of assignments) {
         try {
@@ -45,41 +78,71 @@ Page({
             url: `/api/v1/assignments/${a.id}/my-submission`,
             method: "GET",
           });
-          const knowledgeHint =
-            a.knowledgePoints && a.knowledgePoints.length
-              ? ` · ${a.knowledgePoints.map((k) => k.name).slice(0, 2).join("、")}`
-              : "";
-          const done = s.submission.status === "completed";
-          tasks.push({
-            ...a,
-            typeLabel: assignmentTypeLabel(a.type),
-            submissionStatus: s.submission.status,
-            statusLabel: STATUS_LABEL[s.submission.status] || s.submission.status,
-            needDot: !done,
-            done,
-            knowledgeHint,
-          });
+          tasks.push(this.mapTask(a, s.submission));
         } catch (_) {
-          const knowledgeHint =
-            a.knowledgePoints && a.knowledgePoints.length
-              ? ` · ${a.knowledgePoints.map((k) => k.name).slice(0, 2).join("、")}`
-              : "";
-          tasks.push({
-            ...a,
-            typeLabel: assignmentTypeLabel(a.type),
-            submissionStatus: "not_started",
-            statusLabel: STATUS_LABEL.not_started,
-            needDot: true,
-            done: false,
-            knowledgeHint,
-          });
+          tasks.push(
+            this.mapTask(a, {
+              status: "not_started",
+            }),
+          );
         }
       }
-      this.setData({ classes, tasks, incompleteCount, loading: false });
+
+      // 必做：未完成；已完成单独分组（S1 首页契约）
+      const requiredTasks = tasks
+        .filter((t) => !t.done)
+        .sort((a, b) => {
+          const da = a.dueAt || "9999";
+          const db = b.dueAt || "9999";
+          return da.localeCompare(db);
+        });
+      const doneTasks = tasks.filter((t) => t.done);
+      const reviewCard = (due && due.review) || null;
+      const allClear =
+        classes.length > 0 &&
+        requiredTasks.length === 0 &&
+        !reviewCard &&
+        tasks.length > 0;
+
+      this.setData({
+        classes,
+        requiredTasks,
+        doneTasks,
+        reviewCard,
+        incompleteCount,
+        streakDays,
+        monthLitDays,
+        streakLabel,
+        allClear,
+        loading: false,
+        loadError: false,
+      });
     } catch (e) {
-      this.setData({ loading: false });
+      this.setData({ loading: false, loadError: true });
       showError(e, { fallback: "加载失败" });
     }
+  },
+
+  mapTask(a, submission) {
+    const knowledgeHint =
+      a.knowledgePoints && a.knowledgePoints.length
+        ? ` · ${a.knowledgePoints
+            .map((k) => k.name)
+            .slice(0, 2)
+            .join("、")}`
+        : "";
+    const status = (submission && submission.status) || "not_started";
+    const done = status === "completed";
+    return {
+      ...a,
+      typeLabel: assignmentTypeLabel(a.type),
+      submissionStatus: status,
+      statusLabel: STATUS_LABEL[status] || status,
+      needDot: !done,
+      done,
+      isWrong: status === "pending_correction",
+      knowledgeHint,
+    };
   },
 
   goJoin() {
@@ -91,6 +154,12 @@ Page({
   goCalendar() {
     wx.reLaunch({ url: "/pages/student/calendar/calendar" });
   },
+  goKnowledge() {
+    wx.navigateTo({ url: "/pages/student/knowledge/list" });
+  },
+  goWeekSummary() {
+    wx.navigateTo({ url: "/pages/student/summary/week" });
+  },
   goTask(e) {
     const id = e.currentTarget.dataset.id;
     const type = e.currentTarget.dataset.type;
@@ -99,6 +168,13 @@ Page({
     } else {
       wx.navigateTo({ url: `/pages/student/task/online?id=${id}` });
     }
+  },
+  goReview() {
+    const card = this.data.reviewCard;
+    if (!card || !card.masteryItemId) return;
+    wx.navigateTo({
+      url: `/pages/student/task/review?itemId=${card.masteryItemId}`,
+    });
   },
   goProfile() {
     wx.navigateTo({ url: "/pages/profile/profile" });

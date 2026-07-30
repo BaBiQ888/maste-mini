@@ -8,9 +8,12 @@ Page({
     month: 0,
     title: "",
     cells: [],
-    completedDates: {},
     totalDays: 0,
+    streakDays: 0,
+    streakLabel: "",
+    selected: null,
     loading: true,
+    loadError: false,
   },
 
   onShow() {
@@ -34,28 +37,42 @@ Page({
   },
 
   async load() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, loadError: false });
     const { year, month } = this.data;
     try {
       const data = await request({
         url: `/api/v1/me/calendar?year=${year}&month=${month}`,
         method: "GET",
       });
-      const map = {};
+      const dayMap = {};
       let totalDays = 0;
       for (const d of data.calendar.days || []) {
-        map[d.date] = d.completedCount;
-        totalDays += 1;
+        dayMap[d.date] = d;
+        if (d.completedCount > 0) totalDays += 1;
       }
+      const monthLit =
+        data.calendar.monthLitDays != null
+          ? Number(data.calendar.monthLitDays)
+          : totalDays;
+      const streakDays = Number(data.calendar.streakDays) || 0;
+      const streakLabel =
+        streakDays <= 0
+          ? "今天点亮一格就好"
+          : streakDays === 1
+            ? "今天已点亮 · 连续 1 天"
+            : `连续点亮 ${streakDays} 天`;
       this.setData({
-        completedDates: map,
-        totalDays,
+        totalDays: monthLit,
+        streakDays,
+        streakLabel,
         title: `${year}年${month}月`,
-        cells: buildMonthCells(year, month, map),
+        cells: buildMonthCells(year, month, dayMap),
+        selected: null,
         loading: false,
+        loadError: false,
       });
     } catch (e) {
-      this.setData({ loading: false });
+      this.setData({ loading: false, loadError: true });
       showError(e, { fallback: "加载失败" });
     }
   },
@@ -80,6 +97,24 @@ Page({
     this.setData({ year, month }, () => this.load());
   },
 
+  onDay(e) {
+    const date = e.currentTarget.dataset.date;
+    const state = e.currentTarget.dataset.state;
+    const count = e.currentTarget.dataset.count;
+    const overdue = e.currentTarget.dataset.overdue;
+    const review = e.currentTarget.dataset.review;
+    if (!date) return;
+    let tip = "这一天还没有记录";
+    if (state === "done") tip = `完成 ${count} 项 · 节奏不错`;
+    else if (state === "partial")
+      tip = `完成 ${count} 项 · 其中 ${overdue || 0} 项曾逾期`;
+    else if (state === "review_due") tip = "有巩固回访待完成";
+    if (review === "1" && state === "done") tip += " · 还有回访";
+    this.setData({
+      selected: { date, tip, state },
+    });
+  },
+
   goHome() {
     wx.reLaunch({ url: "/pages/student/home/home" });
   },
@@ -94,9 +129,9 @@ Page({
   },
 });
 
-function buildMonthCells(year, month, completedMap) {
+function buildMonthCells(year, month, dayMap) {
   const first = new Date(year, month - 1, 1);
-  const startWeekday = first.getDay(); // 0 Sun
+  const startWeekday = first.getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
   const cells = [];
   for (let i = 0; i < startWeekday; i++) {
@@ -104,13 +139,20 @@ function buildMonthCells(year, month, completedMap) {
   }
   for (let d = 1; d <= daysInMonth; d++) {
     const date = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const count = completedMap[date] || 0;
+    const info = dayMap[date] || {};
+    const completedCount = info.completedCount || 0;
+    const state = info.state || (completedCount > 0 ? "done" : "none");
     cells.push({
       empty: false,
       day: d,
       date,
-      done: count > 0,
-      count,
+      state,
+      count: completedCount,
+      overdueCount: info.overdueCount || 0,
+      hasReviewDue: !!info.hasReviewDue,
+      done: state === "done",
+      partial: state === "partial",
+      reviewOnly: state === "review_due",
     });
   }
   return cells;

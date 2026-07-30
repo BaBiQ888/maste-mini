@@ -5,52 +5,14 @@
 }
 .hero { margin-bottom: 20rpx; }
 .title { font-size: 36rpx; font-weight: 600; }
-.progress-row { margin-top: 16rpx; }
-.progress-text {
-  font-size: 24rpx;
-  color: var(--ink-muted);
-  margin-bottom: 8rpx;
-  font-variant-numeric: tabular-nums;
-}
-.progress-bar {
-  height: 12rpx;
-  border-radius: 999rpx;
-  background: var(--paper-deep);
-  overflow: hidden;
-}
-.progress-fill {
-  height: 100%;
-  border-radius: 999rpx;
-  background: var(--accent);
-  transition: width 0.2s ease;
-}
-.timer {
-  margin-top: 12rpx;
-  font-size: 30rpx;
-  font-weight: 600;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
-.timer.urgent { color: #a63d3d; }
 .meta { margin-top: 8rpx; font-size: 24rpx; }
-.kp-line {
-  margin-top: 10rpx;
-  font-size: 24rpx;
-  line-height: 1.4;
-}
-.kp-tag {
-  font-size: 22rpx;
-  margin-bottom: 10rpx;
-  color: var(--accent);
-}
+.tip-line { margin-top: 10rpx; font-size: 24rpx; line-height: 1.4; }
 .q { margin-bottom: 16rpx; }
 .q-wrong {
   border-color: #e8b4b4;
   background: #fdf6f6;
 }
-.q-ok {
-  border-color: #b8d4c2;
-}
+.q-ok { border-color: #b8d4c2; }
 .q-head {
   display: flex;
   justify-content: space-between;
@@ -63,11 +25,7 @@
   line-height: 1.45;
   flex: 1;
 }
-.mark {
-  font-size: 24rpx;
-  font-weight: 600;
-  flex-shrink: 0;
-}
+.mark { font-size: 24rpx; font-weight: 600; flex-shrink: 0; }
 .mark.ok { color: var(--success); }
 .mark.bad { color: #a63d3d; }
 .input {
@@ -79,6 +37,7 @@
   font-size: 36rpx;
   font-variant-numeric: tabular-nums;
 }
+.input[disabled] { opacity: 0.55; color: var(--ink-muted); }
 .opt {
   padding: 18rpx 20rpx;
   border-radius: 12rpx;
@@ -93,10 +52,7 @@
   color: var(--accent);
   font-weight: 600;
 }
-.opt.disabled {
-  opacity: 0.55;
-  pointer-events: none;
-}
+.opt.disabled { opacity: 0.55; pointer-events: none; }
 .chips { display: flex; gap: 12rpx; }
 .chip {
   padding: 14rpx 28rpx;
@@ -112,87 +68,14 @@
   color: var(--accent);
   font-weight: 600;
 }
-.chip.disabled {
-  opacity: 0.55;
-  pointer-events: none;
-}
-.input[disabled] {
-  opacity: 0.55;
-  color: var(--ink-muted);
-}
-.key {
-  margin-top: 12rpx;
-  font-size: 24rpx;
-  line-height: 1.4;
-}
-.ok-text { color: var(--success); }
-.hint {
-  margin: 8rpx 0 20rpx;
-  font-size: 24rpx;
-  line-height: 1.45;
-}
-.actions {
-  margin-top: 12rpx;
-  padding-bottom: env(safe-area-inset-bottom);
-}
-.done-banner {
-  margin-top: 28rpx;
-  text-align: center;
-  padding: 36rpx 24rpx;
-  background: var(--white);
-  border: 1rpx solid var(--line);
-  border-radius: 24rpx;
-}
-.done-title {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: var(--success);
-}
-.done-score {
-  margin-top: 12rpx;
-  font-size: 40rpx;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
-}
+.chip.disabled { opacity: 0.55; pointer-events: none; }
+.key { margin-top: 12rpx; font-size: 24rpx; line-height: 1.4; }
 .tip { padding: 32rpx; text-align: center; }
 .mt { margin-top: 32rpx; }
 
-.reason-block {
-  margin-top: 16rpx;
-  padding-top: 12rpx;
-  border-top: 1rpx dashed var(--line);
-}
-.reason-label {
-  font-size: 22rpx;
-  margin-bottom: 10rpx;
-}
-.reason-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-.reason-chip {
-  padding: 10rpx 18rpx;
-  border-radius: 999rpx;
-  border: 1rpx solid var(--line);
-  background: var(--paper);
-  font-size: 22rpx;
-  color: var(--ink-muted);
-}
-.reason-chip.on {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
-}
-
 .success-mask {
   position: fixed;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
+  left: 0; right: 0; top: 0; bottom: 0;
   background: rgba(44, 40, 37, 0.45);
   z-index: 1000;
   display: flex;
@@ -226,11 +109,7 @@
   border-color: var(--accent);
   color: var(--accent);
 }
-.success-headline {
-  font-size: 36rpx;
-  font-weight: 600;
-  color: var(--ink);
-}
+.success-headline { font-size: 36rpx; font-weight: 600; }
 .success-line {
   margin-top: 12rpx;
   font-size: 28rpx;
@@ -241,12 +120,8 @@
   margin-top: 20rpx;
   font-size: 34rpx;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
   color: var(--accent);
-}
-.success-streak {
-  margin-top: 12rpx;
-  font-size: 24rpx;
+  font-variant-numeric: tabular-nums;
 }
 .success-btn { margin-top: 36rpx; }
 .success-btn-ghost { margin-top: 16rpx; }

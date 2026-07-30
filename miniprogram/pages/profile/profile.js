@@ -18,6 +18,7 @@ Page({
     loading: false,
     tabRole: "",
     badge: 0,
+    isStudent: false,
   },
 
   onShow() {
@@ -46,6 +47,7 @@ Page({
             ? "学生"
             : "未选择",
       tabRole: user.role === "teacher" || user.role === "student" ? user.role : "",
+      isStudent: user.role === "student",
     });
     const displayAvatar = avatarUrl ? await resolveImageSrc(avatarUrl) : "";
     // Avoid clobbering a newer avatar if user changed while resolving
@@ -124,6 +126,14 @@ Page({
     } finally {
       this.setData({ loading: false });
     }
+  },
+
+  goWeekSummary() {
+    wx.navigateTo({ url: "/pages/student/summary/week" });
+  },
+
+  goKnowledgeMap() {
+    wx.navigateTo({ url: "/pages/student/knowledge/list" });
   },
 
   onChangeRole() {

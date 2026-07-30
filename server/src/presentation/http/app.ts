@@ -21,6 +21,7 @@ import {
   listOperations,
 } from "../../domain/drill/generator.js";
 import { KnowledgeTreeService } from "../../application/knowledge/service.js";
+import { MasteryService } from "../../application/mastery/service.js";
 import {
   ensureUploadDir,
   readUploadBase64,
@@ -77,6 +78,7 @@ export function createApp(
   const assignments = new AssignmentService(db, questionBank);
   const progress = new ProgressService(db);
   const knowledge = new KnowledgeTreeService();
+  const mastery = new MasteryService(db);
   const uploadDir = ensureUploadDir(dataDir);
 
   const app = new Hono<AppEnv>();
@@ -778,13 +780,126 @@ export function createApp(
 
   authed.post("/submissions/:id/correct", async (c) => {
     try {
-      const body = onlineAnswersBody.parse(await c.req.json());
+      const body = onlineCorrectBody.parse(await c.req.json());
       const submission = await assignments.correctOnlineAnswers(
         c.req.param("id"),
         c.get("user").id,
         body.answers,
+        { wrongReasons: body.wrongReasons },
       );
       return c.json({ submission });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  /** S2–S3: student mastery list + review sessions (not Assignments) */
+  authed.get("/me/mastery", async (c) => {
+    try {
+      const raw = (c.req.query("status") || "open,due").trim();
+      const statusFilter = raw
+        ? (raw.split(",").map((s) => s.trim()).filter(Boolean) as Array<
+            "open" | "due" | "passed" | "failed" | "expired"
+          >)
+        : undefined;
+      const items = await mastery.listForUser(c.get("user").id, statusFilter);
+      return c.json({ items });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/me/mastery/due", async (c) => {
+    try {
+      const item = await mastery.getPrimaryDue(c.get("user").id);
+      return c.json({
+        review: item
+          ? {
+              masteryItemId: item.id,
+              title: `回访：${item.name}`,
+              knowledgeName: item.name,
+              questionCount: 3,
+              reviewAt: item.reviewAt,
+            }
+          : null,
+      });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  /** S4 knowledge map (+ S5 unit stamps) */
+  authed.get("/me/mastery-map", async (c) => {
+    try {
+      const gradeRaw = c.req.query("grade");
+      const grade = gradeRaw ? Number(gradeRaw) : undefined;
+      const map = await mastery.getMasteryMap(c.get("user").id, grade);
+      return c.json({ map });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  /** S5 weekly summary (copyable) */
+  authed.get("/me/mastery/week-summary", async (c) => {
+    try {
+      const summary = await mastery.getWeekSummary(c.get("user").id);
+      return c.json({ summary });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  /** S4 self practice from map half nodes */
+  authed.post("/me/mastery/self-practice", async (c) => {
+    try {
+      const body = z
+        .object({ knowledgeNodeId: z.string().min(1).max(64) })
+        .parse(await c.req.json());
+      const review = await mastery.startSelfPractice(
+        c.get("user").id,
+        body.knowledgeNodeId,
+      );
+      return c.json({ review });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.post("/me/mastery/:itemId/start-review", async (c) => {
+    try {
+      const review = await mastery.startReview(
+        c.get("user").id,
+        c.req.param("itemId"),
+        "review",
+      );
+      return c.json({ review });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.get("/me/mastery/reviews/:reviewId", async (c) => {
+    try {
+      const review = await mastery.getReview(
+        c.get("user").id,
+        c.req.param("reviewId"),
+      );
+      return c.json({ review });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+
+  authed.post("/me/mastery/reviews/:reviewId/submit", async (c) => {
+    try {
+      const body = masteryReviewSubmitBody.parse(await c.req.json());
+      const review = await mastery.submitReview(
+        c.get("user").id,
+        c.req.param("reviewId"),
+        body.answers,
+      );
+      return c.json({ review });
     } catch (e) {
       return handleError(c, e);
     }
@@ -924,6 +1039,30 @@ const onlineAnswersBody = z.object({
     )
     .max(50),
   force: z.boolean().optional(),
+});
+
+const onlineCorrectBody = onlineAnswersBody.extend({
+  wrongReasons: z
+    .array(
+      z.object({
+        assignmentQuestionId: z.string().min(1),
+        reason: z.enum(["careless", "concept", "procedure", "misread"]),
+      }),
+    )
+    .max(50)
+    .optional(),
+});
+
+const masteryReviewSubmitBody = z.object({
+  answers: z
+    .array(
+      z.object({
+        questionIndex: z.number().int().min(0).max(49),
+        response: z.union([z.string(), z.boolean(), z.null()]),
+      }),
+    )
+    .min(1)
+    .max(50),
 });
 
 const gradeBody = z.object({

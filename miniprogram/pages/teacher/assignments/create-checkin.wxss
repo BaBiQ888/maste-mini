@@ -71,6 +71,15 @@
   margin-bottom: 16rpx;
   line-height: 1.4;
 }
+.field-error {
+  font-size: 22rpx;
+  color: #c45c26;
+  margin: 8rpx 0 4rpx;
+  line-height: 1.3;
+}
+.input-error {
+  border-color: #c45c26;
+}
 .q { margin-bottom: 12rpx; padding: 20rpx; }
 .q.on {
   border-color: var(--accent);

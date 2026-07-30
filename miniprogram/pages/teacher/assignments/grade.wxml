@@ -22,6 +22,7 @@
       bindtap="pickResult"
     >{{item.label}}</view>
   </view>
+  <view class="hint muted" wx:if="{{!result}}">请选择批改结果后再保存</view>
 
   <view class="label">分数（可选）</view>
   <input class="input" type="digit" placeholder="0–100" value="{{score}}" bindinput="onScore" />

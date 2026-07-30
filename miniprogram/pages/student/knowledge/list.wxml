@@ -1,25 +1,98 @@
 <view class="page">
-  <view class="intro muted">完成作业后点亮的知识点</view>
+  <view class="intro muted">知识地图：灰点未练 · 锈橙待巩固 · 墨绿已过关。点半亮可练 5 题。</view>
+
+  <view class="grade-row">
+    <view
+      class="grade-chip {{grade === g ? 'on' : ''}}"
+      wx:for="{{grades}}"
+      wx:for-item="g"
+      wx:key="*this"
+      data-g="{{g}}"
+      bindtap="pickGrade"
+    >{{g}} 年级</view>
+  </view>
+
+  <view class="summary" wx:if="{{!loading}}">
+    <text class="s-lit">亮 {{summary.lit || 0}}</text>
+    <text class="s-half">半 {{summary.half || 0}}</text>
+    <text class="s-dark">暗 {{summary.dark || 0}}</text>
+  </view>
 
   <view wx:if="{{loading}}" class="muted tip">加载中…</view>
 
-  <block wx:elif="{{items.length}}">
-    <view class="card item" wx:for="{{items}}" wx:key="knowledgeNodeId">
-      <view class="row">
-        <view class="check on"></view>
-        <view class="body">
-          <view class="name">{{item.name || '知识点'}}</view>
-          <view class="meta muted" wx:if="{{item.pathLabel || item.unitName}}">
-            {{item.pathLabel || item.unitName}}
+  <block wx:else>
+    <block wx:if="{{pending.length}}">
+      <view class="section-label">到期回访</view>
+      <view
+        class="card item pending"
+        wx:for="{{pending}}"
+        wx:key="id"
+        bindtap="goReview"
+        data-id="{{item.id}}"
+        data-can="{{item.canReview}}"
+      >
+        <view class="row">
+          <view class="dot half"></view>
+          <view class="body">
+            <view class="name">{{item.name}}</view>
+            <view class="meta muted">
+              {{item.statusLabel}}
+              <text wx:if="{{item.canReview}}"> · 点此回访</text>
+            </view>
           </view>
-          <view class="meta muted" wx:if="{{item.completedCount}}">完成 {{item.completedCount}} 次</view>
         </view>
       </view>
+    </block>
+
+    <block wx:if="{{stamps.length}}">
+      <view class="section-label">单元印戳</view>
+      <view class="stamp-row">
+        <view
+          class="stamp-chip {{item.earned ? 'earned' : ''}}"
+          wx:for="{{stamps}}"
+          wx:key="unitId"
+        >
+          <view class="stamp-mark">{{item.earned ? '✓' : '·'}}</view>
+          <view class="stamp-name">{{item.unitName}}</view>
+          <view class="stamp-meta muted">{{item.progressText}}</view>
+        </view>
+      </view>
+    </block>
+
+    <view class="section-label">地图 · {{grade}} 年级</view>
+
+    <block wx:if="{{units.length}}">
+      <view class="unit" wx:for="{{units}}" wx:key="unitId">
+        <view class="unit-head" data-id="{{item.unitId}}" bindtap="toggleUnit">
+          <view class="unit-name">
+            {{item.unitName}}
+            <text class="unit-stamp" wx:if="{{item.stampEarned}}"> 本页练完</text>
+          </view>
+          <view class="unit-toggle muted">{{item.open ? '收起' : '展开'}}</view>
+        </view>
+        <view class="node-grid" wx:if="{{item.open}}">
+          <view
+            class="node node-{{n.state}}"
+            wx:for="{{item.nodes}}"
+            wx:for-item="n"
+            wx:key="knowledgeNodeId"
+            data-state="{{n.state}}"
+            data-kn="{{n.knowledgeNodeId}}"
+            data-mid="{{n.masteryItemId}}"
+            data-review="{{n.canReview ? '1' : '0'}}"
+            bindtap="onNodeTap"
+          >
+            <view class="dot {{n.state}}"></view>
+            <view class="node-name">{{n.name}}</view>
+            <view class="node-st muted">{{n.stateLabel}}</view>
+          </view>
+        </view>
+      </view>
+    </block>
+
+    <view wx:else class="empty-box">
+      <view class="title">暂无知识点</view>
+      <view class="desc">换一个年级看看</view>
     </view>
   </block>
-
-  <view wx:else class="empty-box">
-    <view class="title">还没有记录</view>
-    <view class="desc">完成知识点打卡或相关在线练习后会出现在这里</view>
-  </view>
 </view>

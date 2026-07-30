@@ -1,5 +1,14 @@
 import type { AppDatabase } from "../../infrastructure/persistence/db.js";
 import { AppError } from "../../domain/shared/errors.js";
+import {
+  computeStreakDays,
+  countMonthLitDays,
+  shanghaiYmd,
+} from "../../domain/mastery/streak.js";
+import {
+  computeCalendarDayState,
+  type CalendarDayState,
+} from "../../domain/mastery/rules.js";
 import { KnowledgeTreeService } from "../knowledge/service.js";
 
 export interface StudentBrief {
@@ -98,6 +107,10 @@ export interface StudentClassStats {
 export interface CalendarDay {
   date: string; // YYYY-MM-DD
   completedCount: number;
+  /** S4: none | done | partial | review_due */
+  state: CalendarDayState;
+  overdueCount: number;
+  hasReviewDue: boolean;
 }
 
 export interface KnowledgeDoneItem {
@@ -286,34 +299,53 @@ export class ProgressService {
       status: string;
     }>;
 
-    // Batch pending counts for recent ids (avoid N queries)
+    // Batch pending + completed counts for recent ids (avoid N×getAssignmentSummary)
     const recentIds = recent.map((a) => a.id);
     const pendingByAsg = new Map<string, number>();
+    const completedByAsg = new Map<string, number>();
     if (recentIds.length) {
       const ph = recentIds.map(() => "?").join(",");
-      const pendingRows = (await this.db.all(
-        `SELECT assignment_id AS id, COUNT(*) AS c FROM submissions
-           WHERE assignment_id IN (${ph}) AND status = 'submitted'
-           GROUP BY assignment_id`,
-        ...recentIds,
-      )) as Array<{ id: string; c: number }>;
+      const [pendingRows, completedRows] = await Promise.all([
+        this.db.all<{ id: string; c: number }>(
+          `SELECT assignment_id AS id, COUNT(*) AS c FROM submissions
+             WHERE assignment_id IN (${ph}) AND status = 'submitted'
+             GROUP BY assignment_id`,
+          ...recentIds,
+        ),
+        // Only count current class members (same denominator logic as getAssignmentSummary)
+        this.db.all<{ id: string; c: number }>(
+          `SELECT s.assignment_id AS id, COUNT(*) AS c
+             FROM submissions s
+             JOIN class_memberships m
+               ON m.user_id = s.student_id AND m.class_id = ? AND m.role = 'student'
+             WHERE s.assignment_id IN (${ph}) AND s.status = 'completed'
+             GROUP BY s.assignment_id`,
+          classId,
+          ...recentIds,
+        ),
+      ]);
       for (const r of pendingRows) pendingByAsg.set(r.id, Number(r.c) || 0);
+      for (const r of completedRows) completedByAsg.set(r.id, Number(r.c) || 0);
     }
 
-    const recentAssignments = [];
-    for (const a of recent) {
-      const sum = await this.getAssignmentSummary(a.id, teacherId);
-      recentAssignments.push({
+    const totalStudents = studentCount;
+    const recentAssignments = recent.map((a) => {
+      const completedCount = completedByAsg.get(a.id) ?? 0;
+      const completionRate =
+        totalStudents === 0
+          ? null
+          : Math.round((completedCount / totalStudents) * 1000) / 10;
+      return {
         id: a.id,
         title: a.title,
         type: a.type,
         status: a.status,
-        completionRate: sum.completionRate,
-        completedCount: sum.completedCount,
-        totalStudents: sum.totalStudents,
+        completionRate,
+        completedCount,
+        totalStudents,
         pendingGrade: pendingByAsg.get(a.id) ?? 0,
-      });
-    }
+      };
+    });
 
     return {
       classId: cls.id,
@@ -376,36 +408,46 @@ export class ProgressService {
       question_snapshot: string;
     }>;
 
-    const questions: QuestionStat[] = [];
-    for (const r of rows) {
+    // Single grouped query instead of per-question COUNT/SUM
+    const aggRows = (await this.db.all(
+      `
+        SELECT
+          ai.assignment_question_id AS qid,
+          COUNT(*) AS answered,
+          SUM(CASE WHEN ai.is_correct = 1 THEN 1 ELSE 0 END) AS correct
+        FROM answer_items ai
+        JOIN submissions s ON s.id = ai.submission_id
+        WHERE s.assignment_id = ?
+          AND ai.is_correct IS NOT NULL
+        GROUP BY ai.assignment_question_id
+        `,
+      assignmentId,
+    )) as Array<{ qid: string; answered: number; correct: number }>;
+    const aggByQ = new Map(
+      aggRows.map((r) => [
+        r.qid,
+        {
+          answered: Number(r.answered) || 0,
+          correct: Number(r.correct) || 0,
+        },
+      ]),
+    );
+
+    const questions: QuestionStat[] = rows.map((r) => {
       const snap = JSON.parse(r.question_snapshot) as {
         stem?: string;
         type?: string;
         knowledgeNodeId?: string | null;
       };
-      const agg = (await this.db.get(
-        `
-          SELECT
-            COUNT(*) AS answered,
-            SUM(CASE WHEN ai.is_correct = 1 THEN 1 ELSE 0 END) AS correct
-          FROM answer_items ai
-          JOIN submissions s ON s.id = ai.submission_id
-          WHERE ai.assignment_question_id = ?
-            AND s.assignment_id = ?
-            AND ai.is_correct IS NOT NULL
-          `,
-        r.id,
-        assignmentId,
-      )) as { answered: number; correct: number };
-
-      const answeredCount = agg.answered || 0;
-      const correctCount = Number(agg.correct) || 0;
+      const agg = aggByQ.get(r.id) || { answered: 0, correct: 0 };
+      const answeredCount = agg.answered;
+      const correctCount = agg.correct;
       const correctRate =
         answeredCount === 0
           ? null
           : Math.round((correctCount / answeredCount) * 1000) / 10;
 
-      questions.push({
+      return {
         assignmentQuestionId: r.id,
         sortOrder: r.sort_order,
         stem: snap.stem || "",
@@ -414,8 +456,8 @@ export class ProgressService {
         answeredCount,
         correctCount,
         correctRate,
-      });
-    }
+      };
+    });
 
     return { assignmentId, type: asg.type, questions };
   }
@@ -564,22 +606,29 @@ export class ProgressService {
   /**
    * Calendar of days with at least one completed submission (Asia/Shanghai date).
    * Date math is done in JS so both SQLite and MySQL work (updated_at is ISO text).
+   * Also returns streakDays (cross-month) and monthLitDays for student home (S1).
    */
   async getStudentCalendar(
     studentId: string,
     year: number,
     month: number,
-  ): Promise<{ year: number; month: number; days: CalendarDay[] }> {
+  ): Promise<{
+    year: number;
+    month: number;
+    days: CalendarDay[];
+    streakDays: number;
+    monthLitDays: number;
+  }> {
     if (month < 1 || month > 12 || year < 2000 || year > 2100) {
       throw new AppError("INVALID_DATE", "年月无效");
     }
 
-    // ISO bounds covering Shanghai month (UTC strings still sort correctly)
+    // Month grid: ISO bounds for the requested month
     const { startIso, endIso } = shanghaiMonthIsoBounds(year, month);
 
-    const rows = (await this.db.all(
+    const monthRows = (await this.db.all(
       `
-        SELECT s.updated_at
+        SELECT s.updated_at, s.overdue
         FROM submissions s
         WHERE s.student_id = ?
           AND s.status = 'completed'
@@ -589,22 +638,98 @@ export class ProgressService {
       studentId,
       startIso,
       endIso,
-    )) as Array<{ updated_at: string }>;
+    )) as Array<{ updated_at: string; overdue: number }>;
 
     const counts = new Map<string, number>();
-    for (const r of rows) {
+    const overdueCounts = new Map<string, number>();
+    for (const r of monthRows) {
       if (!r.updated_at) continue;
       const d = toShanghaiYmd(r.updated_at);
       // only days in the requested calendar month
       if (!d.startsWith(`${year}-${String(month).padStart(2, "0")}`)) continue;
       counts.set(d, (counts.get(d) || 0) + 1);
+      if (Number(r.overdue) === 1) {
+        overdueCounts.set(d, (overdueCounts.get(d) || 0) + 1);
+      }
     }
 
-    const days: CalendarDay[] = [...counts.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, completedCount]) => ({ date, completedCount }));
+    // Review-due markers: due items always mark "today"; also mark review_at YMD
+    const today = shanghaiYmd();
+    const reviewDays = new Set<string>();
+    const masteryDue = (await this.db.all(
+      `SELECT status, review_at FROM mastery_items
+       WHERE user_id = ? AND status IN ('due', 'open')`,
+      studentId,
+    )) as Array<{ status: string; review_at: string }>;
+    for (const m of masteryDue) {
+      if (m.status === "due") {
+        reviewDays.add(today);
+        if (m.review_at) {
+          const ymd = toShanghaiYmd(m.review_at);
+          if (ymd.startsWith(`${year}-${String(month).padStart(2, "0")}`)) {
+            reviewDays.add(ymd);
+          }
+        }
+      } else if (m.review_at && m.review_at <= new Date().toISOString()) {
+        // open but past review_at (not yet promoted in this path)
+        reviewDays.add(today);
+      }
+    }
 
-    return { year, month, days };
+    const allDates = new Set<string>([
+      ...counts.keys(),
+      ...reviewDays,
+    ]);
+    const days: CalendarDay[] = [...allDates]
+      .sort((a, b) => a.localeCompare(b))
+      .map((date) => {
+        const completedCount = counts.get(date) || 0;
+        const overdueCount = overdueCounts.get(date) || 0;
+        const hasReviewDue = reviewDays.has(date);
+        let state = computeCalendarDayState({
+          completedCount,
+          overdueCount,
+          hasReviewDue,
+        });
+        // Overlay: completion done + review still due → keep done but flag orange
+        if (completedCount > 0 && hasReviewDue && state === "done") {
+          // keep done; client shows orange corner via hasReviewDue
+        }
+        return {
+          date,
+          completedCount,
+          overdueCount,
+          hasReviewDue,
+          state,
+        };
+      });
+
+    // Streak needs a longer window (look back ~400 days)
+    const streakLookbackIso = new Date(
+      Date.now() - 400 * 86_400_000,
+    ).toISOString();
+    const streakRows = (await this.db.all(
+      `
+        SELECT s.updated_at
+        FROM submissions s
+        WHERE s.student_id = ?
+          AND s.status = 'completed'
+          AND s.updated_at >= ?
+        `,
+      studentId,
+      streakLookbackIso,
+    )) as Array<{ updated_at: string }>;
+
+    const allYmds = new Set<string>();
+    for (const r of streakRows) {
+      if (!r.updated_at) continue;
+      allYmds.add(toShanghaiYmd(r.updated_at));
+    }
+
+    const streakDays = computeStreakDays(allYmds, today);
+    const monthLitDays = countMonthLitDays(allYmds, year, month);
+
+    return { year, month, days, streakDays, monthLitDays };
   }
 
   /**

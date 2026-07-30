@@ -3,33 +3,159 @@
   padding: 24rpx 32rpx 48rpx;
   box-sizing: border-box;
 }
-.intro { font-size: 24rpx; margin-bottom: 20rpx; line-height: 1.45; }
-.item { margin-bottom: 14rpx; }
-.row { display: flex; gap: 16rpx; align-items: flex-start; }
-.check {
-  width: 36rpx;
-  height: 36rpx;
-  border-radius: 8rpx;
-  border: 2rpx solid var(--line);
-  margin-top: 4rpx;
-  flex-shrink: 0;
+.intro { font-size: 24rpx; margin-bottom: 16rpx; line-height: 1.45; }
+.grade-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
 }
-.check.on {
-  background: var(--accent);
+.grade-chip {
+  padding: 10rpx 20rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid var(--line);
+  background: var(--white);
+  font-size: 24rpx;
+  color: var(--ink-muted);
+}
+.grade-chip.on {
   border-color: var(--accent);
-  position: relative;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
-.check.on::after {
-  content: "";
-  position: absolute;
-  left: 10rpx;
-  top: 4rpx;
-  width: 10rpx;
-  height: 18rpx;
-  border: solid #fff;
-  border-width: 0 3rpx 3rpx 0;
-  transform: rotate(45deg);
+.summary {
+  display: flex;
+  gap: 20rpx;
+  font-size: 22rpx;
+  margin-bottom: 20rpx;
+  font-variant-numeric: tabular-nums;
 }
+.s-lit { color: var(--success); font-weight: 600; }
+.s-half { color: var(--accent); font-weight: 600; }
+.s-dark { color: var(--ink-faint); }
+.section-label {
+  font-size: 26rpx;
+  color: var(--ink-muted);
+  margin: 8rpx 0 14rpx;
+}
+.item { margin-bottom: 14rpx; }
+.item.pending { border-color: rgba(196, 92, 38, 0.35); }
+.row { display: flex; gap: 16rpx; align-items: flex-start; }
+.body { flex: 1; min-width: 0; }
 .name { font-size: 30rpx; font-weight: 600; }
 .meta { margin-top: 6rpx; font-size: 22rpx; }
+
+.unit {
+  margin-bottom: 20rpx;
+  background: var(--white);
+  border: 1rpx solid var(--line);
+  border-radius: 20rpx;
+  overflow: hidden;
+}
+.unit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22rpx 24rpx;
+  border-bottom: 1rpx solid var(--line);
+}
+.unit-name { font-size: 28rpx; font-weight: 600; }
+.unit-stamp {
+  margin-left: 8rpx;
+  font-size: 22rpx;
+  color: var(--success);
+  font-weight: 600;
+}
+.unit-toggle { font-size: 22rpx; }
+.stamp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 20rpx;
+}
+.stamp-chip {
+  width: calc(50% - 8rpx);
+  box-sizing: border-box;
+  padding: 16rpx;
+  border-radius: 16rpx;
+  border: 1rpx dashed var(--line);
+  background: var(--white);
+}
+.stamp-chip.earned {
+  border-style: solid;
+  border-color: rgba(61, 107, 79, 0.4);
+  background: rgba(61, 107, 79, 0.08);
+}
+.stamp-mark {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: var(--ink-faint);
+}
+.stamp-chip.earned .stamp-mark { color: var(--success); }
+.stamp-name {
+  margin-top: 6rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.stamp-meta { margin-top: 4rpx; font-size: 20rpx; }
+.node-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.node {
+  padding: 20rpx 18rpx;
+  border-top: 1rpx solid var(--line);
+  border-right: 1rpx solid var(--line);
+  min-height: 120rpx;
+  box-sizing: border-box;
+}
+.node:nth-child(2n) { border-right: none; }
+.node-name {
+  margin-top: 10rpx;
+  font-size: 26rpx;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.node-st { margin-top: 6rpx; font-size: 20rpx; }
+
+.dot {
+  width: 20rpx;
+  height: 20rpx;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  flex-shrink: 0;
+}
+.dot.dark { background: var(--ink-faint); }
+.dot.half {
+  background: var(--accent);
+  box-shadow: 0 0 0 4rpx var(--accent-soft);
+}
+.dot.lit {
+  background: var(--success);
+  position: relative;
+}
+.dot.lit::after {
+  content: "";
+  position: absolute;
+  left: 6rpx;
+  top: 3rpx;
+  width: 5rpx;
+  height: 9rpx;
+  border: solid #fff;
+  border-width: 0 2rpx 2rpx 0;
+  transform: rotate(45deg);
+}
+
 .tip { padding: 24rpx 0; }
+.empty-box {
+  background: var(--white);
+  border: 1rpx solid var(--line);
+  border-radius: 24rpx;
+  padding: 48rpx 28rpx;
+  text-align: center;
+}
+.empty-box .title { font-size: 30rpx; font-weight: 600; }
+.empty-box .desc { margin-top: 12rpx; color: var(--ink-muted); font-size: 26rpx; }

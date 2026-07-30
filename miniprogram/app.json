@@ -21,8 +21,10 @@
     "pages/student/classes/list",
     "pages/student/task/detail",
     "pages/student/task/online",
+    "pages/student/task/review",
     "pages/student/calendar/calendar",
     "pages/student/knowledge/list",
+    "pages/student/summary/week",
     "pages/teacher/students/stats",
     "pages/profile/profile"
   ],

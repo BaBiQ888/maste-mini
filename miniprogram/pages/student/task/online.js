@@ -2,6 +2,14 @@ const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { STATUS_LABEL } = require("../../../utils/media");
 const { showError } = require("../../../utils/errors");
+const { buildSuccessPanel } = require("../../../utils/mastery-copy");
+
+const WRONG_REASON_OPTIONS = [
+  { value: "careless", label: "粗心" },
+  { value: "concept", label: "概念不清" },
+  { value: "procedure", label: "计算步骤" },
+  { value: "misread", label: "看错题目" },
+];
 
 Page({
   data: {
@@ -10,7 +18,9 @@ Page({
     submission: null,
     items: [],
     statusLabels: STATUS_LABEL,
+    wrongReasonOptions: WRONG_REASON_OPTIONS,
     loading: true,
+    loadError: false,
     busy: false,
     mode: "answer",
     scoreText: "",
@@ -18,6 +28,8 @@ Page({
     timeRemainingSec: null,
     answeredCount: 0,
     progressPct: 0,
+    success: null,
+    streakDays: null,
   },
 
   _timer: null,
@@ -56,7 +68,7 @@ Page({
   },
 
   async load() {
-    this.setData({ loading: true });
+    this.setData({ loading: true, loadError: false });
     this._autoSubmitted = false;
     try {
       const [a, s] = await Promise.all([
@@ -68,8 +80,9 @@ Page({
       ]);
       this.applySubmission(a.assignment, s.submission);
       this.setupTimer(s.submission);
+      this.setData({ loadError: false });
     } catch (e) {
-      this.setData({ loading: false });
+      this.setData({ loading: false, loadError: true });
       showError(e, { fallback: "加载失败" });
     }
   },
@@ -136,6 +149,7 @@ Page({
         showKey: ans.isCorrect !== null && ans.isCorrect !== undefined,
         mark:
           ans.isCorrect === true ? "对" : ans.isCorrect === false ? "错" : "",
+        wrongReason: ans.wrongReason || "",
         options,
       };
     });
@@ -157,6 +171,54 @@ Page({
         submission.score != null ? `正确率 ${submission.score}%` : "",
       loading: false,
     });
+  },
+
+  async refreshStreak() {
+    try {
+      const now = new Date();
+      const data = await request({
+        url: `/api/v1/me/calendar?year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
+        method: "GET",
+      });
+      const streakDays =
+        data.calendar && data.calendar.streakDays != null
+          ? Number(data.calendar.streakDays)
+          : null;
+      this.setData({ streakDays });
+      return streakDays;
+    } catch (_) {
+      return this.data.streakDays;
+    }
+  },
+
+  async showSuccess(submission, opts) {
+    const scoreBefore =
+      opts && opts.scoreBefore != null ? opts.scoreBefore : null;
+    let streakDays = this.data.streakDays;
+    if (submission.status === "completed") {
+      streakDays = await this.refreshStreak();
+    }
+    // Prefer server answers (setData is async; this.data.items may lag)
+    const items = (submission.answers || this.data.items || []).map((a) => ({
+      isCorrect: a.isCorrect,
+    }));
+    const success = buildSuccessPanel({
+      assignment: this.data.assignment,
+      submission,
+      items,
+      scoreBefore,
+      streakDays,
+      forceWrong: opts && opts.forceWrong,
+    });
+    this.setData({ success });
+  },
+
+  goHome() {
+    wx.reLaunch({ url: "/pages/student/home/home" });
+  },
+
+  dismissSuccess() {
+    this.setData({ success: null });
   },
 
   countAnswered(items, mode) {
@@ -211,6 +273,19 @@ Page({
     items[idx].response = v;
     items[idx].responseText = v ? "true" : "false";
     this.refreshProgress(items);
+  },
+
+  pickWrongReason(e) {
+    if (this.data.mode !== "correct") return;
+    const idx = e.currentTarget.dataset.index;
+    const item = this.data.items[idx];
+    if (!item || item.isCorrect !== false) return;
+    const reason = e.currentTarget.dataset.reason || "";
+    const items = this.data.items.slice();
+    // toggle off if same chip tapped again
+    items[idx].wrongReason =
+      items[idx].wrongReason === reason ? "" : reason;
+    this.setData({ items });
   },
 
   collectAnswers(onlyWrong) {
@@ -296,13 +371,7 @@ Page({
       });
       this.clearTimer();
       this.applySubmission(this.data.assignment, data.submission);
-      wx.showToast({
-        title:
-          data.submission.status === "completed"
-            ? "全部正确，真棒"
-            : "请订正标错的题",
-        icon: "none",
-      });
+      await this.showSuccess(data.submission, { scoreBefore: null });
     } catch (e) {
       showError(e, { fallback: "提交失败" });
     } finally {
@@ -334,13 +403,13 @@ Page({
         },
       });
       this.applySubmission(this.data.assignment, data.submission);
-      wx.showToast({ title: "时间到，已自动交卷", icon: "none" });
+      await this.showSuccess(data.submission, { scoreBefore: null });
     } catch (e) {
       // Concurrent server auto-force already closed the paper
       if (e && e.code === "INVALID_STATUS") {
         try {
           await this.load();
-          wx.showToast({ title: "时间到，已自动交卷", icon: "none" });
+          await this.showSuccess(this.data.submission, { scoreBefore: null });
           return;
         } catch (_) {
           /* fall through */
@@ -353,20 +422,41 @@ Page({
     }
   },
 
+  collectWrongReasons() {
+    const list = [];
+    for (const it of this.data.items) {
+      if (it.isCorrect !== false) continue;
+      if (it.wrongReason) {
+        list.push({
+          assignmentQuestionId: it.assignmentQuestionId,
+          reason: it.wrongReason,
+        });
+      }
+    }
+    return list;
+  },
+
   async submitCorrect() {
     if (this.data.busy) return;
     this.setData({ busy: true });
+    const scoreBefore =
+      this.data.submission && this.data.submission.score != null
+        ? this.data.submission.score
+        : null;
     try {
+      const wrongReasons = this.collectWrongReasons();
       const data = await request({
         url: `/api/v1/submissions/${this.data.submission.id}/correct`,
         method: "POST",
-        data: { answers: this.collectAnswers(true) },
+        data: {
+          answers: this.collectAnswers(true),
+          wrongReasons: wrongReasons.length ? wrongReasons : undefined,
+        },
       });
       this.applySubmission(this.data.assignment, data.submission);
-      wx.showToast({
-        title:
-          data.submission.status === "completed" ? "订正完成" : "仍有错题",
-        icon: "none",
+      await this.showSuccess(data.submission, {
+        scoreBefore,
+        forceWrong: data.submission.status === "pending_correction",
       });
     } catch (e) {
       showError(e, { fallback: "订正失败" });

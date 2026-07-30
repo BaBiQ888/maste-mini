@@ -155,6 +155,27 @@
   margin: 0;
 }
 
+.student-links {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-bottom: 28rpx;
+}
+.link-card {
+  background: var(--white);
+  border: 1rpx solid var(--line);
+  border-radius: 20rpx;
+  padding: 24rpx 28rpx;
+}
+.link-title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.link-desc {
+  margin-top: 6rpx;
+  font-size: 24rpx;
+}
+
 .field {
   margin-bottom: 28rpx;
 }

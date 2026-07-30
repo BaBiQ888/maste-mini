@@ -8,6 +8,11 @@ import type {
 import { gradeOne } from "../../domain/grading/auto-grade.js";
 import { KnowledgeTreeService } from "../knowledge/service.js";
 import { isAllowedMediaUrl } from "../../infrastructure/storage/upload-store.js";
+import {
+  MasteryService,
+  missesFromSnapshots,
+} from "../mastery/service.js";
+import { isWrongReason } from "../../domain/mastery/rules.js";
 
 export type AssignmentType =
   | "daily_drill"
@@ -74,6 +79,8 @@ export interface PublicAnswerItem {
   response: string | boolean | null;
   isCorrect: boolean | null;
   correctionRound: number;
+  /** Optional student self-tag on wrong/correct (S2) */
+  wrongReason?: string | null;
   /** Shown after first submit */
   correctAnswer?: string | boolean;
   explanation?: string | null;
@@ -107,11 +114,15 @@ export interface PublicSubmission {
 const MAX_PHOTOS = 6;
 
 export class AssignmentService {
+  private mastery: MasteryService;
+
   constructor(
     private db: AppDatabase,
     private questions?: QuestionBankService,
     private knowledge: KnowledgeTreeService = new KnowledgeTreeService(),
-  ) {}
+  ) {
+    this.mastery = new MasteryService(db);
+  }
 
   async create(
     teacherId: string,
@@ -387,7 +398,14 @@ export class AssignmentService {
     const rows = await this.db.all(sql, ...params) as Array<
       AssignmentRow & { class_name: string }
     >;
-    return Promise.all(rows.map(async (r) => await this.toPublicAssignment(r, r.class_name)));
+    const questionCountMap = await this.loadQuestionCounts(rows.map((r) => r.id));
+    return Promise.all(
+      rows.map(async (r) =>
+        await this.toPublicAssignment(r, r.class_name, {
+          questionCount: questionCountMap.get(r.id) ?? 0,
+        }),
+      ),
+    );
   }
 
   async listForStudent(
@@ -405,7 +423,14 @@ export class AssignmentService {
         ORDER BY a.due_at IS NULL, a.due_at ASC, a.published_at DESC
         LIMIT ${limit}
         `, studentId) as Array<AssignmentRow & { class_name: string }>;
-    return Promise.all(rows.map(async (r) => await this.toPublicAssignment(r, r.class_name)));
+    const questionCountMap = await this.loadQuestionCounts(rows.map((r) => r.id));
+    return Promise.all(
+      rows.map(async (r) =>
+        await this.toPublicAssignment(r, r.class_name, {
+          questionCount: questionCountMap.get(r.id) ?? 0,
+        }),
+      ),
+    );
   }
 
   async getAssignment(
@@ -727,11 +752,19 @@ export class AssignmentService {
 
   /**
    * Correct only wrong items; all must become correct to complete.
+   * Optional wrongReasons (S2): student self-tag; does not block submit.
+   * On full completion, enqueues mastery_items for questions that were wrong.
    */
   async correctOnlineAnswers(
     submissionId: string,
     studentId: string,
     answers: Array<{ assignmentQuestionId: string; response: unknown }>,
+    opts?: {
+      wrongReasons?: Array<{
+        assignmentQuestionId: string;
+        reason: string;
+      }>;
+    },
   ): Promise<PublicSubmission> {
     const sub = await this.getSubmissionRow(submissionId);
     if (sub.student_id !== studentId) {
@@ -744,7 +777,15 @@ export class AssignmentService {
       throw new AppError("INVALID_STATUS", "当前无需订正");
     }
 
+    const reasonMap = new Map<string, string>();
+    for (const wr of opts?.wrongReasons || []) {
+      if (wr.assignmentQuestionId && isWrongReason(wr.reason)) {
+        reasonMap.set(wr.assignmentQuestionId, wr.reason);
+      }
+    }
+
     const qMap = await this.loadQuestionMap(sub.assignment_id);
+    const sourceMap = await this.loadSourceQuestionMap(sub.assignment_id);
     const rows = await this.loadAnswerRows(submissionId);
     const wrongIds = new Set(
       rows.filter((r) => r.is_correct === 0).map((r) => r.assignment_question_id),
@@ -760,7 +801,11 @@ export class AssignmentService {
       );
     }
 
+    // Snapshot of misses for mastery enqueue after success
+    const missAqIds = [...wrongIds];
+
     const ts = nowIso();
+    let becameCompleted = false;
     await this.db.transaction(async () => {
       for (const a of answers) {
         if (!wrongIds.has(a.assignmentQuestionId)) {
@@ -772,6 +817,7 @@ export class AssignmentService {
           (r) => r.assignment_question_id === a.assignmentQuestionId,
         );
         const round = (prev?.correction_round || 0) + 1;
+        const reason = reasonMap.get(a.assignmentQuestionId) ?? null;
         await this.upsertAnswerItem(
           submissionId,
           a.assignmentQuestionId,
@@ -779,6 +825,7 @@ export class AssignmentService {
           correct,
           round,
           ts,
+          reason,
         );
       }
 
@@ -795,12 +842,45 @@ export class AssignmentService {
           ? 1
           : sub.overdue;
 
+      becameCompleted = !stillWrong;
       await this.db.run(`UPDATE submissions SET status = ?, score = ?, overdue = ?, updated_at = ? WHERE id = ?`, stillWrong ? "pending_correction" : "completed",
           score,
           overdue,
           ts,
           submissionId,);
     });
+
+    if (becameCompleted) {
+      try {
+        const asg = (await this.db.get(
+          `SELECT class_id, type FROM assignments WHERE id = ?`,
+          sub.assignment_id,
+        )) as { class_id: string; type: string } | undefined;
+        const missItems = missAqIds
+          .map((aqId) => {
+            const snap = qMap.get(aqId);
+            if (!snap) return null;
+            return {
+              snapshot: snap,
+              sourceQuestionId: sourceMap.get(aqId) ?? snap.id ?? null,
+              wrongReason: reasonMap.get(aqId) ?? null,
+            };
+          })
+          .filter((x): x is NonNullable<typeof x> => !!x);
+        await this.mastery.enqueueAfterCorrection({
+          userId: studentId,
+          classId: asg?.class_id ?? null,
+          assignmentId: sub.assignment_id,
+          assignmentType: asg?.type || "daily_drill",
+          misses: missesFromSnapshots(missItems),
+        });
+      } catch (err) {
+        console.error("[mastery.enqueue] failed after correct", {
+          submissionId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     return await this.toPublicSubmission(
       await this.getSubmissionRow(submissionId),
@@ -827,12 +907,27 @@ export class AssignmentService {
     return map;
   }
 
+  private async loadSourceQuestionMap(
+    assignmentId: string,
+  ): Promise<Map<string, string | null>> {
+    const rows = (await this.db.all(
+      `SELECT id, source_question_id FROM assignment_questions WHERE assignment_id = ?`,
+      assignmentId,
+    )) as Array<{ id: string; source_question_id: string | null }>;
+    const map = new Map<string, string | null>();
+    for (const r of rows) {
+      map.set(r.id, r.source_question_id || null);
+    }
+    return map;
+  }
+
   private async loadAnswerRows(submissionId: string): Promise<
     Array<{
       assignment_question_id: string;
       response_json: string | null;
       is_correct: number | null;
       correction_round: number;
+      wrong_reason?: string | null;
     }>
   > {
     return (await this.db.all(
@@ -843,6 +938,7 @@ export class AssignmentService {
       response_json: string | null;
       is_correct: number | null;
       correction_round: number;
+      wrong_reason?: string | null;
     }>;
   }
 
@@ -853,6 +949,7 @@ export class AssignmentService {
     isCorrect: boolean | null,
     correctionRound: number,
     ts: string,
+    wrongReason?: string | null,
   ): Promise<void> {
     const existing = await this.db.get(`SELECT id FROM answer_items WHERE submission_id = ? AND assignment_question_id = ?`, submissionId, assignmentQuestionId) as { id: string } | undefined;
 
@@ -860,25 +957,49 @@ export class AssignmentService {
       response === undefined ? null : JSON.stringify(response);
     const correctInt =
       isCorrect === null || isCorrect === undefined ? null : isCorrect ? 1 : 0;
+    const reason =
+      wrongReason && isWrongReason(wrongReason) ? wrongReason : null;
 
     if (existing) {
-      await this.db.run(`UPDATE answer_items
-           SET response_json = ?, is_correct = ?, correction_round = ?, updated_at = ?
-           WHERE id = ?`, responseJson,
-          correctInt,
-          correctionRound,
-          ts,
-          existing.id,);
-    } else {
-      await this.db.run(`INSERT INTO answer_items
-           (id, submission_id, assignment_question_id, response_json, is_correct, correction_round, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`, createId("ans"),
-          submissionId,
-          assignmentQuestionId,
+      if (reason != null) {
+        await this.db.run(
+          `UPDATE answer_items
+             SET response_json = ?, is_correct = ?, correction_round = ?,
+                 wrong_reason = ?, updated_at = ?
+             WHERE id = ?`,
           responseJson,
           correctInt,
           correctionRound,
-          ts,);
+          reason,
+          ts,
+          existing.id,
+        );
+      } else {
+        await this.db.run(
+          `UPDATE answer_items
+             SET response_json = ?, is_correct = ?, correction_round = ?, updated_at = ?
+             WHERE id = ?`,
+          responseJson,
+          correctInt,
+          correctionRound,
+          ts,
+          existing.id,
+        );
+      }
+    } else {
+      await this.db.run(
+        `INSERT INTO answer_items
+           (id, submission_id, assignment_question_id, response_json, is_correct, correction_round, wrong_reason, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        createId("ans"),
+        submissionId,
+        assignmentQuestionId,
+        responseJson,
+        correctInt,
+        correctionRound,
+        reason,
+        ts,
+      );
     }
   }
 
@@ -1053,7 +1174,20 @@ export class AssignmentService {
           s.updated_at DESC
         `, assignmentId) as Array<SubmissionRow & { nickname: string | null }>;
 
-    return Promise.all(rows.map(async (r) => await this.toPublicSubmission(r, r.nickname)));
+    if (!rows.length) return [];
+    const subIds = rows.map((r) => r.id);
+    const [photosBySub, gradesBySub] = await Promise.all([
+      this.loadPhotosBySubmissionIds(subIds),
+      this.loadGradesBySubmissionIds(subIds),
+    ]);
+    return Promise.all(
+      rows.map(async (r) =>
+        await this.toPublicSubmission(r, r.nickname, false, {
+          photos: photosBySub.get(r.id) ?? [],
+          grade: gradesBySub.get(r.id) ?? null,
+        }),
+      ),
+    );
   }
 
   async listPendingGradeCount(teacherId: string): Promise<number> {
@@ -1134,9 +1268,87 @@ export class AssignmentService {
     return row;
   }
 
+  /** One GROUP BY query for all assignment ids (avoids N+1 on list). */
+  private async loadQuestionCounts(
+    assignmentIds: string[],
+  ): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    if (!assignmentIds.length) return map;
+    const placeholders = assignmentIds.map(() => "?").join(",");
+    const rows = (await this.db.all(
+      `SELECT assignment_id, COUNT(*) AS c FROM assignment_questions
+         WHERE assignment_id IN (${placeholders})
+         GROUP BY assignment_id`,
+      ...assignmentIds,
+    )) as Array<{ assignment_id: string; c: number }>;
+    for (const r of rows) {
+      map.set(r.assignment_id, Number(r.c) || 0);
+    }
+    return map;
+  }
+
+  private async loadPhotosBySubmissionIds(
+    submissionIds: string[],
+  ): Promise<Map<string, PublicPhoto[]>> {
+    const map = new Map<string, PublicPhoto[]>();
+    if (!submissionIds.length) return map;
+    for (const id of submissionIds) map.set(id, []);
+    const placeholders = submissionIds.map(() => "?").join(",");
+    const rows = (await this.db.all(
+      `SELECT id, submission_id, url, sort_order FROM photo_assets
+         WHERE submission_id IN (${placeholders})
+         ORDER BY submission_id, sort_order ASC`,
+      ...submissionIds,
+    )) as Array<{
+      id: string;
+      submission_id: string;
+      url: string;
+      sort_order: number;
+    }>;
+    for (const p of rows) {
+      const list = map.get(p.submission_id) ?? [];
+      list.push({ id: p.id, url: p.url, sortOrder: p.sort_order });
+      map.set(p.submission_id, list);
+    }
+    return map;
+  }
+
+  private async loadGradesBySubmissionIds(
+    submissionIds: string[],
+  ): Promise<Map<string, PublicGrade | null>> {
+    const map = new Map<string, PublicGrade | null>();
+    if (!submissionIds.length) return map;
+    for (const id of submissionIds) map.set(id, null);
+    const placeholders = submissionIds.map(() => "?").join(",");
+    const rows = (await this.db.all(
+      `SELECT submission_id, result, score, comment, require_resubmit, graded_at
+         FROM photo_grades
+         WHERE submission_id IN (${placeholders})`,
+      ...submissionIds,
+    )) as Array<{
+      submission_id: string;
+      result: GradeResult;
+      score: number | null;
+      comment: string | null;
+      require_resubmit: number;
+      graded_at: string;
+    }>;
+    for (const g of rows) {
+      map.set(g.submission_id, {
+        result: g.result,
+        score: g.score,
+        comment: g.comment,
+        requireResubmit: g.require_resubmit === 1,
+        gradedAt: g.graded_at,
+      });
+    }
+    return map;
+  }
+
   private async toPublicAssignment(
     row: AssignmentRow,
     className?: string,
+    opts?: { questionCount?: number },
   ): Promise<PublicAssignment> {
     let config: Record<string, unknown> = {};
     try {
@@ -1144,9 +1356,15 @@ export class AssignmentService {
     } catch {
       config = {};
     }
-    const questionCount = (
-      await this.db.get(`SELECT COUNT(*) AS c FROM assignment_questions WHERE assignment_id = ?`, row.id) as { c: number }
-    ).c;
+    let questionCount = opts?.questionCount;
+    if (questionCount === undefined) {
+      questionCount = (
+        await this.db.get(
+          `SELECT COUNT(*) AS c FROM assignment_questions WHERE assignment_id = ?`,
+          row.id,
+        ) as { c: number }
+      ).c;
+    }
 
     let knowledgePoints:
       | Array<{
@@ -1188,25 +1406,56 @@ export class AssignmentService {
     row: SubmissionRow,
     nickname?: string | null,
     includeAnswers = false,
+    preloaded?: {
+      photos?: PublicPhoto[];
+      grade?: PublicGrade | null;
+    },
   ): Promise<PublicSubmission> {
-    const photos = (
-      await this.db.all(`SELECT id, url, sort_order FROM photo_assets
-           WHERE submission_id = ? ORDER BY sort_order ASC`, row.id) as Array<{ id: string; url: string; sort_order: number }>
-    ).map((p) => ({
-      id: p.id,
-      url: p.url,
-      sortOrder: p.sort_order,
-    }));
+    let photos: PublicPhoto[];
+    if (preloaded && "photos" in preloaded && preloaded.photos) {
+      photos = preloaded.photos;
+    } else if (preloaded && "photos" in preloaded) {
+      photos = [];
+    } else {
+      photos = (
+        await this.db.all(
+          `SELECT id, url, sort_order FROM photo_assets
+           WHERE submission_id = ? ORDER BY sort_order ASC`,
+          row.id,
+        ) as Array<{ id: string; url: string; sort_order: number }>
+      ).map((p) => ({
+        id: p.id,
+        url: p.url,
+        sortOrder: p.sort_order,
+      }));
+    }
 
-    const g = await this.db.get(`SELECT * FROM photo_grades WHERE submission_id = ?`, row.id) as
-      | {
-          result: GradeResult;
-          score: number | null;
-          comment: string | null;
-          require_resubmit: number;
-          graded_at: string;
-        }
-      | undefined;
+    let grade: PublicGrade | null;
+    if (preloaded && "grade" in preloaded) {
+      grade = preloaded.grade ?? null;
+    } else {
+      const g = await this.db.get(
+        `SELECT * FROM photo_grades WHERE submission_id = ?`,
+        row.id,
+      ) as
+        | {
+            result: GradeResult;
+            score: number | null;
+            comment: string | null;
+            require_resubmit: number;
+            graded_at: string;
+          }
+        | undefined;
+      grade = g
+        ? {
+            result: g.result,
+            score: g.score,
+            comment: g.comment,
+            requireResubmit: g.require_resubmit === 1,
+            gradedAt: g.graded_at,
+          }
+        : null;
+    }
 
     let answers: PublicAnswerItem[] = [];
     let correctRate: number | null = null;
@@ -1242,6 +1491,7 @@ export class AssignmentService {
                 ? null
                 : it.is_correct === 1,
             correctionRound: it.correction_round,
+            wrongReason: it.wrong_reason ?? null,
             stem: snap?.stem,
             type: snap?.type,
             options: snap?.options ?? null,
@@ -1322,15 +1572,7 @@ export class AssignmentService {
       score: row.score,
       correctRate,
       photos,
-      grade: g
-        ? {
-            result: g.result,
-            score: g.score,
-            comment: g.comment,
-            requireResubmit: g.require_resubmit === 1,
-            gradedAt: g.graded_at,
-          }
-        : null,
+      grade,
       answers,
       submittedAt: row.submitted_at,
       updatedAt: row.updated_at,

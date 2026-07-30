@@ -45,6 +45,17 @@
     />
   </view>
 
+  <view class="student-links" wx:if="{{isStudent}}">
+    <view class="link-card" bindtap="goWeekSummary">
+      <view class="link-title">本周小结</view>
+      <view class="link-desc muted">完成情况 · 可复制发给家长</view>
+    </view>
+    <view class="link-card" bindtap="goKnowledgeMap">
+      <view class="link-title">知识地图</view>
+      <view class="link-desc muted">亮点 · 半亮巩固 · 单元印戳</view>
+    </view>
+  </view>
+
   <view class="actions">
     <button
       class="btn btn-primary action-btn"

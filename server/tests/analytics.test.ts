@@ -199,6 +199,9 @@ describe("Phase 10 analytics", () => {
     ).json();
     expect(cal.calendar.days.length).toBeGreaterThanOrEqual(1);
     expect(cal.calendar.days[0].completedCount).toBeGreaterThanOrEqual(1);
+    expect(cal.calendar.days[0].state).toBeTruthy();
+    expect(cal.calendar.streakDays).toBeGreaterThanOrEqual(1);
+    expect(cal.calendar.monthLitDays).toBeGreaterThanOrEqual(1);
 
     const kp = await (
       await app.request("/api/v1/me/knowledge-progress", {
