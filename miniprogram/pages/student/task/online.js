@@ -1,7 +1,7 @@
 const { getToken, getUser, routeByUser } = require("../../../utils/auth");
 const { request } = require("../../../utils/request");
 const { STATUS_LABEL } = require("../../../utils/media");
-const { showError } = require("../../../utils/errors");
+const { showError, logError } = require("../../../utils/errors");
 const { buildSuccessPanel } = require("../../../utils/mastery-copy");
 
 const WRONG_REASON_OPTIONS = [
@@ -34,8 +34,10 @@ Page({
 
   _timer: null,
   _autoSubmitted: false,
+  _bootstrapped: false,
 
   onLoad(q) {
+    this._bootstrapped = false;
     this.setData({ id: q.id || "" });
   },
 
@@ -47,6 +49,18 @@ Page({
     const user = getUser();
     if (!user || user.role !== "student") {
       routeByUser(user);
+      return;
+    }
+    // Keep local answers / wrong-reason chips / success overlay across resume
+    if (
+      this._bootstrapped &&
+      !this.data.loadError &&
+      this.data.submission &&
+      (this.data.mode === "answer" ||
+        this.data.mode === "correct" ||
+        this.data.mode === "result")
+    ) {
+      if (this.data.mode === "answer") this.setupTimer(this.data.submission);
       return;
     }
     if (this.data.id) this.load();
@@ -80,8 +94,10 @@ Page({
       ]);
       this.applySubmission(a.assignment, s.submission);
       this.setupTimer(s.submission);
+      this._bootstrapped = true;
       this.setData({ loadError: false });
     } catch (e) {
+      this._bootstrapped = false;
       this.setData({ loading: false, loadError: true });
       showError(e, { fallback: "加载失败" });
     }
@@ -176,8 +192,10 @@ Page({
   async refreshStreak() {
     try {
       const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
       const data = await request({
-        url: `/api/v1/me/calendar?year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
+        url: `/api/v1/me/calendar?year=${year}&month=${month}`,
         method: "GET",
       });
       const streakDays =
@@ -186,7 +204,8 @@ Page({
           : null;
       this.setData({ streakDays });
       return streakDays;
-    } catch (_) {
+    } catch (err) {
+      logError("online.refreshStreak", err, {});
       return this.data.streakDays;
     }
   },

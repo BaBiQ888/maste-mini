@@ -6,6 +6,7 @@ import {
   computeReviewAt,
   isReviewPassed,
   isWrongReason,
+  MASTERY_ITEM_EXPIRE_DAYS,
   MASTERY_MAP_WINDOW_DAYS,
   MASTERY_MAX_OPEN_PER_USER,
   MASTERY_REVIEW_QUESTION_COUNT,
@@ -286,11 +287,13 @@ export class MasteryService {
   /** Promote open→due when review_at <= now. */
   async promoteDue(userId: string): Promise<number> {
     const now = nowIso();
+    // Only real misses (miss_count > 0) — never promote self-practice scaffolds
     const result = await this.db.run(
       `UPDATE mastery_items
          SET status = 'due', updated_at = ?
          WHERE user_id = ?
            AND status = 'open'
+           AND miss_count > 0
            AND review_at <= ?`,
       now,
       userId,
@@ -299,6 +302,28 @@ export class MasteryService {
     const n = result.changes ?? 0;
     if (n > 0) {
       console.info("[mastery.due.promote]", { userId, count: n });
+    }
+
+    // Expire long-stale queue items (plan: 30d without follow-through)
+    const expireBefore = new Date(
+      Date.now() - MASTERY_ITEM_EXPIRE_DAYS * 86_400_000,
+    ).toISOString();
+    const exp = await this.db.run(
+      `UPDATE mastery_items
+         SET status = 'expired', updated_at = ?
+         WHERE user_id = ?
+           AND status IN ('open', 'due')
+           AND miss_count > 0
+           AND updated_at < ?`,
+      now,
+      userId,
+      expireBefore,
+    );
+    if ((exp.changes ?? 0) > 0) {
+      console.info("[mastery.expire]", {
+        userId,
+        count: exp.changes,
+      });
     }
     return n;
   }
@@ -361,17 +386,8 @@ export class MasteryService {
     await this.promoteDue(userId);
     const item = await this.getItemRow(masteryItemId, userId);
 
-    if (source === "review" && item.status !== "due") {
-      throw new AppError(
-        "NOT_DUE",
-        item.status === "open"
-          ? "还没到回访时间，过几天再来"
-          : "该巩固项不可回访（已过关或未开放）",
-        400,
-      );
-    }
-
-    // Resume in-progress review for same item + same source
+    // Resume first — due gate must not block an already open session
+    // (e.g. after merge demotes item open while review is still in_progress).
     const existing = (await this.db.get(
       `SELECT * FROM mastery_reviews
        WHERE mastery_item_id = ? AND user_id = ? AND status = 'in_progress'
@@ -383,6 +399,16 @@ export class MasteryService {
     )) as Record<string, unknown> | undefined;
     if (existing) {
       return this.toPublicReview(existing, item);
+    }
+
+    if (source === "review" && item.status !== "due") {
+      throw new AppError(
+        "NOT_DUE",
+        item.status === "open"
+          ? "还没到回访时间，过几天再来"
+          : "该巩固项不可回访（已过关或未开放）",
+        400,
+      );
     }
 
     const need =
@@ -574,6 +600,7 @@ export class MasteryService {
     for (const kn of knowledgeNodes) {
       const m = masteryByKn.get(kn.id);
       const masteryStatus = m ? String(m.status) : null;
+      const missCount = m != null ? Number(m.miss_count) || 0 : 0;
       const completion = completionByKn.get(kn.id);
       const hasCompletion = !!(completion && completion.count > 0);
       const acc = accByKn.get(kn.id);
@@ -585,6 +612,7 @@ export class MasteryService {
       const state = computeMapNodeState({
         hasCompletion,
         masteryStatus,
+        missCount,
         recentCorrectRate,
         recentAnswered,
       });
@@ -882,6 +910,9 @@ export class MasteryService {
         throw new AppError("INVALID_STATUS", "该回访已提交", 400);
       }
 
+      const source = String(row.source || "review");
+      const itemRow = await this.getItemRow(itemId, userId);
+
       if (passed) {
         await this.db.run(
           `UPDATE mastery_items
@@ -895,6 +926,47 @@ export class MasteryService {
           itemId,
           userId,
         );
+      } else if (source === "self_practice") {
+        // Optional consolidate: only schedule formal +3d if already a real miss/due
+        const wasRealMiss =
+          Number(itemRow.miss_count) > 0 ||
+          itemRow.status === "due" ||
+          itemRow.status === "failed" ||
+          !!itemRow.source_assignment_id;
+        if (wasRealMiss) {
+          const nextReview = computeReviewAt(new Date());
+          await this.db.run(
+            `UPDATE mastery_items
+               SET status = 'open',
+                   miss_count = CASE WHEN miss_count < 1 THEN 1 ELSE miss_count + 1 END,
+                   review_at = ?,
+                   last_result_at = ?,
+                   updated_at = ?
+               WHERE id = ? AND user_id = ?`,
+            nextReview,
+            ts,
+            ts,
+            itemId,
+            userId,
+          );
+        } else {
+          // Scaffold: keep miss_count 0 and far-future review_at (do not promote to due)
+          const far = computeReviewAt(new Date(), 3650);
+          await this.db.run(
+            `UPDATE mastery_items
+               SET status = 'open',
+                   miss_count = 0,
+                   review_at = ?,
+                   last_result_at = ?,
+                   updated_at = ?
+               WHERE id = ? AND user_id = ?`,
+            far,
+            ts,
+            ts,
+            itemId,
+            userId,
+          );
+        }
       } else {
         const nextReview = computeReviewAt(new Date());
         await this.db.run(
@@ -920,6 +992,7 @@ export class MasteryService {
       passed,
       correctCount,
       total,
+      source: row.source,
     });
 
     return this.getReview(userId, reviewId);
@@ -1129,6 +1202,7 @@ export class MasteryService {
     review_at: string;
     miss_count: number;
     pass_count: number;
+    source_assignment_id: string | null;
   }> {
     const row = (await this.db.get(
       `SELECT * FROM mastery_items WHERE id = ? AND user_id = ?`,
@@ -1144,6 +1218,7 @@ export class MasteryService {
           review_at: string;
           miss_count: number;
           pass_count: number;
+          source_assignment_id: string | null;
         }
       | undefined;
     if (!row) throw new AppError("NOT_FOUND", "巩固项不存在", 404);
@@ -1163,10 +1238,15 @@ export class MasteryService {
     return row;
   }
 
+  /** Count real queue slots (exclude self-practice scaffolds: open + miss_count 0). */
   private async countOpenDue(userId: string): Promise<number> {
     const row = (await this.db.get(
       `SELECT COUNT(*) AS n FROM mastery_items
-       WHERE user_id = ? AND status IN ('open', 'due')`,
+       WHERE user_id = ?
+         AND (
+           status = 'due'
+           OR (status = 'open' AND miss_count > 0)
+         )`,
       userId,
     )) as { n: number } | undefined;
     return Number(row?.n) || 0;
@@ -1221,6 +1301,27 @@ export class MasteryService {
       reviewAt,
       ts,
     } = input;
+    const prev = (await this.db.get(
+      `SELECT status, miss_count FROM mastery_items WHERE id = ?`,
+      id,
+    )) as { status: string; miss_count: number } | undefined;
+    const alreadyQueued =
+      prev &&
+      (prev.status === "due" ||
+        (prev.status === "open" && Number(prev.miss_count) > 0));
+    // Reopening passed/expired/scaffold into real open counts against cap
+    if (!alreadyQueued) {
+      const openCount = await this.countOpenDue(userId);
+      if (openCount >= MASTERY_MAX_OPEN_PER_USER) {
+        console.info("[mastery.enqueue.skip]", {
+          userId,
+          id,
+          reason: "cap_reopen",
+          cap: MASTERY_MAX_OPEN_PER_USER,
+        });
+        return;
+      }
+    }
     await this.db.run(
       `UPDATE mastery_items
          SET status = 'open',

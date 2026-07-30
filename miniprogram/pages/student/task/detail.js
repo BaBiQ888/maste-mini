@@ -25,7 +25,10 @@ Page({
     success: null,
   },
 
+  _bootstrapped: false,
+
   onLoad(q) {
+    this._bootstrapped = false;
     this.setData({ id: q.id || "" });
   },
 
@@ -37,6 +40,15 @@ Page({
     const user = getUser();
     if (!user || user.role !== "student") {
       routeByUser(user);
+      return;
+    }
+    // Preserve local photo picks / success overlay across resume
+    if (
+      this._bootstrapped &&
+      !this.data.loadError &&
+      this.data.submission &&
+      (this.data.canEdit || this.data.success)
+    ) {
       return;
     }
     if (this.data.id) this.load();
@@ -59,6 +71,7 @@ Page({
         submission.status === "not_started" ||
         submission.status === "resubmit_required";
       const displayUrls = await resolveImageSrcs(localUrls);
+      this._bootstrapped = true;
       this.setData({
         assignment: a.assignment,
         submission,
@@ -69,6 +82,7 @@ Page({
         loadError: false,
       });
     } catch (e) {
+      this._bootstrapped = false;
       this.setData({ loading: false, loadError: true });
       showError(e, { fallback: "加载失败" });
     }

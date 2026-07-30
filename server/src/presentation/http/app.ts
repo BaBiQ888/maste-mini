@@ -818,7 +818,9 @@ export function createApp(
               masteryItemId: item.id,
               title: `回访：${item.name}`,
               knowledgeName: item.name,
+              // upper bound; actual count set at start-review
               questionCount: 3,
+              questionCountLabel: "最多 3 题",
               reviewAt: item.reviewAt,
             }
           : null,

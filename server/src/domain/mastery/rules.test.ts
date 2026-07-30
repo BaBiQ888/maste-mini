@@ -36,10 +36,21 @@ describe("mastery rules", () => {
       computeMapNodeState({
         hasCompletion: true,
         masteryStatus: "open",
+        missCount: 1,
         recentCorrectRate: 100,
         recentAnswered: 5,
       }),
     ).toBe("half");
+    // scaffold open miss_count 0 does not force half
+    expect(
+      computeMapNodeState({
+        hasCompletion: false,
+        masteryStatus: "open",
+        missCount: 0,
+        recentCorrectRate: null,
+        recentAnswered: 0,
+      }),
+    ).toBe("dark");
     expect(
       computeMapNodeState({
         hasCompletion: true,

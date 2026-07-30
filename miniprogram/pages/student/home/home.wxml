@@ -76,7 +76,7 @@
             <view class="bookmark"></view>
             <view class="t-title">{{reviewCard.title}}</view>
           </view>
-          <view class="t-st">{{reviewCard.questionCount || 3}} 题</view>
+          <view class="t-st">{{reviewCard.questionCountLabel || '最多 3 题'}}</view>
         </view>
         <view class="t-meta muted">三天前那道坎，用几道题再走一遍</view>
       </view>

@@ -354,6 +354,57 @@ describe("Mastery S2 enqueue + S3 review", () => {
     expect(Number(row.miss_count)).toBe(0);
     // far future — not promotable
     expect(new Date(row.review_at).getTime()).toBeGreaterThan(Date.now());
+
+    // map should not force half for scaffold (open miss 0, no completion)
+    const mapRes = await (
+      await app.request("/api/v1/me/mastery-map?grade=3", {
+        headers: auth(student.token),
+      })
+    ).json();
+    const node = mapRes.map.units
+      .flatMap((u: { nodes: Array<{ knowledgeNodeId: string; state: string }> }) => u.nodes)
+      .find((n: { knowledgeNodeId: string }) => n.knowledgeNodeId === knId);
+    expect(node.state).not.toBe("half");
+  });
+
+  it("self-practice fail on scaffold does not schedule formal due", async () => {
+    const { student, knId } = await setupWithKnowledge();
+    const sp = await (
+      await app.request("/api/v1/me/mastery/self-practice", {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ knowledgeNodeId: knId }),
+      })
+    ).json();
+    const wrongAnswers = sp.review.questions.map(
+      (_: unknown, questionIndex: number) => ({
+        questionIndex,
+        response: "__wrong__",
+      }),
+    );
+    await app.request(
+      `/api/v1/me/mastery/reviews/${sp.review.id}/submit`,
+      {
+        method: "POST",
+        headers: auth(student.token),
+        body: JSON.stringify({ answers: wrongAnswers }),
+      },
+    );
+
+    const due = await (
+      await app.request("/api/v1/me/mastery/due", {
+        headers: auth(student.token),
+      })
+    ).json();
+    expect(due.review).toBeNull();
+
+    const row = (await db.get(
+      `SELECT status, miss_count, review_at FROM mastery_items WHERE user_id = ?`,
+      student.userId,
+    )) as { status: string; miss_count: number; review_at: string };
+    expect(row.status).toBe("open");
+    expect(Number(row.miss_count)).toBe(0);
+    expect(new Date(row.review_at).getTime()).toBeGreaterThan(Date.now() + 86400000);
   });
 
   it("enqueue twice same knowledge stays one row; miss_count merges", async () => {

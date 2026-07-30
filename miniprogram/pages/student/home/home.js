@@ -78,26 +78,23 @@ Page({
             ? "今天已点亮"
             : `连续点亮 ${streakDays} 天`;
 
-      const tasks = [];
-      for (const a of assignments) {
-        try {
-          const s = await request({
-            url: `/api/v1/assignments/${a.id}/my-submission`,
-            method: "GET",
-          });
-          tasks.push(this.mapTask(a, s.submission));
-        } catch (err) {
-          logError("home.mySubmission", err, {
-            assignmentId: a.id,
-            type: a.type,
-          });
-          tasks.push(
-            this.mapTask(a, {
-              status: "not_started",
-            }),
-          );
-        }
-      }
+      const tasks = await Promise.all(
+        assignments.map(async (a) => {
+          try {
+            const s = await request({
+              url: `/api/v1/assignments/${a.id}/my-submission`,
+              method: "GET",
+            });
+            return this.mapTask(a, s.submission);
+          } catch (err) {
+            logError("home.mySubmission", err, {
+              assignmentId: a.id,
+              type: a.type,
+            });
+            return this.mapTask(a, { status: "not_started" });
+          }
+        }),
+      );
 
       // 必做：未完成；已完成单独分组（S1 首页契约）
       const requiredTasks = tasks

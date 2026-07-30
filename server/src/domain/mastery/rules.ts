@@ -18,18 +18,26 @@ export type MapNodeState = "dark" | "half" | "lit";
 
 /**
  * Knowledge map node state (S4).
- * - half: open/due/failed mastery OR recent accuracy &lt; 80% with samples
+ * - half: real queue (due / failed / open with miss_count&gt;0) OR recent accuracy &lt; 80%
  * - lit: has completion / passed mastery, and not half
  * - dark: never practiced
+ * Scaffold rows (open + miss_count 0) do NOT force half.
  */
 export function computeMapNodeState(input: {
   hasCompletion: boolean;
   masteryStatus: string | null;
+  /** When open, missCount 0 = self-practice scaffold only */
+  missCount?: number | null;
   recentCorrectRate: number | null;
   recentAnswered: number;
 }): MapNodeState {
   const st = input.masteryStatus;
-  if (st === "open" || st === "due" || st === "failed") return "half";
+  const miss = Number(input.missCount) || 0;
+  const queueActive =
+    st === "due" ||
+    st === "failed" ||
+    (st === "open" && miss > 0);
+  if (queueActive) return "half";
   if (
     input.recentAnswered > 0 &&
     input.recentCorrectRate != null &&
