@@ -7,6 +7,7 @@ import {
   isReviewPassed,
   isWrongReason,
   MASTERY_ITEM_EXPIRE_DAYS,
+  MASTERY_MAP_COMPLETION_DAYS,
   MASTERY_MAP_WINDOW_DAYS,
   MASTERY_MAX_OPEN_PER_USER,
   MASTERY_REVIEW_QUESTION_COUNT,
@@ -316,7 +317,9 @@ export class MasteryService {
       console.info("[mastery.due.promote]", { userId, count: n });
     }
 
-    // Expire long-stale queue items (plan: 30d without follow-through)
+    // Expire long-stale queue items: 30d without touch (updated_at).
+    // Intentional vs pure review_at aging: re-merge / activity refreshes
+    // updated_at and keeps the item alive (student still missing it).
     const expireBefore = new Date(
       Date.now() - MASTERY_ITEM_EXPIRE_DAYS * 86_400_000,
     ).toISOString();
@@ -542,17 +545,23 @@ export class MasteryService {
       if (kid) masteryByKn.set(kid, r);
     }
 
-    // completions + accuracy window
+    // accuracy: short window; completions: longer but bounded (not full lifetime)
     const sinceIso = new Date(
       Date.now() - MASTERY_MAP_WINDOW_DAYS * 86_400_000,
+    ).toISOString();
+    const completionSinceIso = new Date(
+      Date.now() - MASTERY_MAP_COMPLETION_DAYS * 86_400_000,
     ).toISOString();
 
     const doneRows = (await this.db.all(
       `SELECT aq.question_snapshot, s.updated_at, s.status
        FROM submissions s
        JOIN assignment_questions aq ON aq.assignment_id = s.assignment_id
-       WHERE s.student_id = ? AND s.status = 'completed'`,
+       WHERE s.student_id = ?
+         AND s.status = 'completed'
+         AND s.updated_at >= ?`,
       userId,
+      completionSinceIso,
     )) as Array<{ question_snapshot: string; updated_at: string }>;
 
     const completionByKn = new Map<
@@ -573,15 +582,17 @@ export class MasteryService {
       }
     }
 
-    // also knowledge_checkin config ids
+    // also knowledge_checkin config ids (same completion bound)
     const checkinRows = (await this.db.all(
       `SELECT a.config_json, s.updated_at
        FROM submissions s
        JOIN assignments a ON a.id = s.assignment_id
        WHERE s.student_id = ?
          AND s.status = 'completed'
-         AND a.type = 'knowledge_checkin'`,
+         AND a.type = 'knowledge_checkin'
+         AND s.updated_at >= ?`,
       userId,
+      completionSinceIso,
     )) as Array<{ config_json: string; updated_at: string }>;
     for (const r of checkinRows) {
       try {

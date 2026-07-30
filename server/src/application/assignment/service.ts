@@ -43,6 +43,11 @@ export interface PublicAssignment {
   createdAt: string;
   publishedAt: string | null;
   questionCount?: number;
+  /**
+   * Student list only: submission status without getOrCreate side effects.
+   * Absent when no row yet → treat as not_started on clients.
+   */
+  myStatus?: SubmissionStatus;
   /** Resolved knowledge points for check-in assignments */
   knowledgePoints?: Array<{
     id: string;
@@ -423,11 +428,14 @@ export class AssignmentService {
         ORDER BY a.due_at IS NULL, a.due_at ASC, a.published_at DESC
         LIMIT ${limit}
         `, studentId) as Array<AssignmentRow & { class_name: string }>;
-    const questionCountMap = await this.loadQuestionCounts(rows.map((r) => r.id));
+    const ids = rows.map((r) => r.id);
+    const questionCountMap = await this.loadQuestionCounts(ids);
+    const myStatusMap = await this.loadMyStatuses(studentId, ids);
     return Promise.all(
       rows.map(async (r) =>
         await this.toPublicAssignment(r, r.class_name, {
           questionCount: questionCountMap.get(r.id) ?? 0,
+          myStatus: myStatusMap.get(r.id) ?? "not_started",
         }),
       ),
     );
@@ -1294,6 +1302,29 @@ export class AssignmentService {
     return map;
   }
 
+  /**
+   * Batch submission status for student assignment list (read-only; no getOrCreate).
+   */
+  private async loadMyStatuses(
+    studentId: string,
+    assignmentIds: string[],
+  ): Promise<Map<string, SubmissionStatus>> {
+    const map = new Map<string, SubmissionStatus>();
+    if (!assignmentIds.length) return map;
+    const placeholders = assignmentIds.map(() => "?").join(",");
+    const rows = (await this.db.all(
+      `SELECT assignment_id, status FROM submissions
+         WHERE student_id = ?
+           AND assignment_id IN (${placeholders})`,
+      studentId,
+      ...assignmentIds,
+    )) as Array<{ assignment_id: string; status: string }>;
+    for (const r of rows) {
+      map.set(r.assignment_id, r.status as SubmissionStatus);
+    }
+    return map;
+  }
+
   private async loadPhotosBySubmissionIds(
     submissionIds: string[],
   ): Promise<Map<string, PublicPhoto[]>> {
@@ -1355,7 +1386,7 @@ export class AssignmentService {
   private async toPublicAssignment(
     row: AssignmentRow,
     className?: string,
-    opts?: { questionCount?: number },
+    opts?: { questionCount?: number; myStatus?: SubmissionStatus },
   ): Promise<PublicAssignment> {
     let config: Record<string, unknown> = {};
     try {
@@ -1405,6 +1436,7 @@ export class AssignmentService {
       createdAt: row.created_at,
       publishedAt: row.published_at,
       questionCount,
+      ...(opts?.myStatus != null ? { myStatus: opts.myStatus } : {}),
       knowledgePoints,
     };
   }

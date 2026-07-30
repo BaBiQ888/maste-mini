@@ -11,14 +11,15 @@ const TINY_JPEG_B64 =
 async function testApp() {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "math-mini-p5-"));
   const db = await openDatabase(":memory:");
-  return createApp(db, {
+  const app = createApp(db, {
     wechat: { appId: "", appSecret: "", mock: true },
     dataDir,
   });
+  return { app, db };
 }
 
 async function loginAs(
-  app: ReturnType<typeof testApp>,
+  app: Awaited<ReturnType<typeof testApp>>["app"],
   code: string,
   role: "teacher" | "student",
   nickname: string,
@@ -52,10 +53,13 @@ function auth(token: string) {
 }
 
 describe("Progress & NudgeCopy", () => {
-  let app: ReturnType<typeof testApp>;
+  let app: Awaited<ReturnType<typeof testApp>>["app"];
+  let db: Awaited<ReturnType<typeof testApp>>["db"];
 
   beforeEach(async () => {
-    app = await testApp();
+    const t = await testApp();
+    app = t.app;
+    db = t.db;
   });
 
   async function setupTwoStudentsOneDone() {
@@ -225,5 +229,49 @@ describe("Progress & NudgeCopy", () => {
       await app.request("/api/v1/assignments", { headers: auth(s2.token) })
     ).json();
     expect(pending.incompleteCount).toBe(1);
+  });
+
+  it("student list includes myStatus without getOrCreate side effects", async () => {
+    const { s1, s2, asg, cls } = await setupTwoStudentsOneDone();
+    const done = await (
+      await app.request("/api/v1/assignments", { headers: auth(s1.token) })
+    ).json();
+    const doneRow = done.assignments.find(
+      (a: { id: string }) => a.id === asg.id,
+    );
+    expect(doneRow).toBeTruthy();
+    expect(doneRow.myStatus).toBe("completed");
+
+    const inFlight = await (
+      await app.request("/api/v1/assignments", { headers: auth(s2.token) })
+    ).json();
+    const flightRow = inFlight.assignments.find(
+      (a: { id: string }) => a.id === asg.id,
+    );
+    expect(flightRow).toBeTruthy();
+    // s2 submitted photos, awaiting grade
+    expect(flightRow.myStatus).toBe("submitted");
+
+    // Student who never opened: list reports not_started and does not insert a row
+    const s3 = await loginAs(app, "p5s3b", "student", "小刚");
+    await app.request("/api/v1/classes/join", {
+      method: "POST",
+      headers: auth(s3.token),
+      body: JSON.stringify({ inviteCode: cls.class.inviteCode }),
+    });
+    const never = await (
+      await app.request("/api/v1/assignments", { headers: auth(s3.token) })
+    ).json();
+    const neverRow = never.assignments.find(
+      (a: { id: string }) => a.id === asg.id,
+    );
+    expect(neverRow).toBeTruthy();
+    expect(neverRow.myStatus).toBe("not_started");
+    const subCount = (await db.get(
+      `SELECT COUNT(*) AS n FROM submissions WHERE student_id = ? AND assignment_id = ?`,
+      s3.userId,
+      asg.id,
+    )) as { n: number };
+    expect(Number(subCount.n)).toBe(0);
   });
 });

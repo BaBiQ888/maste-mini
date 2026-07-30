@@ -12,16 +12,22 @@ export const MASTERY_PASS_MIN_CORRECT = 3;
 export const MASTERY_ITEM_EXPIRE_DAYS = 30;
 /** Recent window for map accuracy (days). */
 export const MASTERY_MAP_WINDOW_DAYS = 14;
+/**
+ * Completions older than this do not count as map "lit" history.
+ * Bounds getMasteryMap scan cost vs full student lifetime.
+ */
+export const MASTERY_MAP_COMPLETION_DAYS = 365;
 export const MASTERY_MAP_HALF_RATE = 80;
 
 export type MapNodeState = "dark" | "half" | "lit";
 
 /**
  * Knowledge map node state (S4).
- * - half: real queue (due / failed / open with miss_count&gt;0) OR recent accuracy &lt; 80%
+ * - half: real queue (due / open with miss_count&gt;0) OR recent accuracy &lt; 80%
  * - lit: has completion / passed mastery, and not half
  * - dark: never practiced
  * Scaffold rows (open + miss_count 0) do NOT force half.
+ * Note: formal review fail reopens as open immediately — status "failed" is not written.
  */
 export function computeMapNodeState(input: {
   hasCompletion: boolean;
@@ -35,6 +41,7 @@ export function computeMapNodeState(input: {
   const miss = Number(input.missCount) || 0;
   const queueActive =
     st === "due" ||
+    // legacy / unused: fail path writes open, not failed
     st === "failed" ||
     (st === "open" && miss > 0);
   if (queueActive) return "half";

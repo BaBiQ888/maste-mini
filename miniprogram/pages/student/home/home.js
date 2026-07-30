@@ -78,21 +78,10 @@ Page({
             ? "今天已点亮"
             : `连续点亮 ${streakDays} 天`;
 
-      const tasks = await Promise.all(
-        assignments.map(async (a) => {
-          try {
-            const s = await request({
-              url: `/api/v1/assignments/${a.id}/my-submission`,
-              method: "GET",
-            });
-            return this.mapTask(a, s.submission);
-          } catch (err) {
-            logError("home.mySubmission", err, {
-              assignmentId: a.id,
-              type: a.type,
-            });
-            return this.mapTask(a, { status: "not_started" });
-          }
+      // myStatus is batched on GET /assignments (no per-id my-submission N+1)
+      const tasks = assignments.map((a) =>
+        this.mapTask(a, {
+          status: a.myStatus || "not_started",
         }),
       );
 
